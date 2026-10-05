@@ -4,6 +4,7 @@ import { useSettingsStore } from '../stores/settings';
 import { getCurrentTime, subscribe as subscribeAudioTime } from './audio';
 import { trackedInvoke as invoke } from './diagnostics';
 import { getArtistDisplay, getDisplayTitle } from './track-display';
+import { isYoutubeUrn } from './youtube';
 
 let connected = false;
 let lastConnectAttemptAt = 0;
@@ -61,6 +62,9 @@ async function updatePresence(track: Track) {
         is_playing: isPlaying,
         mode: discordRpcMode,
         show_button: discordRpcShowButton,
+        // Which service this track plays from — shown on the Discord card so
+        // "playing SoundCloud" and "playing YouTube" are distinguishable.
+        source: isYoutubeUrn(track.urn) ? 'youtube' : 'soundcloud',
       },
     });
   } catch (e) {

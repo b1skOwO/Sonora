@@ -22,6 +22,9 @@ pub struct DiscordTrackInfo {
     is_playing: Option<bool>,
     mode: Option<DiscordRpcMode>,
     show_button: Option<bool>,
+    /// "youtube" | "soundcloud" — which service the track plays from.
+    #[serde(default)]
+    source: Option<String>,
 }
 
 #[derive(Clone, Copy, serde::Deserialize)]
@@ -95,43 +98,56 @@ pub fn discord_set_activity(
     // card's name line, and repeating it here made the artist show up twice.
     let assets = Assets::new().large_image(large_image);
 
+    // Which service the track comes from — Discord cards must make "playing
+    // SoundCloud" vs "playing YouTube" distinguishable at a glance.
+    let source_label = if track.source.as_deref() == Some("youtube") {
+        "YouTube"
+    } else {
+        "SoundCloud"
+    };
+
     // `name` overrides the application name Discord shows on the player card.
-    // Track/Artist modes put the artist there instead of "SoundCloud", and the
-    // artist is then *not* repeated in details/state. Activity mode keeps the
-    // default header because its details line already carries the artist.
+    // Track/Artist modes put the artist there; Activity mode puts the *service*
+    // there (its details/state lines carry artist + title).
     let mut activity = Activity::new()
         .activity_type(ActivityType::Listening)
         .assets(assets);
-    if !matches!(mode, DiscordRpcMode::Activity) && has_artist {
-        activity = activity.name(artist_text);
+    match mode {
+        DiscordRpcMode::Track | DiscordRpcMode::Artist if has_artist => {
+            activity = activity.name(artist_text);
+        }
+        DiscordRpcMode::Activity => {
+            activity = activity.name(source_label);
+        }
+        _ => {}
     }
 
     activity = match mode {
-        // Artist on the name line, title below; "Paused" only when stopped.
+        // Artist on the name line, title below, service on the state line.
         DiscordRpcMode::Track => {
             let activity = activity.details(&track.title);
             if is_playing {
-                activity
+                activity.state(source_label)
             } else {
                 activity.state("Paused")
             }
         }
-        // Artist only — the name line already shows it.
+        // Artist only — the name line already shows it; state carries the service.
         DiscordRpcMode::Artist => {
             if is_playing {
-                activity
+                activity.state(source_label)
             } else {
                 activity.state("Paused")
             }
         }
-        // Default header, artist + title in the content lines.
+        // Service header, artist + title in the content lines.
         DiscordRpcMode::Activity => {
             let activity = activity.details(artist_text);
             if is_playing {
                 if has_artist {
                     activity.state(&track.title)
                 } else {
-                    activity
+                    activity.state(source_label)
                 }
             } else {
                 activity.state("Paused")
