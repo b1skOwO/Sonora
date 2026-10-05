@@ -106,4 +106,11 @@ if (typeof document !== 'undefined') {
     });
 }
 
+// Safety net: pushes from the main window can be missed (e.g. it was hidden
+// while the track changed). While the popover is visible, refresh the snapshot
+// periodically — the scrubber position already rides the broadcast audio tick.
+setInterval(() => {
+    if (!hidden()) requestSync();
+}, 5000);
+
 requestSync();

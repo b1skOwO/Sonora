@@ -80,10 +80,18 @@ let npScheduled = false;
 function pushNp() {
   if (npScheduled) return;
   npScheduled = true;
-  requestAnimationFrame(() => {
+  const flush = () => {
     npScheduled = false;
     emitNp();
-  });
+  };
+  // rAF stops while the window is hidden/occluded — which is exactly when the
+  // tray popover is in use. Timers keep running there, so fall back to one;
+  // otherwise the first hidden-window push would swallow every later update.
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+    window.setTimeout(flush, 16);
+  } else {
+    requestAnimationFrame(flush);
+  }
 }
 
 async function toggleLikeCurrent() {
@@ -183,6 +191,14 @@ listen<{ action: string; value?: number }>('tray:cmd', (event) => {
 
 // Fresh snapshot whenever the popover (re)opens.
 listen('tray:hello', () => emitNp());
+
+// The window may have been hidden while tracks changed (pushes then fell back
+// to timers) — re-sync the moment it becomes visible again.
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') emitNp();
+  });
+}
 
 /* ── Snapshot fan-out ────────────────────────────────────────── */
 
