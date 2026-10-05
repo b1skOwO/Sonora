@@ -10,7 +10,9 @@ export const GITHUB_REPO_EN = 'SoundCloud-Desktop-EN';
 export const APP_VERSION = __APP_VERSION__;
 
 export const SHOW_NEWS = true;
-export const CHECK_UPDATES = true;
+// Update checks target the upstream public repo, which this fork no longer
+// follows — keep them off (flip to `true` if a release feed is set up later).
+export const CHECK_UPDATES = false;
 
 export interface NewsItem {
   id: string;
