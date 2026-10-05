@@ -6,6 +6,7 @@ import {useSettingsStore} from '../stores/settings';
 import {toScproxyUrl} from './asset-url';
 import {getStaticPort} from './constants';
 import {trackedInvoke as invoke} from './diagnostics';
+import {ensureYoutubeCached, youtubeVideoId} from './youtube';
 
 const WALLPAPERS_DIR = 'wallpapers';
 const CACHE_MAINTENANCE_INTERVAL_MS = 60 * 1000;
@@ -81,8 +82,34 @@ export async function ensureTrackCached(
     return cached;
   }
 
+  // Synthetic YouTube tracks download through yt-dlp, not the SC pipeline.
+  const videoId = youtubeVideoId(urn);
+  if (videoId) {
+    return ensureYoutubeCached(videoId, durationMs);
+  }
+
   const request = await buildCacheRequest(urn, highQualityStreaming, durationMs);
   return invoke<TrackCacheInfo>('track_ensure_cached', { request });
+}
+
+/** Current audio cache root folder (the three cache subdirs live under it). */
+export function getCacheDir(): Promise<string> {
+  return invoke<string>('track_get_cache_dir');
+}
+
+/** Persist a new cache root, optionally moving existing files. Restart to apply. */
+export function setCacheDir(path: string, moveFiles: boolean): Promise<string> {
+  return invoke<string>('track_set_cache_dir', { path, moveFiles });
+}
+
+/** Relaunch the app (used after changing the cache folder). */
+export function restartApp(): Promise<void> {
+  return invoke('app_restart');
+}
+
+/** Force-refresh the managed yt-dlp binary from the latest release. */
+export function updateYtDlp(): Promise<boolean> {
+  return invoke<boolean>('yt_dlp_update');
 }
 
 export function getCacheSize(): Promise<number> {
@@ -330,8 +357,26 @@ export async function downloadTrack(
   });
   if (!dest) throw new Error('cancelled');
 
+  // YouTube tracks download through yt-dlp; SoundCloud ones through the stream
+  // fallbacks. Rust branches on `videoId`.
+  const videoId = youtubeVideoId(urn);
   const hq = useSettingsStore.getState().highQualityStreaming;
-  const request = await buildCacheRequest(urn, hq, options.durationMs);
+  const request = videoId
+    ? {
+        urn,
+        urls: [],
+        downloadUrls: [],
+        storageUrls: [],
+        sessionId: null,
+        hq: false,
+        durationMs: options.durationMs,
+        videoId,
+      }
+    : {
+        ...(await buildCacheRequest(urn, hq, options.durationMs)),
+        videoId: null,
+      };
+
   return invoke<string>('track_export', {
     request,
     destPath: dest,

@@ -1,28 +1,26 @@
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { type Aura, auraRgba } from '../../lib/aura';
 import type { CatalogAlbum } from '../../lib/discover';
 import { dur } from '../../lib/formatters';
-import { Disc3, ListMusic, Star } from '../../lib/icons';
-import {usePerfMode} from '../../lib/perf';
+import { Disc3, ListMusic } from '../../lib/icons';
+import { usePerfMode } from '../../lib/perf';
 import { gradientForId, monogramOf } from './visuals';
 
 interface AlbumGridCardProps {
   album: CatalogAlbum;
-  aura: Aura;
 }
 
-function AlbumGridCardImpl({ album, aura }: AlbumGridCardProps) {
+function AlbumGridCardImpl({ album }: AlbumGridCardProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-    const perf = usePerfMode();
+  const perf = usePerfMode();
   const kindLabel = t(`artist.kind.${album.type}`, { defaultValue: album.type });
   const initials = monogramOf(album.title);
   const [g1, g2, g3] = useMemo(() => gradientForId(album.id, 3), [album.id]);
-    const cardBlur = perf.blur(20);
-    const badgeBlur = perf.blur(12);
-    const discBlur = perf.blur(10);
+  const cardBlur = perf.blur(20);
+  const badgeBlur = perf.blur(12);
+  const discBlur = perf.blur(10);
 
   return (
     <button
@@ -30,22 +28,22 @@ function AlbumGridCardImpl({ album, aura }: AlbumGridCardProps) {
       onClick={() => navigate(`/album/${encodeURIComponent(album.id)}`)}
       className="group relative h-full w-full flex flex-col gap-3 text-left p-3 rounded-3xl cursor-pointer transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:scale-[1.03] overflow-hidden"
       style={{
-          background: cardBlur > 0 ? 'rgba(255,255,255,0.03)' : 'rgba(22,22,27,0.92)',
+        background: cardBlur > 0 ? 'rgba(255,255,255,0.03)' : 'rgba(22,22,27,0.92)',
         border: '0.5px solid rgba(255,255,255,0.06)',
-          backdropFilter: cardBlur > 0 ? `blur(${cardBlur}px) saturate(140%)` : undefined,
-          WebkitBackdropFilter: cardBlur > 0 ? `blur(${cardBlur}px) saturate(140%)` : undefined,
+        backdropFilter: cardBlur > 0 ? `blur(${cardBlur}px) saturate(140%)` : undefined,
+        WebkitBackdropFilter: cardBlur > 0 ? `blur(${cardBlur}px) saturate(140%)` : undefined,
       }}
     >
-        {perf.bloom && (
-            <div
-                className="absolute -inset-x-10 -top-16 h-32 pointer-events-none opacity-0 group-hover:opacity-80 transition-opacity duration-700"
-                style={{
-                    background: `radial-gradient(60% 80% at 50% 50%, ${g1}80, transparent 70%)`,
-                    filter: `blur(${perf.blur(40)}px)`,
-                    mixBlendMode: 'screen',
-                }}
-            />
-        )}
+      {perf.bloom && (
+        <div
+          className="absolute -inset-x-10 -top-16 h-32 pointer-events-none opacity-0 group-hover:opacity-80 transition-opacity duration-700"
+          style={{
+            background: `radial-gradient(60% 80% at 50% 50%, ${g1}80, transparent 70%)`,
+            filter: `blur(${perf.blur(40)}px)`,
+            mixBlendMode: 'screen',
+          }}
+        />
+      )}
 
       <div
         className="relative aspect-square rounded-2xl overflow-hidden"
@@ -87,9 +85,9 @@ function AlbumGridCardImpl({ album, aura }: AlbumGridCardProps) {
             <div
               className="absolute bottom-2 right-2 w-8 h-8 rounded-full flex items-center justify-center"
               style={{
-                  background: discBlur > 0 ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.6)',
-                  backdropFilter: discBlur > 0 ? `blur(${discBlur}px)` : undefined,
-                  WebkitBackdropFilter: discBlur > 0 ? `blur(${discBlur}px)` : undefined,
+                background: discBlur > 0 ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.6)',
+                backdropFilter: discBlur > 0 ? `blur(${discBlur}px)` : undefined,
+                WebkitBackdropFilter: discBlur > 0 ? `blur(${discBlur}px)` : undefined,
                 border: '0.5px solid rgba(255,255,255,0.16)',
               }}
             >
@@ -101,26 +99,15 @@ function AlbumGridCardImpl({ album, aura }: AlbumGridCardProps) {
         <div
           className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-[0.18em]"
           style={{
-              background: badgeBlur > 0 ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.72)',
+            background: badgeBlur > 0 ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.72)',
             color: '#fff',
-              backdropFilter: badgeBlur > 0 ? `blur(${badgeBlur}px)` : undefined,
-              WebkitBackdropFilter: badgeBlur > 0 ? `blur(${badgeBlur}px)` : undefined,
+            backdropFilter: badgeBlur > 0 ? `blur(${badgeBlur}px)` : undefined,
+            WebkitBackdropFilter: badgeBlur > 0 ? `blur(${badgeBlur}px)` : undefined,
             border: '0.5px solid rgba(255,255,255,0.12)',
           }}
         >
           {kindLabel}
         </div>
-        {album.star && (
-          <div
-            className="absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center"
-            style={{
-              background: `linear-gradient(135deg, ${auraRgba(aura, 0.6)}, ${auraRgba(aura, 0.15)})`,
-              boxShadow: `0 0 12px ${auraRgba(aura, 0.6)}, inset 0 0 0 1px ${auraRgba(aura, 0.7)}`,
-            }}
-          >
-            <Star size={11} className="text-white" fill="currentColor" />
-          </div>
-        )}
       </div>
 
       <div className="px-1 min-w-0 flex flex-col gap-1">

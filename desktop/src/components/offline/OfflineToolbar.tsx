@@ -1,9 +1,9 @@
 import * as Popover from '@radix-ui/react-popover';
-import React, {useState} from 'react';
-import {useTranslation} from 'react-i18next';
-import {Check, ChevronDown, playWhite12, Search, Shuffle, X} from '../../lib/icons';
-import {usePerfMode} from '../../lib/perf';
-import type {OfflineSection, SortMode} from './types';
+import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Check, ChevronDown, playWhite12, Search, Shuffle, X } from '../../lib/icons';
+import { usePerfMode } from '../../lib/perf';
+import type { OfflineSection, SortMode } from './types';
 
 const SORT_MODES: SortMode[] = ['custom', 'recent', 'title', 'artist', 'duration', 'size'];
 
@@ -131,7 +131,7 @@ export const OfflineToolbar = React.memo(function OfflineToolbar({
         type="button"
         onClick={onPlayAll}
         disabled={playableCount === 0}
-        className="flex h-9 cursor-pointer items-center gap-2 rounded-[11px] bg-accent px-4 text-[12.5px] font-semibold text-accent-contrast shadow-[0_6px_22px_-8px_var(--color-accent-glow),inset_0_1px_0_rgba(255,255,255,0.25)] transition-transform hover:brightness-110 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-35"
+        className="flex h-9 cursor-pointer items-center gap-2 rounded-[11px] bg-accent px-4 text-[12.5px] font-semibold text-accent-contrast shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] transition-transform hover:brightness-110 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-35"
       >
         {playWhite12}
         {t('offline.playAll')}

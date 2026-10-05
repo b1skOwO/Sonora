@@ -1,28 +1,29 @@
-import {memo} from 'react';
-import {type Aura, auraRgba} from '../../lib/aura';
-import {Disc3} from '../../lib/icons';
-import {usePerfMode} from '../../lib/perf';
+import { memo } from 'react';
+import { type Aura, auraRgba } from '../../lib/aura';
+import { Disc3 } from '../../lib/icons';
+import { usePerfMode } from '../../lib/perf';
 
 interface AlbumCoverArtifactProps {
   title: string;
   coverUrl?: string;
-  hasStar: boolean;
+  /** Draw the rotating genre ring (e.g. verified artist). */
+  ring?: boolean;
   aura: Aura;
-    /** Rotate the ring. Defaults to true (idle spin); pass `isPlaying` to spin only on playback. */
-    spinning?: boolean;
+  /** Rotate the ring. Defaults to true (idle spin); pass `isPlaying` to spin only on playback. */
+  spinning?: boolean;
 }
 
 function AlbumCoverArtifactImpl({
-                                    title,
-                                    coverUrl,
-                                    hasStar,
-                                    aura,
-                                    spinning = true,
-                                }: AlbumCoverArtifactProps) {
-    const {idleAnim} = usePerfMode();
+  title,
+  coverUrl,
+  ring = false,
+  aura,
+  spinning = true,
+}: AlbumCoverArtifactProps) {
+  const { idleAnim } = usePerfMode();
   return (
     <div className="relative shrink-0 self-center lg:self-start group w-[180px] h-[180px] md:w-[220px] md:h-[220px]">
-      {hasStar && (
+      {ring && (
         <div
           className="absolute -inset-[5px] rounded-[2.4rem] pointer-events-none overflow-hidden"
           style={{
@@ -30,14 +31,14 @@ function AlbumCoverArtifactImpl({
             WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
             WebkitMaskComposite: 'xor',
             maskComposite: 'exclude',
-            filter: `drop-shadow(0 0 14px ${aura.orbs[0]}aa)`,
+            filter: `drop-shadow(0 12px 26px rgba(0,0,0,0.5))`,
           }}
         >
           <div
             className="absolute -inset-[40%]"
             style={{
               background: `conic-gradient(from 0deg, ${aura.orbs[0]}, ${aura.orbs[1]}, ${aura.orbs[2]}, ${aura.orbs[0]})`,
-                animation: idleAnim && spinning ? 'ring-rotate 12s linear infinite' : undefined,
+              animation: idleAnim && spinning ? 'ring-rotate 12s linear infinite' : undefined,
             }}
           />
         </div>
@@ -47,9 +48,8 @@ function AlbumCoverArtifactImpl({
         className="relative w-full h-full rounded-[2.2rem] overflow-hidden"
         style={{
           background: 'rgba(255,255,255,0.03)',
-          boxShadow: hasStar
-            ? `0 35px 80px ${auraRgba(aura, 0.4)}, inset 0 0 0 1px rgba(255,255,255,0.12), inset 0 1px 0 rgba(255,255,255,0.15)`
-            : '0 25px 60px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,0.1)',
+          boxShadow:
+            '0 25px 60px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,0.1)',
         }}
       >
         {coverUrl ? (
@@ -63,7 +63,7 @@ function AlbumCoverArtifactImpl({
           <div
             className="w-full h-full flex items-center justify-center"
             style={{
-              background: hasStar
+              background: ring
                 ? `radial-gradient(circle at 30% 20%, ${auraRgba(aura, 0.35)}, transparent 70%)`
                 : 'rgba(255,255,255,0.03)',
             }}

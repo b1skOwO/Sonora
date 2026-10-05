@@ -8,11 +8,16 @@ const WHITELIST = [
   'scproxy.localhost',
   'images.scnative.space',
   'api.scnative.space',
-  'api-star.scnative.space',
   'stream.scnative.space',
-  'stream-star.scnative.space',
   'storage.scnative.space',
   'unpkg.com',
+  // External media hosts loaded directly: the SC image proxy can't help here,
+  // and the tray popover has no scproxy retry fallback (a proxied URL would
+  // render as a broken/placeholder image there).
+  'ytimg.com',
+  'youtube.com',
+  'ggpht.com',
+  'googleusercontent.com',
 ];
 const RETRY_BYPASS_CACHE_PARAM = '__scproxy_bust';
 const LOCAL_PROXY_SHARDS = 20;

@@ -1,5 +1,6 @@
 import { useAuthStore } from '../stores/auth';
 import { api } from './api';
+import { isYoutubeUrn } from './youtube';
 
 export type SoundWaveEvent =
   | 'like'
@@ -19,7 +20,7 @@ export function recordEvent(
   scTrackId: string,
   positionPct?: number,
 ): void {
-  if (!scTrackId) return;
+  if (!scTrackId || isYoutubeUrn(scTrackId)) return;
   const scUserId = useAuthStore.getState().user?.urn;
   if (!scUserId) return;
 

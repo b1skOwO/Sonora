@@ -3,15 +3,15 @@
 //! useInfiniteWave маунтится здесь один раз, eager expandQueue не возвращать.
 //! Река (RiverBraid) строится по якорям секций — offsetTop + ResizeObserver.
 
-import React, {useCallback, useMemo, useRef, useState} from 'react';
-import {useTranslation} from 'react-i18next';
-import {api} from '../../../lib/api';
-import {Sparkles} from '../../../lib/icons';
-import {isUrnLiked, useLiked} from '../../../lib/likes';
-import {useAuthStore} from '../../../stores/auth';
-import type {Track} from '../../../stores/player';
-import {usePlayerStore} from '../../../stores/player';
-import {useSettingsStore} from '../../../stores/settings';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { api } from '../../../lib/api';
+import { Sparkles } from '../../../lib/icons';
+import { isUrnLiked, useLiked } from '../../../lib/likes';
+import { useAuthStore } from '../../../stores/auth';
+import type { Track } from '../../../stores/player';
+import { usePlayerStore } from '../../../stores/player';
+import { useSettingsStore } from '../../../stores/settings';
 import {
   ClusterEmptyState,
   type ClusterHydrated,
@@ -21,13 +21,13 @@ import {
   NeighborsRow,
   useClusterWave,
 } from '../../music/cluster';
-import {useInfiniteWave} from '../../music/soundwave/use-infinite-wave';
-import {ArtistWire} from './ArtistWire';
-import {EstuaryDeck} from './EstuaryDeck';
-import {type AnchorKind, type AnchorMap, RiverBraid} from './RiverBraid';
-import {RiverSection} from './RiverSection';
-import {DeepShelf, ReleaseBrook, VibeShelf} from './stations';
-import {WaveSchedule} from './WaveSchedule';
+import { useInfiniteWave } from '../../music/soundwave/use-infinite-wave';
+import { ArtistWire } from './ArtistWire';
+import { EstuaryDeck } from './EstuaryDeck';
+import { type AnchorKind, type AnchorMap, RiverBraid } from './RiverBraid';
+import { RiverSection } from './RiverSection';
+import { DeepShelf, ReleaseBrook, VibeShelf } from './stations';
+import { WaveSchedule } from './WaveSchedule';
 
 /** Якорные порядки русла: river течёт сверху вниз через эти точки. */
 const ANCHOR_ORDER: Record<string, number> = {
@@ -278,7 +278,10 @@ export const RiverFlow = React.memo(function RiverFlow({ tint }: { tint?: string
             {(topArtists || freshDrops) && (
               <div className="grid items-start gap-10 lg:grid-cols-12 lg:gap-8">
                 {topArtists && (
-                  <div ref={anchorRef('top_artists', 'node')} className="min-w-0 lg:col-span-7">
+                  <div
+                    ref={anchorRef('top_artists', 'node')}
+                    className={`min-w-0 ${freshDrops ? 'lg:col-span-7' : 'lg:col-span-12'}`}
+                  >
                     <RiverSection
                       title={sectionTitle('top_artists')}
                       why={sectionWhy('top_artists')}
@@ -307,7 +310,10 @@ export const RiverFlow = React.memo(function RiverFlow({ tint }: { tint?: string
             {(sameVibe || adjacent) && (
               <div className="grid items-start gap-10 lg:grid-cols-12 lg:gap-8">
                 {sameVibe && (
-                  <div ref={anchorRef('same_vibe', 'node')} className="min-w-0 lg:col-span-7">
+                  <div
+                    ref={anchorRef('same_vibe', 'node')}
+                    className={`min-w-0 ${adjacent ? 'lg:col-span-7' : 'lg:col-span-12'}`}
+                  >
                     <RiverSection title={sectionTitle('same_vibe')} why={sectionWhy('same_vibe')}>
                       <VibeShelf tracks={sameVibe.tracks} />
                     </RiverSection>

@@ -136,7 +136,7 @@ export function setPlaybackContextResetHandler(fn: () => void): void {
 }
 
 // Mirrors the Rust DownloadSource enum (serde rename_all = "lowercase").
-export type PlaybackSource = 'storage' | 'anon' | 'direct' | 'api';
+export type PlaybackSource = 'storage' | 'anon' | 'direct' | 'api' | 'youtube';
 
 export const PLAYBACK_RATE_MIN = 0.5;
 export const PLAYBACK_RATE_MAX = 2.0;

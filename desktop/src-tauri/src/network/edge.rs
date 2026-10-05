@@ -360,7 +360,11 @@ fn direct_infrastructure_error(resp: &wreq::Response) -> bool {
 }
 
 fn direct_infrastructure_headers(status: u16, content_type: &str) -> bool {
-    matches!(status, 502..=504) && content_type.to_ascii_lowercase().contains("text/html")
+    // A 503 means the selected upstream is unavailable regardless of its body
+    // format. Try the other route instead of returning it as an application response.
+    status == 503
+        || (matches!(status, 502 | 504)
+            && content_type.to_ascii_lowercase().contains("text/html"))
 }
 
 pub fn expand_upstreams(upstreams: &[String]) -> Vec<Hop> {
@@ -571,11 +575,12 @@ mod tests {
     }
 
     #[test]
-    fn html_gateway_5xx_is_a_direct_transport_error() {
+    fn unavailable_and_html_gateway_5xx_are_direct_transport_errors() {
         assert!(direct_infrastructure_headers(503, "text/html; charset=utf-8"));
+        assert!(direct_infrastructure_headers(503, "application/json"));
         assert!(direct_infrastructure_headers(504, "TEXT/HTML"));
         assert!(!direct_infrastructure_headers(500, "text/html"));
-        assert!(!direct_infrastructure_headers(503, "application/json"));
+        assert!(!direct_infrastructure_headers(502, "application/json"));
     }
 
     #[test]

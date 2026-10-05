@@ -1,10 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
 import { type CallStatus, callIsEnabled, callSetEnabled, callStatus } from '../../lib/call';
-import { Loader2, Lock, Power, Users } from '../../lib/icons';
+import { Loader2, Power, Users } from '../../lib/icons';
 import { usePerfMode } from '../../lib/perf';
-import { useStarSubscription } from '../layout/StarSubscription';
 
 const STATUS_POLL_MS = 5000;
 
@@ -50,13 +48,10 @@ const LINKS: Array<[number, number, number, number]> = [
 /** "Сеть пользователей" — a live peer mesh stretched across the whole card.
  *  Dormant and dim when off; when the link comes up it lights to the status hue,
  *  packets flow along the edges and the nodes breathe. The info row sits over the
- *  mesh on a bottom scrim. All logic (status poll, premium gate) kept; the gate
- *  now routes to the dedicated STAR PASS page instead of a modal. */
+ *  mesh on a bottom scrim. */
 export const CallProxySection: React.FC = React.memo(() => {
   const { t } = useTranslation();
   const perf = usePerfMode();
-  const navigate = useNavigate();
-  const { isPremium } = useStarSubscription();
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [status, setStatus] = useState<CallStatus>({ kind: 'disabled' });
   const [busy, setBusy] = useState(false);
@@ -84,10 +79,6 @@ export const CallProxySection: React.FC = React.memo(() => {
 
   const onToggle = async () => {
     if (busy || enabled === null) return;
-    if (enabled && !isPremium) {
-      navigate('/star');
-      return;
-    }
     setBusy(true);
     try {
       const next = !enabled;
@@ -104,7 +95,6 @@ export const CallProxySection: React.FC = React.memo(() => {
   const net = STATUS_COLOR[status.kind];
   const live = status.kind === 'active';
   const working = status.kind === 'connecting' || status.kind === 'provisioning';
-  const locked = enabled && !isPremium;
   const animate = perf.idleAnim && (live || working);
   const glow = perf.glow;
   const meshOpacity = live ? 1 : working ? 0.85 : status.kind === 'failed' ? 0.7 : 0.55;
@@ -115,11 +105,14 @@ export const CallProxySection: React.FC = React.memo(() => {
       style={{
         border: '0.5px solid rgba(255,255,255,0.1)',
         background:
-          'linear-gradient(165deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015) 60%, rgba(255,255,255,0.03))',
-        backdropFilter: 'blur(40px) saturate(1.4)',
-        WebkitBackdropFilter: 'blur(40px) saturate(1.4)',
+          perf.blur(40) > 0
+            ? 'linear-gradient(165deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015) 60%, rgba(255,255,255,0.03))'
+            : 'rgba(20,20,24,0.85)',
+        backdropFilter: perf.blur(40) > 0 ? `blur(${perf.blur(40)}px) saturate(1.4)` : undefined,
+        WebkitBackdropFilter:
+          perf.blur(40) > 0 ? `blur(${perf.blur(40)}px) saturate(1.4)` : undefined,
         boxShadow: live
-          ? `0 18px 50px rgba(0,0,0,0.42), 0 0 56px ${net}33, inset 0 1px 0 rgba(255,255,255,0.06)`
+          ? '0 18px 50px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.06)'
           : '0 18px 50px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)',
       }}
     >
@@ -188,7 +181,6 @@ export const CallProxySection: React.FC = React.memo(() => {
               fill={net}
               style={{
                 opacity: live || working ? 0.9 : 0.5,
-                filter: glow && (live || working) ? `drop-shadow(0 0 4px ${net})` : undefined,
                 animation: animate
                   ? `cps-node ${(2.4 + (i % 4) * 0.5).toFixed(2)}s ease-in-out ${(i * 0.3).toFixed(2)}s infinite`
                   : undefined,
@@ -207,13 +199,7 @@ export const CallProxySection: React.FC = React.memo(() => {
               animation: animate ? 'cps-halo 2.6s ease-in-out infinite' : undefined,
             }}
           />
-          <circle
-            cx={CORE[0]}
-            cy={CORE[1]}
-            r={6}
-            fill={net}
-            style={{ filter: glow ? `drop-shadow(0 0 8px ${net})` : undefined }}
-          />
+          <circle cx={CORE[0]} cy={CORE[1]} r={6} fill={net} />
           <circle cx={CORE[0]} cy={CORE[1]} r={2.4} fill="#fff" opacity={0.92} />
         </svg>
       </div>
@@ -245,7 +231,7 @@ export const CallProxySection: React.FC = React.memo(() => {
             background: `linear-gradient(135deg, ${net}26, rgba(255,255,255,0.04))`,
             border: `0.5px solid ${net}40`,
             boxShadow: live
-              ? `0 0 18px ${net}40, inset 0 1px 0 rgba(255,255,255,0.18)`
+              ? '0 10px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.18)'
               : 'inset 0 1px 0 rgba(255,255,255,0.12)',
           }}
         >
@@ -259,7 +245,6 @@ export const CallProxySection: React.FC = React.memo(() => {
               className="inline-block w-1.5 h-1.5 rounded-full shrink-0"
               style={{
                 background: net,
-                boxShadow: glow ? `0 0 8px ${net}` : undefined,
                 animation: animate && working ? 'pulse 1.4s ease-in-out infinite' : undefined,
               }}
             />
@@ -294,8 +279,7 @@ export const CallProxySection: React.FC = React.memo(() => {
                   color: 'var(--color-accent-contrast)',
                   background:
                     'linear-gradient(180deg, var(--color-accent), var(--color-accent-hover))',
-                  boxShadow:
-                    '0 10px 28px var(--color-accent-glow), inset 0 1px 0 rgba(255,255,255,0.25)',
+                  boxShadow: '0 10px 24px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.25)',
                 }
           }
         >
@@ -309,8 +293,6 @@ export const CallProxySection: React.FC = React.memo(() => {
           >
             {busy ? (
               <Loader2 size={13} className="animate-spin" />
-            ) : locked ? (
-              <Lock size={12} />
             ) : (
               <Power size={13} strokeWidth={2.4} />
             )}

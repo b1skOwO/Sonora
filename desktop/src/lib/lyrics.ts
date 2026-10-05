@@ -1,4 +1,5 @@
 import {api} from './api';
+import {isYoutubeUrn} from './youtube';
 
 export type LyricsSource = 'lrclib' | 'musixmatch' | 'genius' | 'netease' | 'self_gen' | 'none';
 
@@ -49,6 +50,7 @@ function toResult(data: BackendLyricsResponse | null): LyricsResult | null {
 
 /** Load lyrics by track URN/id. Backend resolves artist/title itself and writes to cache. */
 export async function getLyricsByTrack(scTrackId: string): Promise<LyricsResult | null> {
+  if (isYoutubeUrn(scTrackId)) return null;
   const data = await api<BackendLyricsResponse>(
     `/lyrics/${encodeURIComponent(scTrackId)}`,
     undefined,

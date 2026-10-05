@@ -1,9 +1,9 @@
-import {listen} from '@tauri-apps/api/event';
-import {toast} from 'sonner';
+import { listen } from '@tauri-apps/api/event';
+import { toast } from 'sonner';
 import i18n from '../i18n';
-import type {Track} from '../stores/player';
-import {usePlayerStore} from '../stores/player';
-import {useSettingsStore} from '../stores/settings';
+import type { Track } from '../stores/player';
+import { usePlayerStore } from '../stores/player';
+import { useSettingsStore } from '../stores/settings';
 import {
   api,
   buildStorageUrls,
@@ -19,13 +19,15 @@ import {
   removeCachedTrack,
   type TrackCacheInfo,
 } from './cache';
-import {trackedInvoke as invoke} from './diagnostics';
-import {isUrnDisliked} from './dislikes';
-import {recordEvent} from './events';
-import {art} from './formatters';
-import {rememberTracks} from './offline-index';
-import {getUrnCluster, recordClusterFeedback} from './recsFeedback';
-import {getArtistDisplay, getDisplayTitle} from './track-display';
+import { trackedInvoke as invoke } from './diagnostics';
+import { isUrnDisliked } from './dislikes';
+import { recordEvent } from './events';
+import { art } from './formatters';
+import { rememberTracks } from './offline-index';
+import { canUsePublicFallback, fetchPublicTrack } from './public-sc';
+import { getUrnCluster, recordClusterFeedback } from './recsFeedback';
+import { getArtistDisplay, getDisplayTitle } from './track-display';
+import { isYoutubeUrn } from './youtube';
 
 const SKIP_THRESHOLD_SEC = 30;
 /** Минимум, чтобы засчитать «прослушано полностью» для коротких треков (50% длительности). */
@@ -249,9 +251,20 @@ function commitTrackMetadata(track: Track) {
 
 async function fetchFreshTrackMetadata(track: Track): Promise<Track> {
   try {
-    const freshTrack = await api<Track>(`/tracks/${encodeURIComponent(track.urn)}`);
+    const freshTrack = await api<Track>(`/tracks/${encodeURIComponent(track.urn)}`, {
+      silentStatuses: [404, 500, 502, 503, 504],
+    });
     return mergeTrackMetadata(track, freshTrack);
   } catch (error) {
+    // Stub queue entries (wave/related carry id-only objects) need a full
+    // track; when the backend mirror is missing it, ask SoundCloud directly.
+    if (canUsePublicFallback(error)) {
+      try {
+        return mergeTrackMetadata(track, await fetchPublicTrack(track.urn));
+      } catch (publicError) {
+        console.warn('[Audio] Public track fallback failed:', publicError);
+      }
+    }
     console.warn('[Audio] Failed to hydrate track metadata:', error);
     return track;
   }
@@ -321,7 +334,9 @@ async function loadTrack(track: Track) {
     usePlayerStore.getState().clearAbLoop();
   }
 
-  void hydrateTrackMetadata(track, gen);
+  void hydrateTrackMetadata(track, gen).catch((error) =>
+    console.warn('[Audio] Metadata hydration failed:', error),
+  );
 
   fallbackDuration = track.duration / 1000;
   cachedDuration = fallbackDuration;
@@ -435,8 +450,14 @@ function afterLoad(track: Track, gen: number) {
       ? usePlayerStore.getState().currentTrack
       : track;
 
-  // Record to listening history (fire-and-forget), skip on repeat-one (same track looping)
-  if (historyTrack?.urn && historyTrack.title && usePlayerStore.getState().repeat !== 'one') {
+  // Record to listening history (fire-and-forget), skip on repeat-one (same track
+  // looping) and for YouTube tracks (history is a SoundCloud-backed store).
+  if (
+    historyTrack?.urn &&
+    !isYoutubeUrn(historyTrack.urn) &&
+    historyTrack.title &&
+    usePlayerStore.getState().repeat !== 'one'
+  ) {
     api('/history', {
       method: 'POST',
       body: JSON.stringify({
@@ -458,6 +479,10 @@ function afterLoad(track: Track, gen: number) {
 }
 
 async function hydrateTrackMetadata(track: Track, gen: number) {
+  // YouTube entries arrive complete from the importer — there is no backend
+  // track to hydrate.
+  if (isYoutubeUrn(track.urn)) return;
+
   let nextTrack = await fetchFreshTrackMetadata(track);
   if (gen !== loadGen || currentUrn !== track.urn) return;
 
@@ -475,6 +500,7 @@ function maybeHealEarlyEnd(): boolean {
   const state = usePlayerStore.getState();
   const track = state.currentTrack;
   if (!track || track.urn !== currentUrn || state.abLoop) return false;
+  if (isYoutubeUrn(track.urn)) return false;
   if (track.duration / 1000 < EARLY_END_MIN_EXPECTED_SEC) return false;
   if (cachedTime >= EARLY_END_PLAYED_SEC) return false;
   if (healedUrns.has(track.urn)) return false;
@@ -684,12 +710,16 @@ useSettingsStore.subscribe((state, prev) => {
 /* ── Native Media Controls (souvlaki: MPRIS/SMTC) ───────────── */
 
 function updateMetadata(track: Track, durationSecs?: number) {
-  const coverUrl = art(track.artwork_url, 't500x500') || undefined;
+  // YouTube thumbnails are not SoundCloud assets — hand the raw URL to the OS
+  // media controls instead of routing it through the SC image proxy.
+  const coverUrl = isYoutubeUrn(track.urn)
+    ? track.artwork_url ?? undefined
+    : art(track.artwork_url, 't500x500') || undefined;
   const display = getArtistDisplay(track);
   const title = getDisplayTitle(track);
   invoke('audio_set_metadata', {
     title,
-    artist: display.primary || track.user.username,
+    artist: display.primary || track.user?.username || '',
     coverUrl: coverUrl || null,
     durationSecs: durationSecs ?? track.duration / 1000,
   }).catch(console.error);
@@ -727,6 +757,7 @@ listen<number>('media:seek-relative', (e) => {
 let preloadTimer: ReturnType<typeof setTimeout> | null = null;
 
 export function preloadTrack(urn: string) {
+  if (isYoutubeUrn(urn)) return;
   if (preloadTimer) clearTimeout(preloadTimer);
   preloadTimer = setTimeout(() => {
     const sessionId = getSessionId();
@@ -762,7 +793,7 @@ export function preloadQueue() {
 
   for (let i = 1; i <= 3; i++) {
     const idx = queueIndex + i;
-    if (idx < queue.length) {
+    if (idx < queue.length && !isYoutubeUrn(queue[idx].urn)) {
       entries.push({
         urn: queue[idx].urn,
         urls: streamFallbackUrls(queue[idx].urn, hq),

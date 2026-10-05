@@ -15,12 +15,11 @@ import {
   UserSearchTracksTab,
   UserTracksTab,
 } from '../components/user/UserTabs';
-import { useEditableUserAura, useUserAura } from '../components/user/useUserAura';
-import { useUser, useUserSubscription, useUserWebProfiles } from '../lib/hooks';
+import { useUser, useUserWebProfiles } from '../lib/hooks';
 import { Loader2 } from '../lib/icons';
 import { likedTracksCount } from '../lib/likes';
-import {usePerfMode} from '../lib/perf';
-import { useSubscription } from '../lib/subscription';
+import { usePerfMode } from '../lib/perf';
+import { useViewerAura } from '../lib/useViewerAura';
 import { useAuthStore } from '../stores/auth';
 
 /**
@@ -40,7 +39,7 @@ function searchableScopeLabelKey(tab: TabId): string {
 export function UserPage() {
   const { urn } = useParams<{ urn: string }>();
   const { t } = useTranslation();
-    const perf = usePerfMode();
+  const perf = usePerfMode();
   const currentUser = useAuthStore((s) => s.user);
 
   const [activeTab, setActiveTab] = useState<TabId>('popular');
@@ -68,15 +67,7 @@ export function UserPage() {
 
   const isOwnProfile = !!user && currentUser?.urn === user.urn;
 
-  const { data: myStar = false } = useSubscription(isOwnProfile);
-  const { data: otherStar = false } = useUserSubscription(!isOwnProfile && urn ? urn : undefined);
-  const hasStar = isOwnProfile ? myStar : otherStar;
-
-  const readonly = useUserAura(urn, hasStar && !isOwnProfile);
-  const editable = useEditableUserAura(urn, hasStar && isOwnProfile);
-
-  const aura = isOwnProfile ? editable.aura : readonly.aura;
-  const customHex = isOwnProfile ? editable.customHex : readonly.customHex;
+  const aura = useViewerAura();
 
   const tabs = useMemo(() => {
     if (!user) return [] as const;
@@ -102,7 +93,7 @@ export function UserPage() {
     <>
       <style>{USER_PAGE_KEYFRAMES}</style>
       <div className="relative w-full min-h-screen">
-        <AuraField aura={aura} isStar={hasStar} />
+        <AuraField aura={aura} isStar={false} />
 
         <div
           className="relative z-10 w-full max-w-[1480px] mx-auto px-4 md:px-8 pt-10 md:pt-16 pb-32"
@@ -110,13 +101,9 @@ export function UserPage() {
         >
           <IdentityHub
             user={user}
-            hasStar={hasStar}
             webProfiles={webProfiles}
             aura={aura}
             isOwnProfile={isOwnProfile}
-            customHex={customHex}
-            onPickAura={editable.onPickAura}
-            onPickCustom={editable.onPickCustom}
           />
 
           <div className="mt-10 mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -135,13 +122,13 @@ export function UserPage() {
             className="rounded-[2rem] p-3 md:p-5"
             style={{
               background:
-                  perf.blur(28) > 0
-                      ? 'linear-gradient(180deg, rgba(255,255,255,0.035) 0%, rgba(255,255,255,0.015) 100%)'
-                      : 'rgba(18,18,22,0.85)',
-                backdropFilter:
-                    perf.blur(28) > 0 ? `blur(${perf.blur(28)}px) saturate(160%)` : undefined,
-                WebkitBackdropFilter:
-                    perf.blur(28) > 0 ? `blur(${perf.blur(28)}px) saturate(160%)` : undefined,
+                perf.blur(28) > 0
+                  ? 'linear-gradient(180deg, rgba(255,255,255,0.035) 0%, rgba(255,255,255,0.015) 100%)'
+                  : 'rgba(18,18,22,0.85)',
+              backdropFilter:
+                perf.blur(28) > 0 ? `blur(${perf.blur(28)}px) saturate(160%)` : undefined,
+              WebkitBackdropFilter:
+                perf.blur(28) > 0 ? `blur(${perf.blur(28)}px) saturate(160%)` : undefined,
               boxShadow:
                 '0 30px 80px rgba(0,0,0,0.30), inset 0 0 0 1px rgba(255,255,255,0.06), inset 0 1px 0 rgba(255,255,255,0.05)',
             }}

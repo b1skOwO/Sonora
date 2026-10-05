@@ -1,11 +1,11 @@
-import React, {useMemo} from 'react';
-import {art, dur} from '../../../lib/formatters';
-import {playWhite14} from '../../../lib/icons';
-import {ClusterFeedbackProvider} from '../../../lib/recsFeedback';
-import type {Track} from '../../../stores/player';
-import {usePlayerStore} from '../../../stores/player';
-import type {ClusterHydrated, ClusterNeighborDto} from '../../music/cluster';
-import {HorizontalScroll} from '../../ui/HorizontalScroll';
+import React, { useMemo } from 'react';
+import { art, dur } from '../../../lib/formatters';
+import { playWhite14 } from '../../../lib/icons';
+import { ClusterFeedbackProvider } from '../../../lib/recsFeedback';
+import type { Track } from '../../../stores/player';
+import { usePlayerStore } from '../../../stores/player';
+import type { ClusterHydrated, ClusterNeighborDto } from '../../music/cluster';
+import { HorizontalScroll } from '../../ui/HorizontalScroll';
 
 /** «Твои артисты» — отмель: круги на линии воды. Клик играет очередь из лучших
  *  треков артиста (resolveQueue — тот же контракт, что у NeighborCard). */
@@ -58,7 +58,7 @@ export const ArtistWire = React.memo(function ArtistWire({
               className="group flex w-[128px] flex-none cursor-pointer flex-col items-center gap-2.5 transition-transform hover:-translate-y-1"
               title={`${neighbor.artist_name} — ${track.title}`}
             >
-              <span className="relative block size-[92px] overflow-hidden rounded-full shadow-[0_0_0_1px_rgba(255,255,255,0.14),0_12px_28px_rgba(0,0,0,0.45)] transition-shadow group-hover:shadow-[0_0_0_2px_var(--color-accent),0_0_24px_var(--color-accent-glow),0_12px_28px_rgba(0,0,0,0.45)]">
+              <span className="relative block size-[92px] overflow-hidden rounded-full shadow-[0_0_0_1px_rgba(255,255,255,0.14),0_12px_28px_rgba(0,0,0,0.45)] transition-shadow group-hover:shadow-[0_0_0_2px_var(--color-accent),0_12px_28px_rgba(0,0,0,0.45)]">
                 {neighbor.avatar_url ? (
                   <img
                     src={art(neighbor.avatar_url, 't300x300') ?? undefined}

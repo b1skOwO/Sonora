@@ -1,7 +1,7 @@
-import {create} from 'zustand';
-import {createJSONStorage, persist} from 'zustand/middleware';
-import type {PerfMode} from '../lib/perf';
-import {tauriStorage} from '../lib/tauri-storage';
+import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
+import type { PerfMode } from '../lib/perf';
+import { tauriStorage } from '../lib/tauri-storage';
 
 export type ThemePreset = 'soundcloud' | 'dark' | 'neon' | 'forest' | 'crimson' | 'custom';
 export type StartupPage = 'home' | 'search' | 'library' | 'settings';
@@ -30,25 +30,25 @@ export const THEME_PRESETS: Record<Exclude<ThemePreset, 'custom'>, ThemePresetDe
   dark: {
     accent: '#ffffff',
     bg: '#000000',
-    name: 'Тьма',
+    name: 'Dark',
     preview: ['#ffffff', '#000000', '#111111'],
   },
   neon: {
     accent: '#bf5af2',
     bg: '#08060f',
-    name: 'Неон',
+    name: 'Neon',
     preview: ['#bf5af2', '#08060f', '#18102a'],
   },
   forest: {
     accent: '#22c55e',
     bg: '#050e08',
-    name: 'Лес',
+    name: 'Forest',
     preview: ['#22c55e', '#050e08', '#0a1f10'],
   },
   crimson: {
     accent: '#ff2d55',
     bg: '#0c0507',
-    name: 'Кармин',
+    name: 'Crimson',
     preview: ['#ff2d55', '#0c0507', '#1e0a10'],
   },
 };
@@ -62,7 +62,10 @@ export interface SettingsState {
   backgroundOpacity: number;
   backgroundDim: number;
   backgroundBlur: number;
-  glassBlur: number;
+  /** Blur intensity multiplier for glass surfaces (0–150, %). */
+  blurStrength: number;
+  /** Accent glow/tint intensity (0–150, %). */
+  glowStrength: number;
   audioCacheLimitMB: number;
   language: string;
   eqEnabled: boolean;
@@ -93,7 +96,8 @@ export interface SettingsState {
   setBackgroundOpacity: (opacity: number) => void;
   setBackgroundDim: (dim: number) => void;
   setBackgroundBlur: (blur: number) => void;
-  setGlassBlur: (blur: number) => void;
+  setBlurStrength: (value: number) => void;
+  setGlowStrength: (value: number) => void;
   setAudioCacheLimitMB: (limit: number) => void;
   setLanguage: (lang: string) => void;
   setEqEnabled: (enabled: boolean) => void;
@@ -127,12 +131,13 @@ const DEFAULTS = {
   accentColor: '#ff5500',
   bgPrimary: '#08080a',
   themePreset: 'soundcloud' as ThemePreset,
-  perfMode: 'beauty' as PerfMode,
+  perfMode: 'light' as PerfMode,
   backgroundImage: '',
   backgroundOpacity: 0.15,
   backgroundDim: 0,
   backgroundBlur: 0,
-  glassBlur: 40,
+  blurStrength: 100,
+  glowStrength: 100,
   audioCacheLimitMB: 1024,
   language: navigator.language?.split('-')[0] || 'en',
   eqEnabled: false,
@@ -176,7 +181,8 @@ export const useSettingsStore = create<SettingsState>()(
       setBackgroundOpacity: (backgroundOpacity) => set({ backgroundOpacity }),
       setBackgroundDim: (backgroundDim) => set({ backgroundDim }),
       setBackgroundBlur: (backgroundBlur) => set({ backgroundBlur }),
-      setGlassBlur: (glassBlur) => set({ glassBlur }),
+      setBlurStrength: (blurStrength) => set({ blurStrength }),
+      setGlowStrength: (glowStrength) => set({ glowStrength }),
       setAudioCacheLimitMB: (audioCacheLimitMB) => set({ audioCacheLimitMB }),
       setLanguage: (language) => set({ language }),
       setEqEnabled: (eqEnabled) => set({ eqEnabled }),
@@ -224,13 +230,14 @@ export const useSettingsStore = create<SettingsState>()(
           backgroundOpacity: DEFAULTS.backgroundOpacity,
           backgroundDim: DEFAULTS.backgroundDim,
           backgroundBlur: DEFAULTS.backgroundBlur,
-          glassBlur: DEFAULTS.glassBlur,
+          blurStrength: DEFAULTS.blurStrength,
+          glowStrength: DEFAULTS.glowStrength,
         }),
     }),
     {
       name: 'sc-settings',
       storage: createJSONStorage(() => tauriStorage),
-      version: 19,
+      version: 21,
       migrate: (persistedState) => {
         const prev = (persistedState ?? {}) as Partial<SettingsState> & {
           soundwaveDiversity?: number;
@@ -245,6 +252,8 @@ export const useSettingsStore = create<SettingsState>()(
           ...DEFAULTS,
           ...prev,
           soundwaveMode: prev.soundwaveMode ?? inferredMode,
+          // v21: performance mode is fixed to light — drop persisted beauty/medium.
+          perfMode: 'light',
         } as SettingsState;
       },
       partialize: (s) => ({
@@ -256,7 +265,8 @@ export const useSettingsStore = create<SettingsState>()(
         backgroundOpacity: s.backgroundOpacity,
         backgroundDim: s.backgroundDim,
         backgroundBlur: s.backgroundBlur,
-        glassBlur: s.glassBlur,
+        blurStrength: s.blurStrength,
+        glowStrength: s.glowStrength,
         audioCacheLimitMB: s.audioCacheLimitMB,
         language: s.language,
         eqEnabled: s.eqEnabled,

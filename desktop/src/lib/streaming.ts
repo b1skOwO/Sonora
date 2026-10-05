@@ -1,18 +1,10 @@
 import type { Track } from '../stores/player';
 import { useSettingsStore } from '../stores/settings';
 import { ApiError, getSessionId } from './api-client';
-import {
-  STORAGE_BASE,
-  STORAGE_PREMIUM_BASE,
-  STREAMING_BASE,
-  STREAMING_PREMIUM_BASE,
-} from './constants';
+import { STORAGE_BASE, STREAMING_BASE } from './constants';
 import { logHttpError, logHttpFailure, trackAsync } from './diagnostics';
 import { edgeFetch } from './edge';
 import { markHealthy, markUnhealthy } from './host-status';
-// Прямо из premium-cache, а не из subscription: тот тянет api-client и
-// query-client, и импорт отсюда замкнул бы цикл (см. шапку premium-cache).
-import { getIsPremium } from './premium-cache';
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -25,7 +17,7 @@ export type ResolvedStreamingTrack = Partial<Track> & {
 // ─── Host resolution ────────────────────────────────────────
 
 function resolveStreamingBases(): string[] {
-  return [...new Set([STREAMING_PREMIUM_BASE, STREAMING_BASE])];
+  return [STREAMING_BASE];
 }
 
 // ─── Streaming JSON ─────────────────────────────────────────
@@ -85,17 +77,12 @@ function buildStreamUrl(base: string, trackUrn: string, hq: boolean) {
 }
 
 /**
- * Точки отдачи медиа, приоритетная первой. Премиум забирает байты с резервной
- * (S3 read-only на star-host), не гоняя за каждым файлом на main; ядро само
- * упорядочит список по здоровью хостов и переберёт до первого ответа.
- *
- * Не-премиуму star отдаёт 403 (`PREMIUM_ONLY`), так что второй адрес ему только
- * стоил бы лишнего запроса — у него список из одного main.
+ * Точки отдачи медиа. Ядро само упорядочит список по здоровью хостов и
+ * переберёт до первого ответа.
  */
 export function buildStorageUrls(trackUrn: string): string[] {
   const file = `${trackUrn.replace(/:/g, '_')}.m4a`;
-  const bases = getIsPremium() ? [STORAGE_PREMIUM_BASE, STORAGE_BASE] : [STORAGE_BASE];
-  return [...new Set(bases)].map((base) => `${base}/${file}`);
+  return [`${STORAGE_BASE}/${file}`];
 }
 
 export function streamFallbackUrls(

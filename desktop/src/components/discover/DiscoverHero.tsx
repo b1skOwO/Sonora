@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { type Aura, auraRgba } from '../../lib/aura';
 import { fc } from '../../lib/formatters';
 import { Compass, Disc3, MicVocal, Sparkles } from '../../lib/icons';
-import {usePerfMode} from '../../lib/perf';
+import { usePerfMode } from '../../lib/perf';
 import { GlassHeroPanel } from '../ui/GlassHeroPanel';
 import { Skeleton } from '../ui/Skeleton';
 
@@ -27,12 +27,12 @@ function DiscoverHeroImpl({
   isSurprising,
 }: DiscoverHeroProps) {
   const { t } = useTranslation();
-    const perf = usePerfMode();
+  const perf = usePerfMode();
 
   return (
-    <GlassHeroPanel hasStar={false} aura={aura}>
+    <GlassHeroPanel aura={aura}>
       <div className="relative p-6 md:p-12 flex flex-col lg:flex-row gap-8 lg:gap-12 items-center lg:items-stretch">
-          <CompassArtifact aura={aura} idleAnim={perf.idleAnim}/>
+        <CompassArtifact aura={aura} idleAnim={perf.idleAnim} />
 
         <div className="flex-1 min-w-0 flex flex-col justify-between gap-6 text-center lg:text-left">
           <h1
@@ -43,7 +43,7 @@ function DiscoverHeroImpl({
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
-                animation: perf.idleAnim ? 'prismatic-shift 8s linear infinite' : undefined,
+              animation: perf.idleAnim ? 'prismatic-shift 8s linear infinite' : undefined,
               filter: 'drop-shadow(0 12px 36px rgba(0,0,0,0.55))',
             }}
           >
@@ -92,7 +92,7 @@ function DiscoverHeroImpl({
               style={{
                 background: 'linear-gradient(180deg, #ffffff, #e5e7eb)',
                 border: '0.5px solid rgba(255,255,255,0.4)',
-                boxShadow: `0 12px 32px ${auraRgba(aura, 0.35)}, inset 0 1px 0 rgba(255,255,255,0.6)`,
+                boxShadow: `0 12px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.6)`,
               }}
             >
               <span
@@ -174,21 +174,21 @@ const Stat = memo(function Stat({
   highlight?: boolean;
   loading?: boolean;
 }) {
-    const perf = usePerfMode();
-    const b = perf.blur(24);
+  const perf = usePerfMode();
+  const b = perf.blur(24);
   return (
     <div
       className="relative px-5 py-3 rounded-2xl flex items-baseline gap-2.5 transition-all duration-500 hover:scale-[1.04]"
       style={{
         background: highlight
           ? `linear-gradient(135deg, ${auraRgba(aura, 0.16)}, rgba(255,255,255,0.02))`
-            : b > 0
-                ? 'rgba(255,255,255,0.04)'
-                : 'rgba(24,24,28,0.9)',
+          : b > 0
+            ? 'rgba(255,255,255,0.04)'
+            : 'rgba(24,24,28,0.9)',
         border: '0.5px solid rgba(255,255,255,0.08)',
-          backdropFilter: b > 0 ? `blur(${b}px)` : undefined,
-          WebkitBackdropFilter: b > 0 ? `blur(${b}px)` : undefined,
-        boxShadow: `inset 0 0.5px 0 rgba(255,255,255,0.08), 0 8px 24px ${auraRgba(aura, highlight ? 0.28 : 0.14)}`,
+        backdropFilter: b > 0 ? `blur(${b}px)` : undefined,
+        WebkitBackdropFilter: b > 0 ? `blur(${b}px)` : undefined,
+        boxShadow: `inset 0 0.5px 0 rgba(255,255,255,0.08), 0 8px 24px rgba(0,0,0,${highlight ? '0.5' : '0.35'})`,
       }}
     >
       <span className="text-white/55">{icon}</span>
@@ -207,11 +207,11 @@ const Stat = memo(function Stat({
 });
 
 const CompassArtifact = memo(function CompassArtifact({
-                                                          aura,
-                                                          idleAnim,
-                                                      }: {
-    aura: Aura;
-    idleAnim: boolean;
+  aura,
+  idleAnim,
+}: {
+  aura: Aura;
+  idleAnim: boolean;
 }) {
   return (
     <div className="relative shrink-0 self-center lg:self-start w-[180px] h-[180px] md:w-[220px] md:h-[220px]">
@@ -222,14 +222,14 @@ const CompassArtifact = memo(function CompassArtifact({
           WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
           WebkitMaskComposite: 'xor',
           maskComposite: 'exclude',
-          filter: `drop-shadow(0 0 18px ${aura.orbs[0]}aa)`,
+          filter: `drop-shadow(0 12px 26px rgba(0,0,0,0.5))`,
         }}
       >
         <div
           className="absolute -inset-[40%]"
           style={{
             background: `conic-gradient(from 0deg, ${aura.orbs[0]}, ${aura.orbs[1]}, ${aura.orbs[2]}, ${aura.orbs[0]})`,
-              animation: idleAnim ? 'ring-rotate 14s linear infinite' : undefined,
+            animation: idleAnim ? 'ring-rotate 14s linear infinite' : undefined,
           }}
         />
       </div>
@@ -237,7 +237,7 @@ const CompassArtifact = memo(function CompassArtifact({
         className="relative w-full h-full rounded-[2.2rem] overflow-hidden flex items-center justify-center"
         style={{
           background: `radial-gradient(120% 90% at 30% 20%, ${auraRgba(aura, 0.38)} 0%, rgba(20,20,24,0.4) 60%, rgba(10,10,12,0.7) 100%)`,
-          boxShadow: `0 30px 70px ${auraRgba(aura, 0.35)}, inset 0 0 0 1px rgba(255,255,255,0.10), inset 0 1px 0 rgba(255,255,255,0.16)`,
+          boxShadow: `0 30px 70px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(255,255,255,0.10), inset 0 1px 0 rgba(255,255,255,0.16)`,
         }}
       >
         <div
@@ -251,8 +251,8 @@ const CompassArtifact = memo(function CompassArtifact({
         <div
           className="relative text-white"
           style={{
-              animation: idleAnim ? 'ring-rotate 30s linear infinite' : undefined,
-            filter: `drop-shadow(0 0 18px ${auraRgba(aura, 0.7)})`,
+            animation: idleAnim ? 'ring-rotate 30s linear infinite' : undefined,
+            filter: `drop-shadow(0 12px 26px rgba(0,0,0,0.5))`,
           }}
         >
           <Compass size={96} strokeWidth={1.2} />

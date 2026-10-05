@@ -74,7 +74,7 @@ function EqualizerBars({ aura }: { aura: Aura }) {
             background: color,
             transformOrigin: 'bottom',
             animation: `artistWaveEq ${0.8 + i * 0.07}s ease-in-out ${delay}s infinite`,
-            boxShadow: `0 0 6px ${auraRgba(aura, 0.7)}`,
+            boxShadow: `0 1px 3px rgba(0,0,0,0.5)`,
           }}
         />
       ))}
@@ -169,7 +169,7 @@ export const ArtistSoundWave = React.memo(function ArtistSoundWave({
           border: `0.5px solid ${auraRgba(aura, 0.26)}`,
           backdropFilter: sectionBlur ? `blur(${sectionBlur}px) saturate(160%)` : undefined,
           WebkitBackdropFilter: sectionBlur ? `blur(${sectionBlur}px) saturate(160%)` : undefined,
-          boxShadow: `0 30px 90px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.07), 0 0 80px ${auraRgba(aura, 0.22)}`,
+          boxShadow: `0 30px 90px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.07)`,
           transition: `box-shadow 0.6s ${EASE}`,
         } as React.CSSProperties
       }
@@ -216,7 +216,7 @@ export const ArtistSoundWave = React.memo(function ArtistSoundWave({
             style={{
               background: `linear-gradient(135deg, ${auraRgba(aura, 0.85)}, ${auraRgba(aura, 0.18)})`,
               border: `0.5px solid ${auraRgba(aura, 0.5)}`,
-              boxShadow: `0 10px 28px ${auraRgba(aura, 0.45)}, inset 0 1px 0 rgba(255,255,255,0.22)`,
+              boxShadow: `0 10px 28px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.22)`,
             }}
           >
             {isPlayingFromWave ? <EqualizerBars aura={aura} /> : <AudioLines size={18} />}
@@ -225,7 +225,7 @@ export const ArtistSoundWave = React.memo(function ArtistSoundWave({
               style={{
                 background: 'rgba(0,0,0,0.78)',
                 border: `0.5px solid ${auraRgba(aura, 0.55)}`,
-                boxShadow: `0 0 10px ${auraRgba(aura, 0.5)}`,
+                boxShadow: `0 1px 3px rgba(0,0,0,0.5)`,
               }}
             >
               <Sparkles size={8} style={{ color: 'var(--color-accent-contrast)' }} />
@@ -235,10 +235,7 @@ export const ArtistSoundWave = React.memo(function ArtistSoundWave({
           {/* title + caption */}
           <div className="flex-1 min-w-0 flex flex-col gap-[3px]">
             <div className="flex items-center gap-2 min-w-0">
-              <span
-                className="text-[14px] font-black tracking-tight text-white truncate leading-none"
-                style={{ textShadow: `0 0 18px ${auraRgba(aura, 0.45)}` }}
-              >
+              <span className="text-[14px] font-black tracking-tight text-white truncate leading-none">
                 {t('artist.wave.title')}
               </span>
               <span
@@ -267,7 +264,7 @@ export const ArtistSoundWave = React.memo(function ArtistSoundWave({
               background: `linear-gradient(180deg, ${auraRgba(aura, 0.95)}, ${auraRgba(aura, 0.7)})`,
               color: lightAura ? '#000' : '#fff',
               border: `0.5px solid ${auraRgba(aura, 0.55)}`,
-              boxShadow: `0 12px 28px ${auraRgba(aura, 0.45)}, inset 0 1px 0 rgba(255,255,255,0.3)`,
+              boxShadow: `0 12px 28px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.3)`,
             }}
           >
             <span

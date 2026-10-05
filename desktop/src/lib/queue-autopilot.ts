@@ -27,6 +27,7 @@ import { useSettingsStore } from '../stores/settings';
 import { getQueueContinuationSource, setQueueContinuationSource } from './queue-continuation';
 import { fetchRelatedTracks } from './related';
 import { fetchSmartWave } from './soundwave';
+import { isYoutubeUrn } from './youtube';
 
 let inFlight = false;
 
@@ -98,6 +99,8 @@ async function continueFromContextSource(): Promise<boolean> {
 }
 
 async function fetchContinuation(seed: Track): Promise<Track[]> {
+  // YouTube tracks have no SoundCloud neighbours — never autopilot off them.
+  if (isYoutubeUrn(seed.urn)) return [];
   const existing = new Set(usePlayerStore.getState().queue.map((t) => t.urn));
 
   const fromWave = await fetchWaveContinuation(seed);

@@ -1,13 +1,13 @@
-import {memo} from 'react';
-import {useTranslation} from 'react-i18next';
-import {auraRgba} from '../../../lib/aura';
-import {art} from '../../../lib/formatters';
-import {User as UserIcon} from '../../../lib/icons';
-import {usePerfMode} from '../../../lib/perf';
-import {usePlayerStore} from '../../../stores/player';
-import {SoundprintBars} from '../../library/SoundprintBars';
-import type {Soundprint} from '../../library/useSoundprint';
-import {VibePortal} from '../../music/soundwave/vibe-portal';
+import { memo } from 'react';
+import { useTranslation } from 'react-i18next';
+import { auraRgba, auraSheen } from '../../../lib/aura';
+import { art } from '../../../lib/formatters';
+import { User as UserIcon } from '../../../lib/icons';
+import { usePerfMode } from '../../../lib/perf';
+import { usePlayerStore } from '../../../stores/player';
+import { SoundprintBars } from '../../library/SoundprintBars';
+import type { Soundprint } from '../../library/useSoundprint';
+import { VibePortal } from '../../music/soundwave/vibe-portal';
 
 interface MastheadUser {
   username: string;
@@ -53,7 +53,7 @@ export const RiverMasthead = memo(function RiverMasthead({
                 className="riv-anim size-[6px] rounded-full"
                 style={{
                   background: 'var(--color-accent)',
-                  boxShadow: perf.glow ? '0 0 8px var(--color-accent)' : undefined,
+
                   animation:
                     isPlaying && perf.idleAnim ? 'riv-pulse 1.6s ease-in-out infinite' : undefined,
                 }}
@@ -67,7 +67,7 @@ export const RiverMasthead = memo(function RiverMasthead({
           <h1
             className="break-words text-[26px] font-black leading-[1.05] tracking-tight md:text-[32px]"
             style={{
-              backgroundImage: sound.aura.nameGradient,
+              backgroundImage: auraSheen(sound.aura),
               WebkitBackgroundClip: 'text',
               backgroundClip: 'text',
               color: 'transparent',
@@ -82,7 +82,7 @@ export const RiverMasthead = memo(function RiverMasthead({
           className="relative size-16 flex-none overflow-hidden rounded-full"
           style={{
             border: `0.5px solid ${auraRgba(sound.aura, 0.4)}`,
-            boxShadow: `0 10px 30px ${sound.accentGlow}`,
+            boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
           }}
         >
           {avatar ? (

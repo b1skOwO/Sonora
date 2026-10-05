@@ -1,8 +1,9 @@
 //! GET `/download/:urn` → JSON-список кандидатов SoundCloud. Тянем выбранного
 //! напрямую с SC, наш сервер только резолвит ссылки.
 //!
-//! Порядок: при `hq=true` сначала hq-группа, иначе sq. Внутри группы —
-//! progressive → hls → encrypted-hls.
+//! Порядок: при `hq=true` сначала hq-группа, иначе sq. Внутри группы — по
+//! пресету (aac_160k → abr_sq → …), HLS раньше progressive (как в веб-плеере
+//! SC), encrypted-hls последним.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -79,8 +80,8 @@ impl Candidate {
 
     fn kind_score(&self) -> u32 {
         match self {
-            Candidate::Progressive { .. } => 0,
-            Candidate::Hls { .. } => 1,
+            Candidate::Hls { .. } => 0,
+            Candidate::Progressive { .. } => 1,
             Candidate::EncryptedHls { .. } => 2,
         }
     }
@@ -199,12 +200,25 @@ async fn fetch_download(
         .map_err(|e| format!("decode: {e}"))
 }
 
+/// Quality rank of a preset name — lower is better. Mirrors the anon path and
+/// the SoundCloud web player: HLS AAC 160k first, legacy progressive MP3 last.
+fn preset_score(preset: &str) -> u32 {
+    match preset {
+        "aac_160k" => 0,
+        "abr_sq" => 1,
+        "opus_0_0" => 2,
+        "aac_96k" => 3,
+        "mp3_1_0" => 5,
+        _ => 4,
+    }
+}
+
 fn sort_candidates(cands: Vec<Candidate>, hq_pref: bool) -> Vec<Candidate> {
     let mut filtered: Vec<Candidate> = cands.into_iter().filter(|c| c.quality() != "lq").collect();
     filtered.sort_by_key(|c| {
         let is_hq = c.quality() == "hq";
         let q_score = if hq_pref == is_hq { 0u32 } else { 1u32 };
-        (q_score, c.kind_score())
+        (q_score, preset_score(c.preset()), c.kind_score())
     });
     filtered
 }
@@ -254,4 +268,55 @@ async fn consume_encrypted(
         buf.extend_from_slice(&plain);
     }
     Ok(Bytes::from(buf))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{sort_candidates, Candidate};
+
+    fn hls(preset: &str, quality: &str) -> Candidate {
+        Candidate::Hls {
+            quality: quality.into(),
+            preset: preset.into(),
+            manifest_url: "https://x/manifest.m3u8".into(),
+        }
+    }
+
+    fn progressive(preset: &str, quality: &str) -> Candidate {
+        Candidate::Progressive {
+            quality: quality.into(),
+            preset: preset.into(),
+            url: "https://x/progressive".into(),
+        }
+    }
+
+    #[test]
+    fn prefers_hls_aac_over_progressive_mp3() {
+        let sorted = sort_candidates(
+            vec![
+                progressive("mp3_1_0", "sq"),
+                hls("aac_96k", "sq"),
+                hls("aac_160k", "sq"),
+            ],
+            false,
+        );
+        let order: Vec<&str> = sorted.iter().map(|c| c.preset()).collect();
+        assert_eq!(order, vec!["aac_160k", "aac_96k", "mp3_1_0"]);
+    }
+
+    #[test]
+    fn requested_quality_group_wins() {
+        let sorted = sort_candidates(
+            vec![hls("aac_160k", "sq"), progressive("mp3_1_0", "hq")],
+            true,
+        );
+        assert_eq!(sorted[0].quality(), "hq");
+    }
+
+    #[test]
+    fn drops_low_quality_candidates() {
+        let sorted = sort_candidates(vec![hls("aac_160k", "lq"), hls("aac_96k", "sq")], false);
+        assert_eq!(sorted.len(), 1);
+        assert_eq!(sorted[0].preset(), "aac_96k");
+    }
 }

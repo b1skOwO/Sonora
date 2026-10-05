@@ -2,6 +2,7 @@ import {useSyncExternalStore} from 'react';
 import {usePlayerStore} from '../stores/player';
 import {ensureTrackCached} from './cache';
 import {trackedInvoke as invoke} from './diagnostics';
+import {isYoutubeUrn} from './youtube';
 
 /* ── Hover-preview controller ─────────────────────────────────────
  * A single-track sampling channel that rides the Rust preview player
@@ -42,6 +43,9 @@ function canPreview(urn: string): boolean {
 
 /** Hover a tile: after a debounce, ensure it's cached and start a preview. */
 export function startHoverPreview(urn: string): void {
+    // No hover preview for YouTube tracks — each one would trigger a full
+    // yt-dlp download on a mere mouse-over.
+    if (isYoutubeUrn(urn)) return;
     if (activeUrn === urn || pendingUrn === urn) return;
     if (hoverTimer) clearTimeout(hoverTimer);
     pendingUrn = urn;

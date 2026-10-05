@@ -9,11 +9,12 @@ import {SoundPrintMasthead} from '../components/library/SoundPrintMasthead';
 import {useSoundprint} from '../components/library/useSoundprint';
 import {PlaylistCard} from '../components/music/PlaylistCard';
 import {TrackCard} from '../components/music/TrackCard';
-import {useLikedTracks, useMyFollowings, useMyLikedPlaylists, useMyPlaylists} from '../lib/hooks';
-import {Bookmark, Heart, ListMusic, Users} from '../lib/icons';
+import { useLikedTracks, useMyFollowings, useMyLikedPlaylists, useMyPlaylists } from '../lib/hooks';
+import {Bookmark, Heart, ListMusic, Users, Youtube} from '../lib/icons';
 import {likedTracksCount} from '../lib/likes';
 import {armLikesContinuation} from '../lib/queue-continuation';
 import {useAuthStore} from '../stores/auth';
+import {localPlaylistToCard, useLocalPlaylistsStore} from '../stores/local-playlists';
 
 /** Library "Hub" — a living home base. Your identity up top, then the reason to
  *  come back (fresh drops from who you follow), then a way back into what you
@@ -29,6 +30,7 @@ export const Library = React.memo(() => {
   const { playlists } = useMyPlaylists();
   const { playlists: likedPlaylists } = useMyLikedPlaylists();
   const { users: followings } = useMyFollowings();
+  const localPlaylists = useLocalPlaylistsStore((s) => s.playlists);
 
   const playlistPreview = useMemo(() => {
     const base = genre ? playlists.filter((p) => p.genre?.trim() === genre) : playlists;
@@ -71,6 +73,20 @@ export const Library = React.memo(() => {
             {playlistPreview.map((p) => (
               <div key={p.urn} className="w-[160px] shrink-0">
                 <PlaylistCard playlist={p} />
+              </div>
+            ))}
+          </CollectionRail>
+        )}
+
+        {localPlaylists.length > 0 && (
+          <CollectionRail
+            icon={<Youtube size={16} />}
+            title={t('library.importedPlaylists')}
+            to="/library/playlists"
+          >
+            {localPlaylists.map((p) => (
+              <div key={p.id} className="w-[160px] shrink-0">
+                <PlaylistCard playlist={localPlaylistToCard(p)} />
               </div>
             ))}
           </CollectionRail>

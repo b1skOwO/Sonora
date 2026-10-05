@@ -3,6 +3,7 @@ import { useEffect, useSyncExternalStore } from 'react';
 import type { Track } from '../stores/player';
 import { api } from './api';
 import { recordEvent } from './events';
+import { isYoutubeUrn } from './youtube';
 
 const _dislikedUrns = new Map<string, boolean>();
 const _listeners = new Set<() => void>();
@@ -38,6 +39,7 @@ const _inflightStatus = new Map<string, Promise<boolean>>();
 
 /** Fetch dislike status once per URN session-wide. Result is cached in the global store. */
 export async function fetchDislikeStatus(urn: string): Promise<boolean> {
+  if (isYoutubeUrn(urn)) return false;
   if (_dislikedUrns.has(urn)) return true;
   const existing = _inflightStatus.get(urn);
   if (existing) return existing;
@@ -95,6 +97,7 @@ export async function toggleDislike(
   track: Track,
   nowDisliked: boolean,
 ): Promise<void> {
+  if (isYoutubeUrn(track.urn)) return;
   setDislikedUrn(track.urn, nowDisliked);
   if (nowDisliked) recordEvent('dislike', track.urn);
 

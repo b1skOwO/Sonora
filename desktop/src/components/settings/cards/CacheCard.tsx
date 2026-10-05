@@ -1,3 +1,5 @@
+import {ask, open} from '@tauri-apps/plugin-dialog';
+import {FolderOpen} from 'lucide-react';
 import {useCallback, useEffect, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {toast} from 'sonner';
@@ -5,9 +7,12 @@ import {
     clearCache,
     clearImageCache,
     clearLikedCache,
+    getCacheDir,
     getCacheSize,
     getImageCacheSize,
     getLikedCacheSize,
+    restartApp,
+    setCacheDir,
 } from '../../../lib/cache';
 import {formatBytes} from '../../../lib/formatters';
 import {Database, Download, Loader2, Trash2, X} from '../../../lib/icons';
@@ -64,6 +69,8 @@ export function CacheCard() {
   const [clearingAudio, setClearingAudio] = useState(false);
   const [clearingImages, setClearingImages] = useState(false);
   const [clearingLiked, setClearingLiked] = useState(false);
+  const [cacheDir, setCacheDirState] = useState<string | null>(null);
+  const [changingDir, setChangingDir] = useState(false);
 
   const refreshLikedSize = useCallback(() => {
     void getLikedCacheSize().then(setLikedSize);
@@ -85,7 +92,36 @@ export function CacheCard() {
     void getCacheSize().then(setAudioSize);
     void getImageCacheSize().then(setImagesSize);
     refreshLikedSize();
+    void getCacheDir().then(setCacheDirState);
   }, [refreshLikedSize]);
+
+  const handleChangeCacheDir = useCallback(async () => {
+    try {
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: t('settings.cacheDirPick'),
+      });
+      if (!selected || typeof selected !== 'string') return;
+      const moveFiles = await ask(t('settings.cacheDirMoveConfirm'), {
+        title: t('settings.cacheDir'),
+        kind: 'info',
+      });
+      setChangingDir(true);
+      await setCacheDir(selected, moveFiles);
+      setCacheDirState(selected);
+      toast.success(t('settings.cacheDirChanged'));
+      const restartNow = await ask(t('settings.cacheDirRestart'), {
+        title: t('settings.cacheDir'),
+        kind: 'warning',
+      });
+      if (restartNow) await restartApp();
+    } catch (e) {
+      toast.error(String(e));
+    } finally {
+      setChangingDir(false);
+    }
+  }, [t]);
 
   const clearWith = useCallback(
     async (
@@ -227,6 +263,44 @@ export function CacheCard() {
           step={256}
           onChange={setAudioCacheLimitMB}
         />
+        <div className="flex items-center justify-end gap-2">
+          <input
+            type="number"
+            min={0}
+            max={65536}
+            step={64}
+            value={audioCacheLimitMB}
+            onChange={(e) => {
+              const value = Number(e.target.value);
+              if (!Number.isFinite(value) || value < 0) return;
+              setAudioCacheLimitMB(Math.min(65536, Math.round(value)));
+            }}
+            className="w-24 px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06] text-[13px] text-white/80 tabular-nums outline-none focus:border-white/[0.14] transition-colors"
+          />
+          <span className="text-[12px] text-white/35">MB</span>
+        </div>
+      </div>
+
+      <Divider />
+      <div className="pt-3 space-y-2">
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-[13px] text-white/60 font-medium">{t('settings.cacheDir')}</p>
+            <p className="text-[11px] text-white/30 mt-0.5 truncate" title={cacheDir ?? undefined}>
+              {cacheDir ?? '…'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleChangeCacheDir()}
+            disabled={changingDir}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-[12px] font-semibold bg-white/[0.06] text-white/75 hover:bg-white/[0.1] border border-white/[0.06] hover:border-white/[0.12] transition-all duration-200 cursor-pointer disabled:opacity-40 shrink-0"
+          >
+            {changingDir ? <Loader2 size={12} className="animate-spin" /> : <FolderOpen size={12} />}
+            {t('settings.cacheDirChange')}
+          </button>
+        </div>
+        <p className="text-[11px] text-white/30">{t('settings.cacheDirDesc')}</p>
       </div>
     </Card>
   );

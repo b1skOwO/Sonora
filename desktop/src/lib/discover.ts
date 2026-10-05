@@ -3,7 +3,7 @@ import { api } from './api';
 import type { AuraId } from './aura';
 
 export type AlbumKind = 'album' | 'ep' | 'single' | 'compilation';
-export type ArtistSort = 'popular' | 'trending' | 'listeners' | 'tracks' | 'star' | 'az';
+export type ArtistSort = 'popular' | 'trending' | 'listeners' | 'tracks' | 'az';
 export type AlbumSort = 'recent' | 'popular' | 'tracks' | 'az';
 export type AlbumKindFilter = 'all' | AlbumKind;
 export type TagFilter = 'all' | string;
@@ -19,9 +19,8 @@ export interface CatalogArtist {
   album_count: number;
   monthly_listeners: number;
   trending: number;
-    popularity: number;
+  popularity: number;
   tags: string[];
-  star: boolean;
   aura_id?: AuraId | 'custom' | null;
   custom_hex?: string | null;
 }
@@ -42,7 +41,6 @@ export interface CatalogAlbum {
   track_count: number;
   total_duration_ms: number;
   popularity: number;
-  star: boolean;
 }
 
 export interface DiscoverSummary {

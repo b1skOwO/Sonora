@@ -8,27 +8,24 @@ import { ArtistHero } from '../components/artist/ArtistHero';
 import { ArtistRelatedTab } from '../components/artist/ArtistRelatedTab';
 import { ArtistTracksTab, type TracksView } from '../components/artist/ArtistTracksTab';
 import type { ArtistTabId, TracksSort } from '../components/artist/types';
-import {
-  useArtistCovers,
-  useArtistDetail,
-  useArtistStar,
-} from '../components/artist/useArtistData';
+import { useArtistCovers, useArtistDetail } from '../components/artist/useArtistData';
 import { ArtistSoundWave } from '../components/artist/wave';
 import { AuraField } from '../components/user/AuraField';
 import { USER_PAGE_KEYFRAMES } from '../components/user/keyframes';
 import { type TabDescriptor, TabDock } from '../components/user/TabDock';
 import { Loader2 } from '../lib/icons';
-import {usePerfMode} from '../lib/perf';
+import { usePerfMode } from '../lib/perf';
+import { useViewerAura } from '../lib/useViewerAura';
 
 export function ArtistPage() {
   const { id } = useParams<{ id: string }>();
   const { t } = useTranslation();
-    const perf = usePerfMode();
+  const perf = usePerfMode();
 
   const detail = useArtistDetail(id);
   const artist = detail.data;
 
-  const { hasStar, aura } = useArtistStar(id);
+  const aura = useViewerAura();
 
   const [tab, setTab] = useState<ArtistTabId>('tracks');
   const [primarySort, setPrimarySort] = useState<TracksSort>('popular');
@@ -84,13 +81,13 @@ export function ArtistPage() {
     <>
       <style>{USER_PAGE_KEYFRAMES}</style>
       <div className="relative w-full min-h-screen">
-        <AuraField aura={aura} isStar={hasStar} />
+        <AuraField aura={aura} isStar={false} />
 
         <div
           className="relative z-10 w-full max-w-[1480px] mx-auto px-4 md:px-8 pt-10 md:pt-16 pb-32"
           style={{ isolation: 'isolate' }}
         >
-          <ArtistHero artist={artist} hasStar={hasStar} aura={aura} />
+          <ArtistHero artist={artist} aura={aura} />
 
           <div className="mt-8">
             <ArtistSoundWave artistId={artist.id} artistName={artist.name} aura={aura} />
@@ -104,13 +101,13 @@ export function ArtistPage() {
             className="rounded-[2rem] p-3 md:p-5"
             style={{
               background:
-                  perf.blur(28) > 0
-                      ? 'linear-gradient(180deg, rgba(255,255,255,0.035) 0%, rgba(255,255,255,0.015) 100%)'
-                      : 'rgba(18,18,22,0.85)',
-                backdropFilter:
-                    perf.blur(28) > 0 ? `blur(${perf.blur(28)}px) saturate(160%)` : undefined,
-                WebkitBackdropFilter:
-                    perf.blur(28) > 0 ? `blur(${perf.blur(28)}px) saturate(160%)` : undefined,
+                perf.blur(28) > 0
+                  ? 'linear-gradient(180deg, rgba(255,255,255,0.035) 0%, rgba(255,255,255,0.015) 100%)'
+                  : 'rgba(18,18,22,0.85)',
+              backdropFilter:
+                perf.blur(28) > 0 ? `blur(${perf.blur(28)}px) saturate(160%)` : undefined,
+              WebkitBackdropFilter:
+                perf.blur(28) > 0 ? `blur(${perf.blur(28)}px) saturate(160%)` : undefined,
               boxShadow:
                 '0 30px 80px rgba(0,0,0,0.30), inset 0 0 0 1px rgba(255,255,255,0.06), inset 0 1px 0 rgba(255,255,255,0.05)',
             }}

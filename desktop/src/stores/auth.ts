@@ -19,7 +19,7 @@ interface User {
 }
 
 interface AuthState {
-    /** Validated session — `/me` resolved. Gates premium/auth-only UI. */
+    /** Validated session — `/me` resolved. Gates auth-only UI. */
   isAuthenticated: boolean;
     /** Token present (Rust-owned). Lets the shell render before `/me` lands. */
     hasSession: boolean;

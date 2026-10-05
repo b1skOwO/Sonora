@@ -100,12 +100,14 @@ async fn build_player_from_bytes(
     bytes: Vec<u8>,
     mixer: rodio::mixer::Mixer,
     volume: f32,
+    volume_handle: std::sync::Arc<std::sync::atomic::AtomicU32>,
     normalization_enabled: bool,
     normalization_cache_dir: Option<PathBuf>,
     normalization_cache_key: Option<String>,
     start_paused: bool,
     eq_params: std::sync::Arc<std::sync::RwLock<crate::audio::types::EqParams>>,
     analyser_buffer: std::sync::Arc<crate::audio::analyser::AnalyserBuffer>,
+    output_sample_rate: u32,
 ) -> Result<(Vec<u8>, rodio::Player, Option<f64>, f32), String> {
     task::spawn_blocking(move || {
         let normalization_gain = if normalization_enabled {
@@ -121,10 +123,12 @@ async fn build_player_from_bytes(
             &bytes,
             &mixer,
             volume,
+            Some(volume_handle),
             normalization_gain,
             start_paused,
             eq_params,
             analyser_buffer,
+            output_sample_rate,
         )?;
         Ok((bytes, player, duration_secs, normalization_gain))
     })
@@ -157,6 +161,7 @@ pub fn reload_current_track(state: &AudioState) -> Result<(), String> {
         &bytes,
         &mixer,
         vol,
+        Some(state.volume_handle.clone()),
         if normalization_enabled {
             normalization_gain
         } else {
@@ -165,6 +170,7 @@ pub fn reload_current_track(state: &AudioState) -> Result<(), String> {
         was_paused,
         state.eq_params.clone(),
         state.analyser_buffer.clone(),
+        state.output_sample_rate.load(Ordering::Relaxed),
     )?;
     // Apply speed BEFORE seeking so try_seek's argument is interpreted under the speed
     // factor: try_seek(source/rate) lands the decoder at the original source position.
@@ -212,12 +218,14 @@ pub async fn load_file(
         bytes,
         mixer,
         vol,
+        state.volume_handle.clone(),
         normalization_enabled,
         normalization_cache_dir,
         normalization_cache_key,
         start_paused,
         state.eq_params.clone(),
         state.analyser_buffer.clone(),
+        state.output_sample_rate.load(Ordering::Relaxed),
     )
     .await?;
 
@@ -313,12 +321,14 @@ pub async fn load_url(
         bytes,
         mixer,
         vol,
+        state.volume_handle.clone(),
         normalization_enabled,
         normalization_cache_dir,
         normalization_cache_key,
         start_paused,
         state.eq_params.clone(),
         state.analyser_buffer.clone(),
+        state.output_sample_rate.load(Ordering::Relaxed),
     )
     .await?;
 
@@ -411,6 +421,7 @@ pub fn seek_to(state: &AudioState, position: f64) -> Result<(), String> {
         &bytes,
         &mixer,
         vol,
+        Some(state.volume_handle.clone()),
         if normalization_enabled {
             normalization_gain
         } else {
@@ -419,6 +430,7 @@ pub fn seek_to(state: &AudioState, position: f64) -> Result<(), String> {
         was_paused,
         state.eq_params.clone(),
         state.analyser_buffer.clone(),
+        state.output_sample_rate.load(Ordering::Relaxed),
     )?;
     apply_current_rate(state, &new_player);
     if position > 0.0 {
@@ -439,9 +451,9 @@ pub fn seek_to(state: &AudioState, position: f64) -> Result<(), String> {
 pub fn set_volume(volume: f64, state: State<'_, AudioState>) {
     let vol = volume_to_rodio(volume);
     *state.volume.lock().unwrap() = vol;
-    if let Some(ref player) = *state.player.lock().unwrap() {
-        player.set_volume(vol);
-    }
+    // The DSP chain reads this atomic live, so volume changes apply to the
+    // already-playing source without rebuilding the player.
+    state.volume_handle.store(vol.to_bits(), Ordering::Relaxed);
 }
 
 fn clamp_playback_rate(rate: f64) -> f32 {
@@ -594,9 +606,20 @@ pub async fn preview_play(
     // hover latency low. Build directly at the target volume so the sample is
     // audible the instant it loads (a zero-start + tick fade-in left it silent).
     let analyser = crate::audio::analyser::AnalyserBuffer::new();
+    let output_sample_rate = state.output_sample_rate.load(Ordering::Relaxed);
     let player = task::spawn_blocking(move || {
-        create_player_from_bytes(&bytes, &mixer, target, 1.0, false, eq_params, analyser)
-            .map(|(player, _)| player)
+        create_player_from_bytes(
+            &bytes,
+            &mixer,
+            target,
+            None,
+            1.0,
+            false,
+            eq_params,
+            analyser,
+            output_sample_rate,
+        )
+        .map(|(player, _)| player)
     })
         .await
         .map_err(|e| format!("preview decode task failed: {e}"))??;

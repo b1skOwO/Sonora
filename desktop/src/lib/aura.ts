@@ -82,6 +82,13 @@ export const auraRgba = (a: Aura, alpha: number) =>
 
 export const auraRgb = (a: Aura) => `rgb(${a.accent[0]}, ${a.accent[1]}, ${a.accent[2]})`;
 
+/** Greeting-heading sheen: white → a barely-there accent tint → white. Unlike
+ *  `nameGradient` the colour never saturates, so it can't slice the name. */
+export const auraSheen = (a: Aura) => {
+  const [r, g, b] = lighten(a.accent, 0.88);
+  return `linear-gradient(100deg, #fff 0%, rgb(${r}, ${g}, ${b}) 48%, #fff 100%)`;
+};
+
 const luminance = ([r, g, b]: [number, number, number]) =>
   (0.299 * r + 0.587 * g + 0.114 * b) / 255;
 

@@ -41,6 +41,7 @@ pub fn open_device_sink(
                         .open_stream()
                         .map_err(|e| format!("Failed to open device '{}': {}", id, e))?;
                     sink.log_on_drop(false);
+                    log_config(&sink);
                     return Ok(sink);
                 }
             }
@@ -54,7 +55,20 @@ pub fn open_device_sink(
         .open_stream()
         .map_err(|e| format!("No audio output: {}", e))?;
     sink.log_on_drop(false);
+    log_config(&sink);
     Ok(sink)
+}
+
+/// One-line summary of the opened output so a log can confirm which sample
+/// rate the DSP chain resamples to.
+fn log_config(sink: &MixerDeviceSink) {
+    let config = sink.config();
+    eprintln!(
+        "[audio] output device: {} ch @ {} Hz ({:?})",
+        config.channel_count(),
+        config.sample_rate(),
+        config.sample_format(),
+    );
 }
 
 pub fn list_devices() -> Vec<AudioSink> {

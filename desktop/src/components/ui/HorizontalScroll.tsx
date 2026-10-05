@@ -1,4 +1,10 @@
-import {type PointerEvent as ReactPointerEvent, type ReactNode, useEffect, useRef} from 'react';
+import {
+  type ReactNode,
+  type PointerEvent as ReactPointerEvent,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 
 interface HorizontalScrollProps {
   children: ReactNode;
@@ -6,9 +12,11 @@ interface HorizontalScrollProps {
 }
 
 const DRAG_THRESHOLD = 6;
+const EDGE_FADE_PX = 28;
 
 export function HorizontalScroll({ children, className = '' }: HorizontalScrollProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = useState({ left: false, right: false });
   const dragStateRef = useRef({
     active: false,
     dragging: false,
@@ -22,6 +30,37 @@ export function HorizontalScroll({ children, className = '' }: HorizontalScrollP
       document.body.style.removeProperty('user-select');
     };
   }, []);
+
+  // Only fade an edge that actually hides content; a rail that fits stays untouched.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => {
+      const max = el.scrollWidth - el.clientWidth;
+      setEdges((prev) => {
+        const left = el.scrollLeft > 1;
+        const right = max > 1 && el.scrollLeft < max - 1;
+        return prev.left === left && prev.right === right ? prev : { left, right };
+      });
+    };
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener('scroll', update);
+      ro.disconnect();
+    };
+  }, []);
+
+  const maskImage =
+    !edges.left && !edges.right
+      ? undefined
+      : edges.left && edges.right
+        ? `linear-gradient(90deg, transparent 0, #000 ${EDGE_FADE_PX}px, #000 calc(100% - ${EDGE_FADE_PX}px), transparent 100%)`
+        : edges.left
+          ? `linear-gradient(90deg, transparent 0, #000 ${EDGE_FADE_PX}px)`
+          : `linear-gradient(90deg, #000 calc(100% - ${EDGE_FADE_PX}px), transparent 100%)`;
 
   const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -85,6 +124,8 @@ export function HorizontalScroll({ children, className = '' }: HorizontalScrollP
       style={{
         contain: 'layout paint style',
         touchAction: 'pan-y',
+        maskImage,
+        WebkitMaskImage: maskImage,
       }}
     >
       {children}

@@ -62,7 +62,8 @@
     "previous": "Предыдущий",
     "next": "Следующий",
     "openApp": "Открыть SoundCloud",
-    "notPlaying": "Ничего не играет"
+    "notPlaying": "Ничего не играет",
+    "volume": "Громкость"
   },
   "auth": {
     "signIn": "Войти через SoundCloud",
@@ -97,9 +98,9 @@
   },
   "qrLink": {
     "pullTitle": "Войти с другого устройства",
-    "pullSubtitle": "Откройте SoundCloud Desktop на телефоне или другом устройстве, где вы уже залогинены, и отсканируйте этот код.",
+    "pullSubtitle": "Откройте Sonora на телефоне или другом устройстве, где вы уже залогинены, и отсканируйте этот код.",
     "pushTitle": "Добавить устройство",
-    "pushSubtitle": "Откройте SoundCloud Desktop на телефоне (или другом устройстве) и отсканируйте этот код, чтобы войти там.",
+    "pushSubtitle": "Откройте Sonora на телефоне (или другом устройстве) и отсканируйте этот код, чтобы войти там.",
     "preparing": "Генерируем код…",
     "expiresIn": "Истекает через {{seconds}} с",
     "pullSuccess": "Вы вошли.",
@@ -333,6 +334,13 @@
     "unfollow": "Отписаться",
     "noFollowers": "Подписчиков пока нет.",
     "noFollowings": "Подписок пока нет.",
+    "syncPending": "Сервер загружает этот список дольше обычного. Попробуйте ещё раз.",
+    "playlistImportPlaceholder": "Вставьте ссылку на плейлист SoundCloud",
+    "importPlaylist": "Импорт",
+    "playlistImported": "Импортировано: {{title}}",
+    "likesImportPlaceholder": "Вставьте ссылку на аккаунт SoundCloud, чтобы импортировать лайки",
+    "importLikes": "Импортировать лайки",
+    "likesImported": "Создан {{title}} из {{count}} понравившихся треков",
     "publicProfile": "Так выглядит ваш публичный профиль",
     "about": "О себе",
     "memberSince": "В SoundCloud с",
@@ -364,6 +372,7 @@
     "likedTracks": "Любимые треки",
     "likedPlaylists": "Любимые плейлисты",
     "yourPlaylists": "Ваши плейлисты",
+    "importedPlaylists": "Импортированные",
     "localLikes": "Локальные",
     "noLocalLikes": "Нет локальных лайков",
     "history": "История",
@@ -584,6 +593,13 @@
     "cacheLikesEmpty": "Лайков пока нет",
     "audioCacheLimit": "Лимит аудиокэша",
     "audioCacheLimitDesc": "Старые кэшированные треки будут удаляться автоматически при превышении лимита",
+    "cacheDir": "Папка кеша",
+    "cacheDirDesc": "Где хранится скачанное аудио. Смена папки применится после перезапуска.",
+    "cacheDirChange": "Изменить",
+    "cacheDirPick": "Выберите папку для кеша",
+    "cacheDirMoveConfirm": "Перенести существующие файлы кеша в новую папку? «Нет» — начать с пустого кеша.",
+    "cacheDirChanged": "Папка кеша обновлена",
+    "cacheDirRestart": "Перезапустить сейчас, чтобы применить новую папку кеша?",
     "clearCache": "Очистить",
     "cacheCleared": "Кэш очищен",
     "appearance": "Оформление",
@@ -615,11 +631,20 @@
     "performance": "Производительность",
     "performanceDesc": "Подстройте визуальные эффекты под железо. «Красота» — полный дизайн.",
     "perfLight": "Лайт",
-    "perfLightDesc": "Плоско и быстро — без блюра, частиц и анимаций.",
+    "perfLightDesc": "Лёгкое размытие, без частиц и анимаций.",
     "perfMedium": "Средний",
     "perfMediumDesc": "Меньше блюра и частиц.",
     "perfBeauty": "Красота",
     "perfBeautyDesc": "Полный liquid-glass дизайн.",
+    "effects": "Эффекты",
+    "effectsDesc": "Настрой интенсивность размытия стекла и свечения акцента.",
+    "eqDesc": "Усиливайте или срезайте 10 полос частот с готовыми пресетами.",
+    "eqOpen": "Открыть эквалайзер",
+    "blurStrength": "Размытие стекла",
+    "blurStrengthDesc": "Множитель радиуса размытия стеклянных поверхностей.",
+    "blurLightHint": "В режиме «Лёгкий» размытие отключено — выберите «Сбалансированный» или «Красота».",
+    "glowStrength": "Свечение акцента",
+    "glowStrengthDesc": "Масштабирует свечение и тонированные подсветки акцента во всём приложении.",
     "startup": "Запуск",
     "startupPageDesc": "Какая страница должна открываться при старте приложения",
     "playback": "Воспроизведение",
@@ -632,7 +657,7 @@
     "discordRpcMode": "Что отображать",
     "discordRpcModeTrack": "Трек",
     "discordRpcModeArtist": "Только автора",
-    "discordRpcModeActivity": "Только активность",
+    "discordRpcModeActivity": "Автор и трек",
     "discordRpcButton": "Кнопка SoundCloud",
     "discordRpcButtonDesc": "Показывать кнопку перехода к треку в SoundCloud",
     "normalizeVolume": "Нормализация громкости",
@@ -669,7 +694,8 @@
     "wpKeyNeeded": "Введи API-ключ Wallhaven, чтобы открыть контент 18+.",
     "bypassWhitelistSoonDesc": "Готовим обход — следите за обновлениями",
     "import": "Импорт",
-    "importYandex": "Импорт из Yandex Music"
+    "importYandex": "Импорт из Yandex Music",
+    "importYoutube": "Импорт из YouTube"
   },
   "eq": {
     "title": "Эквалайзер",
@@ -718,6 +744,20 @@
     "done": "Импорт завершён!",
     "savingPlaylist": "Сохраняем плейлист...",
     "backgroundHint": "Импорт идет в фоне, окно можно закрыть"
+  },
+  "yt": {
+    "instructions": "Вставьте ссылку на плейлист или видео YouTube",
+    "hint": "Плейлист импортируется сразу; аудио каждого трека скачивается через yt-dlp при первом воспроизведении.",
+    "urlPlaceholder": "https://www.youtube.com/playlist?list=...",
+    "import": "Импорт",
+    "importing": "Читаю плейлист...",
+    "preparing": "Готовлю yt-dlp — при первом импорте он скачается (~30 МБ).",
+    "done": "Плейлист импортирован!",
+    "play": "Играть",
+    "update": "Обновить yt-dlp",
+    "updating": "Обновляю...",
+    "updated": "yt-dlp обновлён",
+    "updateFailed": "Не удалось обновить yt-dlp"
   },
   "update": {
     "available": "Доступно обновление",
@@ -961,7 +1001,7 @@
     "discord": {
       "title": "У нас появился Discord!",
       "description": "Присоединяйся — обсуждения, предложения, баг-репорты",
-      "body": "Мы запустили официальный Discord-сервер SoundCloud Desktop!\n\nЗаходи, чтобы общаться с другими пользователями, предлагать фичи, сообщать о багах и быть в курсе последних новостей.\n\nhttps://discord.gg/xQcGBP8fGG"
+      "body": "Мы запустили официальный Discord-сервер Sonora!\n\nЗаходи, чтобы общаться с другими пользователями, предлагать фичи, сообщать о багах и быть в курсе последних новостей.\n\nhttps://discord.gg/xQcGBP8fGG"
     }
   },
   "call": {

@@ -27,7 +27,8 @@ function hopUsable(hop: Hop, res: Response): boolean {
 }
 
 function isDirectInfrastructureError(res: Response): boolean {
-  if (res.status < 502 || res.status > 504) return false;
+  if (res.status === 503) return true;
+  if (res.status !== 502 && res.status !== 504) return false;
   return res.headers.get('content-type')?.toLowerCase().includes('text/html') ?? false;
 }
 

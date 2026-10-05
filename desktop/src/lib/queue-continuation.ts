@@ -10,9 +10,9 @@
  * при исчерпании.
  */
 
-import {shuffleArray, type Track, usePlayerStore} from '../stores/player';
-import {api} from './api';
-import {fetchAllLikedTracks, fetchAllPlaylistTracks} from './hooks';
+import { shuffleArray, type Track, usePlayerStore } from '../stores/player';
+import { api } from './api';
+import { fetchAllLikedTracks, fetchAllPlaylistTracks } from './hooks';
 
 export interface QueueContinuationSource {
   /** Имя для логов. */
@@ -140,6 +140,15 @@ export function armLikesContinuation(): void {
  * на нём и волна включалась посреди плейлиста. Тот же приём, что и у лайков.
  */
 export function armPlaylistContinuation(playlistUrn: string): void {
+  if (playlistUrn.startsWith('soundcloud:playlists:imported-')) {
+    setQueueContinuationSource({
+      kind: 'imported-playlist',
+      async next() {
+        return [];
+      },
+    });
+    return;
+  }
   if (usePlayerStore.getState().shuffle) {
     setQueueContinuationSource(
       createShuffledContinuationSource('playlist-shuffled', () =>

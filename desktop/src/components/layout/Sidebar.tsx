@@ -1,6 +1,6 @@
-import React, { useCallback } from 'react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import { useShallow } from 'zustand/shallow';
 import { changeAppLanguage } from '../../i18n';
 import { art } from '../../lib/formatters';
@@ -16,21 +16,19 @@ import {
   PanelLeftOpen,
   Search,
   Settings,
-  Star,
 } from '../../lib/icons';
 import { usePerfMode } from '../../lib/perf';
 import { useAppMode } from '../../stores/app-status';
 import { useAuthStore } from '../../stores/auth';
 import { useSettingsStore } from '../../stores/settings';
 import { Avatar } from '../ui/Avatar';
-import { StarBadge, StarCard, useStarSubscription } from './StarSubscription';
 
 type IconCmp = React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
 
 const languages = [
   { code: 'en', label: 'English' },
   { code: 'ru', label: 'Русский' },
-  { code: 'tr', label: 'Turkce' },
+  { code: 'tr', label: 'Türkçe' },
 ] as const;
 
 const navItems: { to: string; icon: IconCmp; label: string }[] = [
@@ -38,20 +36,19 @@ const navItems: { to: string; icon: IconCmp; label: string }[] = [
   { to: '/search', icon: Search, label: 'nav.search' },
   { to: '/discover', icon: Compass, label: 'nav.discover' },
   { to: '/library', icon: Library, label: 'nav.library' },
-  { to: '/star', icon: Star, label: 'nav.star' },
   { to: '/offline', icon: Download, label: 'nav.offline' },
 ];
 
 const ROW = 'group relative w-full flex items-center h-10 rounded-xl transition-all duration-200';
 const LABEL_T = 'max-width 320ms cubic-bezier(0.2,0.8,0.2,1), opacity 240ms ease';
 
-// Active = accent-glow glass pill (matches the header). Readable on any accent
-// because the accent is a translucent wash over dark glass, text stays white.
+// Active = quiet glass pill with a thin accent ring + depth. Readable on any
+// accent because the accent is only a hairline, text stays white.
 const ACTIVE: React.CSSProperties = {
   color: '#fff',
-  background:
-    'linear-gradient(180deg, var(--color-accent-glow), transparent), rgba(255,255,255,0.05)',
-  boxShadow: '0 0 18px var(--color-accent-glow), inset 0 0.5px 0 rgba(255,255,255,0.14)',
+  background: 'rgba(255,255,255,0.06)',
+  boxShadow:
+    'inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 30%, transparent), inset 0 1px 0 rgba(255,255,255,0.08), 0 1px 2px rgba(0,0,0,0.45)',
 };
 
 /** A label that always exists but folds away purely via CSS on collapse — no JS
@@ -130,9 +127,6 @@ export const Sidebar = React.memo(() => {
       toggleSidebar: s.toggleSidebar,
     })),
   );
-  const { isPremium } = useStarSubscription();
-  const navigate = useNavigate();
-  const openStar = useCallback(() => navigate('/star'), [navigate]);
   const perf = usePerfMode();
 
   const toggleLanguage = () => {
@@ -229,10 +223,6 @@ export const Sidebar = React.memo(() => {
       <div className="flex-1" />
 
       <div className="px-2 pb-1 flex flex-col gap-0.5">
-        <div className="mb-1">
-          <StarCard collapsed={collapsed} isPremium={isPremium} onOpen={openStar} />
-        </div>
-
         <button
           type="button"
           onClick={toggleSidebar}
@@ -289,7 +279,6 @@ export const Sidebar = React.memo(() => {
               <span className="text-[12.5px] text-white/55 truncate font-medium">
                 {user.username}
               </span>
-              {isPremium && <StarBadge />}
             </Label>
           </NavLink>
         </div>

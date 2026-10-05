@@ -4,6 +4,7 @@ import { api } from '../../lib/api';
 import { invalidateAllLikesCache } from '../../lib/hooks';
 import { Heart } from '../../lib/icons';
 import { optimisticToggleLike, setLikedUrn, useLiked } from '../../lib/likes';
+import { isYoutubeUrn } from '../../lib/youtube';
 import type { Track } from '../../stores/player';
 
 export const LikeButton = React.memo(function LikeButton({
@@ -20,6 +21,9 @@ export const LikeButton = React.memo(function LikeButton({
     if (track.user_favorite) setLikedUrn(track.urn, true);
   }, [track.urn, track.user_favorite]);
   const qc = useQueryClient();
+
+  // Likes are SoundCloud-backed — YouTube tracks have no backend id.
+  if (isYoutubeUrn(track.urn)) return null;
 
   const toggle = async (e: React.MouseEvent) => {
     e.stopPropagation();

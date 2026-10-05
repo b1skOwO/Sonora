@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
@@ -22,9 +23,7 @@ impl<S: Source<Item = f32>> Iterator for GainSource<S> {
     type Item = f32;
 
     fn next(&mut self) -> Option<f32> {
-        self.source
-            .next()
-            .map(|sample| (sample * self.gain).clamp(-1.0, 1.0))
+        self.source.next().map(|sample| sample * self.gain)
     }
 }
 
@@ -164,7 +163,7 @@ impl<S: Source<Item = f32>> Iterator for EqSource<S> {
             out = Biquad::run(filter, out);
         }
 
-        Some(out.clamp(-1.0, 1.0) as f32)
+        Some(out as f32)
     }
 }
 
@@ -179,6 +178,51 @@ impl<S: Source<Item = f32>> Source for EqSource<S> {
 
     fn sample_rate(&self) -> SampleRate {
         self.sample_rate
+    }
+
+    fn total_duration(&self) -> Option<Duration> {
+        self.source.total_duration()
+    }
+
+    fn try_seek(&mut self, pos: Duration) -> Result<(), SeekError> {
+        self.source.try_seek(pos)
+    }
+}
+
+/// Final volume stage of the DSP chain (after EQ + analyser). Reads a shared
+/// atomic so live volume changes apply without rebuilding the player. The
+/// signal stays in the float domain — no clamp or limiter is applied here.
+pub struct VolumeSource<S: Source<Item = f32>> {
+    source: S,
+    volume: Arc<AtomicU32>,
+}
+
+impl<S: Source<Item = f32>> VolumeSource<S> {
+    pub fn new(source: S, volume: Arc<AtomicU32>) -> Self {
+        Self { source, volume }
+    }
+}
+
+impl<S: Source<Item = f32>> Iterator for VolumeSource<S> {
+    type Item = f32;
+
+    fn next(&mut self) -> Option<f32> {
+        let volume = f32::from_bits(self.volume.load(Ordering::Relaxed));
+        self.source.next().map(|sample| sample * volume)
+    }
+}
+
+impl<S: Source<Item = f32>> Source for VolumeSource<S> {
+    fn current_span_len(&self) -> Option<usize> {
+        self.source.current_span_len()
+    }
+
+    fn channels(&self) -> ChannelCount {
+        self.source.channels()
+    }
+
+    fn sample_rate(&self) -> SampleRate {
+        self.source.sample_rate()
     }
 
     fn total_duration(&self) -> Option<Duration> {

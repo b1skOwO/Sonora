@@ -136,7 +136,7 @@ export const SessionRecoveryModal = React.memo(() => {
                 <button
                   type="button"
                   onClick={() => void retryRenew()}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-accent text-accent-contrast font-semibold text-[13px] hover:bg-accent-hover active:scale-[0.97] transition-all duration-200 cursor-pointer shadow-[0_0_30px_var(--color-accent-glow),0_2px_8px_rgba(0,0,0,0.3)]"
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-accent text-accent-contrast font-semibold text-[13px] hover:bg-accent-hover active:scale-[0.97] transition-all duration-200 cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.3)]"
                 >
                   <RefreshCw size={14} />
                   {t('recovery.retry')}

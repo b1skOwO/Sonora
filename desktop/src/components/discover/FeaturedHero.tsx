@@ -1,10 +1,10 @@
-import React, {useMemo, useState} from 'react';
-import {useTranslation} from 'react-i18next';
-import {useNavigate} from 'react-router-dom';
-import {useShallow} from 'zustand/shallow';
-import {preloadTrack} from '../../lib/audio';
-import {ago, art, dur, fc} from '../../lib/formatters';
-import {type FeedItem, type Playlist, type SCUser, useFeatured} from '../../lib/hooks';
+import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
+import { useShallow } from 'zustand/shallow';
+import { preloadTrack } from '../../lib/audio';
+import { ago, art, dur, fc } from '../../lib/formatters';
+import { type FeedItem, type Playlist, type SCUser, useFeatured } from '../../lib/hooks';
 import {
   ChevronRight,
   Headphones,
@@ -18,16 +18,22 @@ import {
   playBlack22,
   Repeat2,
 } from '../../lib/icons';
-import {usePerfMode} from '../../lib/perf';
-import {playlistCoverUrl} from '../../lib/playlist-cover';
-import {getArtistTarget, useArtistDisplay, useArtistLinkItems, useDisplayTitle,} from '../../lib/track-display';
-import {useAutoHide} from '../../lib/useAutoHide';
-import {useTrackPlay} from '../../lib/useTrackPlay';
-import {type Track, usePlayerStore} from '../../stores/player';
-import {ArtistNameLinks} from '../music/ArtistNameLinks';
-import {TrackStatusBadges} from '../music/TrackStatusBadges';
-import {UploadKindDot} from '../music/UploadKindDot';
-import {Skeleton} from '../ui/Skeleton';
+import { usePerfMode } from '../../lib/perf';
+import { playlistCoverUrl } from '../../lib/playlist-cover';
+import { canUsePublicFallback, fetchPublicPlaylistTracks } from '../../lib/public-sc';
+import {
+  getArtistTarget,
+  useArtistDisplay,
+  useArtistLinkItems,
+  useDisplayTitle,
+} from '../../lib/track-display';
+import { useAutoHide } from '../../lib/useAutoHide';
+import { useTrackPlay } from '../../lib/useTrackPlay';
+import { type Track, usePlayerStore } from '../../stores/player';
+import { ArtistNameLinks } from '../music/ArtistNameLinks';
+import { TrackStatusBadges } from '../music/TrackStatusBadges';
+import { UploadKindDot } from '../music/UploadKindDot';
+import { Skeleton } from '../ui/Skeleton';
 
 /* Blurred artwork backdrop for the promo hero; flat tint when blur is gated off. */
 const HeroBlurBg = React.memo(function HeroBlurBg({ cover }: { cover: string }) {
@@ -239,7 +245,14 @@ const FeaturedPlaylistHero = React.memo(function FeaturedPlaylistHero({
     setLoading(true);
     try {
       const data = await import('../../lib/api').then((m) =>
-        m.api<{ collection: Track[] }>(`/playlists/${encodeURIComponent(playlist.urn)}/tracks`),
+        m
+          .api<{ collection: Track[] }>(`/playlists/${encodeURIComponent(playlist.urn)}/tracks`, {
+            silentStatuses: [404, 500, 502, 503, 504],
+          })
+          .catch(async (error) => {
+            if (!canUsePublicFallback(error)) throw error;
+            return { collection: await fetchPublicPlaylistTracks(playlist.urn) };
+          }),
       );
       if (data.collection.length > 0) {
         usePlayerStore.getState().play(data.collection[0], data.collection);

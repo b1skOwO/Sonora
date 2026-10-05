@@ -62,7 +62,8 @@
     "previous": "Previous",
     "next": "Next",
     "openApp": "Open SoundCloud",
-    "notPlaying": "Not playing"
+    "notPlaying": "Not playing",
+    "volume": "Volume"
   },
   "auth": {
     "signIn": "Sign in with SoundCloud",
@@ -97,9 +98,9 @@
   },
   "qrLink": {
     "pullTitle": "Sign in with another device",
-    "pullSubtitle": "Open SoundCloud Desktop on your phone or another device that's already signed in, then scan this code.",
+    "pullSubtitle": "Open Sonora on your phone or another device that's already signed in, then scan this code.",
     "pushTitle": "Add another device",
-    "pushSubtitle": "Open SoundCloud Desktop on your phone (or another device) and scan this code to sign in there.",
+    "pushSubtitle": "Open Sonora on your phone (or another device) and scan this code to sign in there.",
     "preparing": "Generating secure code…",
     "expiresIn": "Expires in {{seconds}}s",
     "pullSuccess": "You're signed in.",
@@ -270,7 +271,9 @@
     "feat": "feat.",
     "remix": "Remix",
     "prod": "prod.",
-    "whoVibes": "Who's vibing"
+    "whoVibes": "Who's vibing",
+    "voicesHere_few": "{{count}} people here",
+    "voicesHere_many": "{{count}} people here"
   },
   "playlist": {
     "playAll": "Play All",
@@ -316,7 +319,13 @@
     "yearRange": "{{from}}–{{to}}",
     "moreCrates": "More crates by {{name}}",
     "lastEdited": "Updated {{date}}",
-    "emptyCrate": "This crate is empty — start digging"
+    "emptyCrate": "This crate is empty — start digging",
+    "tracks_few": "{{count}} tracks",
+    "tracks_many": "{{count}} tracks",
+    "spansGenres_few": "Spans {{count}} genres",
+    "spansGenres_many": "Spans {{count}} genres",
+    "distinctArtists_few": "{{count}} distinct artists",
+    "distinctArtists_many": "{{count}} distinct artists"
   },
   "user": {
     "followers": "Followers",
@@ -329,6 +338,13 @@
     "unfollow": "Unfollow",
     "noFollowers": "No followers found.",
     "noFollowings": "No followings found.",
+    "syncPending": "The server is taking longer than expected to load this list. You can try again.",
+    "playlistImportPlaceholder": "Paste a SoundCloud playlist link",
+    "importPlaylist": "Import",
+    "playlistImported": "Imported: {{title}}",
+    "likesImportPlaceholder": "Paste a SoundCloud account link to import its likes",
+    "importLikes": "Import likes",
+    "likesImported": "Created {{title}} from {{count}} liked tracks",
     "publicProfile": "This is how your public profile looks to others",
     "about": "About",
     "memberSince": "Member since",
@@ -360,6 +376,7 @@
     "likedTracks": "Liked Tracks",
     "likedPlaylists": "Liked Playlists",
     "yourPlaylists": "Your Playlists",
+    "importedPlaylists": "Imported",
     "localLikes": "Local",
     "noLocalLikes": "No local likes yet",
     "history": "History",
@@ -556,7 +573,17 @@
     "actPlay": "Play",
     "actDownload": "Download to device",
     "actSave": "Save to file",
-    "removeCached": "Remove from cache"
+    "removeCached": "Remove from cache",
+    "pendingCount_one": "{{count}} pending",
+    "pendingCount_few": "{{count}} pending",
+    "pendingCount_many": "{{count}} pending",
+    "failedCount_one": "{{count}} failed",
+    "failedCount_few": "{{count}} failed",
+    "failedCount_many": "{{count}} failed",
+    "forgeLogQueued_few": "{{count}} files queued",
+    "forgeLogQueued_many": "{{count}} files queued",
+    "fileCount_few": "{{count}} files",
+    "fileCount_many": "{{count}} files"
   },
   "settings": {
     "title": "Settings",
@@ -574,6 +601,13 @@
     "cacheLikesEmpty": "No liked tracks",
     "audioCacheLimit": "Audio cache limit",
     "audioCacheLimitDesc": "Older cached tracks are deleted automatically when the limit is exceeded",
+    "cacheDir": "Cache folder",
+    "cacheDirDesc": "Where downloaded audio is stored. Changing the folder takes effect after a restart.",
+    "cacheDirChange": "Change",
+    "cacheDirPick": "Choose a cache folder",
+    "cacheDirMoveConfirm": "Move the existing cached files into the new folder? Choose No to start with an empty cache.",
+    "cacheDirChanged": "Cache folder updated",
+    "cacheDirRestart": "Restart now to apply the new cache folder?",
     "clearCache": "Clear",
     "cacheCleared": "Cache cleared",
     "appearance": "Appearance",
@@ -605,11 +639,20 @@
     "performance": "Performance",
     "performanceDesc": "Scale the visual effects to match your hardware. Beauty keeps the full design.",
     "perfLight": "Light",
-    "perfLightDesc": "Flat & fast — no blur, particles or idle motion.",
+    "perfLightDesc": "Low blur, no particles or idle motion.",
     "perfMedium": "Balanced",
     "perfMediumDesc": "Reduced blur, fewer particles.",
     "perfBeauty": "Beauty",
     "perfBeautyDesc": "Full liquid-glass design.",
+    "effects": "Effects",
+    "effectsDesc": "Tune glass blur and accent glow intensity.",
+    "eqDesc": "Boost or cut 10 frequency bands with ready-made presets.",
+    "eqOpen": "Open equalizer",
+    "blurStrength": "Glass blur",
+    "blurStrengthDesc": "Multiplies the backdrop blur radius of glass surfaces.",
+    "blurLightHint": "Light performance mode disables blur — switch to Balanced or Beauty to see it.",
+    "glowStrength": "Accent glow",
+    "glowStrengthDesc": "Scales accent glows and tinted highlights across the app.",
     "startup": "Startup",
     "startupPageDesc": "Choose which page opens when the app launches",
     "playback": "Playback",
@@ -622,7 +665,7 @@
     "discordRpcMode": "Display mode",
     "discordRpcModeTrack": "Track",
     "discordRpcModeArtist": "Artist",
-    "discordRpcModeActivity": "Activity only",
+    "discordRpcModeActivity": "Artist + title",
     "discordRpcButton": "Show SoundCloud button",
     "discordRpcButtonDesc": "Display the button that opens the track in SoundCloud",
     "normalizeVolume": "Volume normalization",
@@ -659,7 +702,8 @@
     "wpKeyNeeded": "Enter your Wallhaven API key to unlock 18+ results.",
     "bypassWhitelistSoonDesc": "We're shipping bypass routing — stay tuned",
     "import": "Import",
-    "importYandex": "Import from Yandex Music"
+    "importYandex": "Import from Yandex Music",
+    "importYoutube": "Import from YouTube"
   },
   "eq": {
     "title": "Equalizer",
@@ -708,6 +752,20 @@
     "done": "Import complete!",
     "savingPlaylist": "Saving playlist...",
     "backgroundHint": "Import continues in the background. You can close this window"
+  },
+  "yt": {
+    "instructions": "Paste a YouTube playlist or video link",
+    "hint": "The playlist is imported right away; each track's audio is downloaded by yt-dlp on first play.",
+    "urlPlaceholder": "https://www.youtube.com/playlist?list=...",
+    "import": "Import",
+    "importing": "Reading playlist...",
+    "preparing": "Preparing yt-dlp — the first import downloads it (about 30 MB).",
+    "done": "Playlist imported!",
+    "play": "Play",
+    "update": "Update yt-dlp",
+    "updating": "Updating...",
+    "updated": "yt-dlp updated",
+    "updateFailed": "yt-dlp update failed"
   },
   "update": {
     "available": "Update available",
@@ -932,7 +990,9 @@
       "miniapp": "Telegram Mini App"
     },
     "loadError": "Couldn't load plans",
-    "loading": "Loading plans…"
+    "loading": "Loading plans…",
+    "daysLeft_few": "{{count}} days left",
+    "daysLeft_many": "{{count}} days left"
   },
   "soundwaveLock": {
     "wordmark": "SOUND WAVE",
@@ -950,7 +1010,7 @@
     "discord": {
       "title": "We have a Discord server!",
       "description": "Join our community — discuss, suggest features, report bugs",
-      "body": "We've launched an official Discord server for SoundCloud Desktop!\n\nJoin to chat with other users, suggest new features, report bugs, and stay up to date with the latest news.\n\nhttps://discord.gg/xQcGBP8fGG"
+      "body": "We've launched an official Discord server for Sonora!\n\nJoin to chat with other users, suggest new features, report bugs, and stay up to date with the latest news.\n\nhttps://discord.gg/xQcGBP8fGG"
     }
   },
   "call": {
@@ -1040,7 +1100,9 @@
     "availability": "{{indexed}}/{{total}} available",
     "verified": "Verified",
     "noTracks": "No tracks indexed yet",
-    "comingSoon": "Coming soon"
+    "comingSoon": "Coming soon",
+    "tracksCount_few": "{{count}} tracks",
+    "tracksCount_many": "{{count}} tracks"
   },
   "discover": {
     "title": "Discover",
@@ -1076,6 +1138,12 @@
     "noArtists": "No artists",
     "noMatches": "Nothing matches “{{query}}”",
     "capAlbums": "That's the cream of the crop — narrow the genre or search to dig deeper.",
-    "capArtists": "That's the cream of the crop — pick a tag or search to dig deeper."
+    "capArtists": "That's the cream of the crop — pick a tag or search to dig deeper.",
+    "metaArtists_few": "{{count}} artists",
+    "metaArtists_many": "{{count}} artists",
+    "metaAlbums_few": "{{count}} albums",
+    "metaAlbums_many": "{{count}} albums",
+    "metaFresh_few": "{{count}} new",
+    "metaFresh_many": "{{count}} new"
   }
 }

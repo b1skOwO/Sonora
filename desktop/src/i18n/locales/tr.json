@@ -52,7 +52,8 @@
     "abLoopSetA": "En iyi bolumu dongule: baslangic (A)",
     "abLoopSetB": "En iyi bolumu dongule: bitis (B)",
     "abLoopClear": "A-B dongusunu temizle",
-    "notPlaying": "Calmiyor"
+    "notPlaying": "Calmiyor",
+    "volume": "Ses"
   },
   "auth": {
     "signIn": "SoundCloud ile giris yap",
@@ -246,6 +247,13 @@
     "unfollow": "Takibi Birak",
     "noFollowers": "Takipci bulunamadi.",
     "noFollowings": "Takip edilen bulunamadi.",
+    "syncPending": "Sunucu bu listeyi normalden uzun surede yukluyor. Yeniden deneyebilirsiniz.",
+    "playlistImportPlaceholder": "SoundCloud calma listesi baglantisini yapistirin",
+    "importPlaylist": "Ice aktar",
+    "playlistImported": "Ice aktarildi: {{title}}",
+    "likesImportPlaceholder": "Begenileri ice aktarmak icin SoundCloud hesap baglantisini yapistirin",
+    "importLikes": "Begenileri ice aktar",
+    "likesImported": "{{count}} begenilen parcadan {{title}} olusturuldu",
     "publicProfile": "Diger insanlar profilinizi boyle gorur",
     "about": "Hakkinda",
     "memberSince": "Uyelik tarihi",
@@ -277,6 +285,7 @@
     "likedTracks": "Begenilen Parcalar",
     "likedPlaylists": "Begenilen Calma Listeleri",
     "yourPlaylists": "Calma Listeleriniz",
+    "importedPlaylists": "Ice aktarilanlar",
     "localLikes": "Yerel",
     "noLocalLikes": "Henuz yerel begeni yok",
     "history": "Gecmis",
@@ -486,6 +495,13 @@
     "cacheLikesEmpty": "Begenilen parca yok",
     "audioCacheLimit": "Ses onbellek limiti",
     "audioCacheLimitDesc": "Limit asildiginda eski onbelleklenmis parcilar otomatik silinir",
+    "cacheDir": "Onbellek klasoru",
+    "cacheDirDesc": "Indirilen sesin saklandigi yer. Klasor degisikligi yeniden baslatmadan sonra gecerli olur.",
+    "cacheDirChange": "Degistir",
+    "cacheDirPick": "Onbellek klasoru secin",
+    "cacheDirMoveConfirm": "Mevcut onbellek dosyalari yeni klasore tasinsin mi? Hayir derseniz bos onbellekle baslar.",
+    "cacheDirChanged": "Onbellek klasoru guncellendi",
+    "cacheDirRestart": "Yeni onbellek klasorunu uygulamak icin simdi yeniden baslatilsin mi?",
     "clearCache": "Temizle",
     "cacheCleared": "Onbellek temizlendi",
     "appearance": "Gorunum",
@@ -517,11 +533,20 @@
     "performance": "Performans",
     "performanceDesc": "Gorsel efektleri donaniminiza gore olceklendirin. Guzellik tum tasarimi korur.",
     "perfLight": "Hafif",
-    "perfLightDesc": "Duz ve hizli — bulaniklik, parcacik veya hareket yok.",
+    "perfLightDesc": "Az bulaniklik, parcacik veya hareket yok.",
     "perfMedium": "Dengeli",
     "perfMediumDesc": "Daha az bulaniklik ve parcacik.",
     "perfBeauty": "Guzellik",
     "perfBeautyDesc": "Tam liquid-glass tasarim.",
+    "effects": "Efektler",
+    "effectsDesc": "Cam bulanikligi ve vurgu parlamasinin yogunlugunu ayarlayin.",
+    "eqDesc": "Hazir ayarlarla 10 frekans bandini guclendirin veya kisn.",
+    "eqOpen": "Ekolayziri ac",
+    "blurStrength": "Cam bulanikligi",
+    "blurStrengthDesc": "Cam yuzeylerin arka plan bulaniklik yaricapini carpar.",
+    "blurLightHint": "Hafif performans modunda bulaniklik kapalidir — Dengeli veya Guzellik moduna gecin.",
+    "glowStrength": "Vurgu parlamasi",
+    "glowStrengthDesc": "Uygulamadaki vurgu parlamalarini ve renkli vurgulari olcekler.",
     "startup": "Baslangic",
     "startupPageDesc": "Uygulama acildiginda hangi sayfanin gosterilecegini secin",
     "playback": "Oynatma",
@@ -532,7 +557,7 @@
     "discordRpcMode": "Gosterim modu",
     "discordRpcModeTrack": "Parca",
     "discordRpcModeArtist": "Yalnizca sanatci",
-    "discordRpcModeActivity": "Yalnizca etkinlik",
+    "discordRpcModeActivity": "Sanatci + parca",
     "discordRpcButton": "SoundCloud dugmesi",
     "discordRpcButtonDesc": "Parcayi SoundCloud'da acan dugmeyi goster",
     "normalizeVolume": "Ses duzeyi dengeleme",
@@ -569,7 +594,8 @@
     "wpKeyNeeded": "18+ sonuclar icin Wallhaven API anahtarini girin.",
     "bypassWhitelistSoonDesc": "Atlatma rotalamasi gelistirme asamasinda",
     "import": "Ice aktar",
-    "importYandex": "Yandex Music'ten ice aktar"
+    "importYandex": "Yandex Music'ten ice aktar",
+    "importYoutube": "YouTube'dan ice aktar"
   },
   "eq": {
     "title": "Ekolayzir",
@@ -618,6 +644,20 @@
     "done": "Ice aktarma tamamlandi!",
     "savingPlaylist": "Calma listesi kaydediliyor...",
     "backgroundHint": "Ice aktarma arka planda surer, bu pencereyi kapatabilirsiniz"
+  },
+  "yt": {
+    "instructions": "Bir YouTube calma listesi veya video baglantisi yapistirin",
+    "hint": "Calma listesi hemen ice aktarilir; her parcanin sesi ilk oynatmada yt-dlp ile indirilir.",
+    "urlPlaceholder": "https://www.youtube.com/playlist?list=...",
+    "import": "Ice aktar",
+    "importing": "Calma listesi okunuyor...",
+    "preparing": "yt-dlp hazirlaniyor — ilk ice aktarmada indirilir (~30 MB).",
+    "done": "Calma listesi ice aktarildi!",
+    "play": "Oynat",
+    "update": "yt-dlp'yi guncelle",
+    "updating": "Guncelleniyor...",
+    "updated": "yt-dlp guncellendi",
+    "updateFailed": "yt-dlp guncellenemedi"
   },
   "update": {
     "available": "Guncelleme mevcut",
@@ -852,7 +892,7 @@
     "discord": {
       "title": "Discord sunucumuz var!",
       "description": "Toplulugumuza katilin — tartisma, oneriler, hata bildirimi",
-      "body": "SoundCloud Desktop icin resmi Discord sunucumuzu actik!\n\nDiger kullanicilarla sohbet etmek, yeni ozellikler onermek, hata bildirmek ve en son haberleri takip etmek icin katilin.\n\nhttps://discord.gg/xQcGBP8fGG"
+      "body": "Sonora icin resmi Discord sunucumuzu actik!\n\nDiger kullanicilarla sohbet etmek, yeni ozellikler onermek, hata bildirmek ve en son haberleri takip etmek icin katilin.\n\nhttps://discord.gg/xQcGBP8fGG"
     }
   },
   "call": {

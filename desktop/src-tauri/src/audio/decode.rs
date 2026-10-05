@@ -10,7 +10,8 @@ use rodio::{Decoder, Player, Source};
 use sha2::{Digest, Sha256};
 
 use crate::audio::analyser::{AnalyserBuffer, AnalyserSource};
-use crate::audio::eq::{EqSource, GainSource};
+use crate::audio::eq::{EqSource, GainSource, VolumeSource};
+use crate::audio::resample::ResampleSource;
 use crate::audio::types::{
     ChannelCount, EqParams, SampleRate, NORMALIZATION_ANALYSIS_SAMPLES,
     NORMALIZATION_BLOCK_SAMPLES, NORMALIZATION_MAX_ATTENUATION_DB, NORMALIZATION_MAX_BOOST_DB,
@@ -306,17 +307,75 @@ pub fn resolve_normalization_gain(
     Ok(gain)
 }
 
+/// Append `source` to `player`, resampling to `output_sample_rate` first when
+/// the rates differ, so rodio's mixer never falls back to its linear
+/// interpolator (see `resample`).
+fn append_final<S>(player: &Player, source: S, output_sample_rate: u32)
+where
+    S: Source<Item = f32> + Send + 'static,
+{
+    match NonZero::new(output_sample_rate) {
+        Some(rate) if rate != source.sample_rate() => {
+            eprintln!(
+                "[audio] resampling {} Hz → {} Hz",
+                source.sample_rate(),
+                rate
+            );
+            player.append(ResampleSource::new(source, rate));
+        }
+        _ => player.append(source),
+    }
+}
+
+/// Wrap `source` into the shared DSP chain (gain → EQ → analyser → volume) and
+/// append it to the player. With a `volume_handle` the player's own volume stays
+/// at 1.0 and the chain applies the live user volume. The chain is resampled to
+/// the device rate at the very end, so EQ/analyser keep running at the source
+/// rate and the mixer sees a matching rate.
+fn append_chain<S>(
+    player: &Player,
+    source: S,
+    normalization_gain: f32,
+    eq_params: Arc<RwLock<EqParams>>,
+    analyser_buffer: Arc<AnalyserBuffer>,
+    volume_handle: Option<Arc<std::sync::atomic::AtomicU32>>,
+    output_sample_rate: u32,
+) where
+    S: Source<Item = f32> + Send + 'static,
+{
+    let eq = EqSource::new(GainSource::new(source, normalization_gain), eq_params);
+    match volume_handle {
+        // Volume sits *outside* the analyser so the visualizer stays
+        // volume-independent, exactly as it was with rodio's player volume.
+        Some(handle) => append_final(
+            player,
+            VolumeSource::new(AnalyserSource::new(eq, analyser_buffer), handle),
+            output_sample_rate,
+        ),
+        None => append_final(
+            player,
+            AnalyserSource::new(eq, analyser_buffer),
+            output_sample_rate,
+        ),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 pub fn create_player_from_bytes(
     bytes: &[u8],
     mixer: &Mixer,
     volume: f32,
+    volume_handle: Option<Arc<std::sync::atomic::AtomicU32>>,
     normalization_gain: f32,
     start_paused: bool,
     eq_params: Arc<RwLock<EqParams>>,
     analyser_buffer: Arc<AnalyserBuffer>,
+    output_sample_rate: u32,
 ) -> Result<(Player, Option<f64>), String> {
     let player = Player::connect_new(mixer);
-    player.set_volume(volume);
+    if volume_handle.is_none() {
+        player.set_volume(volume);
+    }
     if start_paused {
         player.pause();
     }
@@ -326,26 +385,41 @@ pub fn create_player_from_bytes(
         let source =
             OpusSource::new(bytes.to_vec()).map_err(|e| format!("Failed to decode: {}", e))?;
         duration = source.total_duration().map(|d| d.as_secs_f64());
-        player.append(AnalyserSource::new(
-            EqSource::new(GainSource::new(source, normalization_gain), eq_params),
+        append_chain(
+            &player,
+            source,
+            normalization_gain,
+            eq_params,
             analyser_buffer,
-        ));
+            volume_handle,
+            output_sample_rate,
+        );
     } else if Decoder::new(Cursor::new(bytes.to_vec())).is_ok() {
         let source = Decoder::new(Cursor::new(bytes.to_vec()))
             .map_err(|e| format!("Failed to decode: {}", e))?;
         duration = source.total_duration().map(|d| d.as_secs_f64());
-        player.append(AnalyserSource::new(
-            EqSource::new(GainSource::new(source, normalization_gain), eq_params),
+        append_chain(
+            &player,
+            source,
+            normalization_gain,
+            eq_params,
             analyser_buffer,
-        ));
+            volume_handle,
+            output_sample_rate,
+        );
     } else {
         let source =
             OpusSource::new(bytes.to_vec()).map_err(|e| format!("Failed to decode: {}", e))?;
         duration = source.total_duration().map(|d| d.as_secs_f64());
-        player.append(AnalyserSource::new(
-            EqSource::new(GainSource::new(source, normalization_gain), eq_params),
+        append_chain(
+            &player,
+            source,
+            normalization_gain,
+            eq_params,
             analyser_buffer,
-        ));
+            volume_handle,
+            output_sample_rate,
+        );
     }
 
     Ok((player, duration))

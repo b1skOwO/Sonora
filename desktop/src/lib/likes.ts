@@ -3,6 +3,7 @@ import { useSyncExternalStore } from 'react';
 import { useAuthStore } from '../stores/auth';
 import type { Track } from '../stores/player';
 import { recordEvent } from './events';
+import { isYoutubeUrn } from './youtube';
 
 interface PagedTracks {
   collection: Track[];
@@ -72,6 +73,8 @@ export function likedTracksCount(user: UserLikeCounters | null | undefined): num
 /* ── Optimistic toggle (TanStack Query cache) ───────────── */
 
 export function optimisticToggleLike(qc: QueryClient, track: Track, nowLiked: boolean) {
+  // Likes are a SoundCloud-backed store — YouTube tracks have no backend id.
+  if (isYoutubeUrn(track.urn)) return;
   // Update global liked URNs
   setLikedUrn(track.urn, nowLiked);
 

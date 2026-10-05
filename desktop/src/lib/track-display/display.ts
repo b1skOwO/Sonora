@@ -1,7 +1,7 @@
-import type {Track, TrackAvailability} from '../../stores/player';
-import {stripInlineTags, stripTranslitParens} from './clean';
-import {foldName} from './fold';
-import {type NamePart, splitNamesWithOffsets, TITLE_SEPARATORS} from './split';
+import type { Track, TrackAvailability } from '../../stores/player';
+import { stripInlineTags, stripTranslitParens } from './clean';
+import { foldName } from './fold';
+import { type NamePart, splitNamesWithOffsets, TITLE_SEPARATORS } from './split';
 
 export type DisplayInput = Pick<Track, 'title' | 'user' | 'enrichment'>;
 
@@ -153,7 +153,9 @@ function computeTrackDisplay(track: DisplayInput): TrackDisplay {
  * "МОКЕРИ, Psychosis", название "kill".
  */
 function splitTitleAuthors(track: DisplayInput): TrackDisplay {
-  const cleaned = stripTranslitParens(stripInlineTags(track.title));
+  // Queue entries restored from wave/related can be id-only stubs; never let a
+  // missing title crash the display pipeline before hydration fills it in.
+  const cleaned = stripTranslitParens(stripInlineTags(track.title ?? ''));
   const known = knownNames(track);
 
   for (const sep of TITLE_SEPARATORS) {

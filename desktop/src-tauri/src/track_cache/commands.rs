@@ -24,6 +24,10 @@ pub struct EnsureCachedRequest {
     /// API-reported track length (ms) for truncated-download detection.
     #[serde(default)]
     pub duration_ms: Option<u64>,
+    /// YouTube video id — routes the download through yt-dlp instead of the SC
+    /// stream fallbacks.
+    #[serde(default)]
+    pub video_id: Option<String>,
 }
 
 impl EnsureCachedRequest {
@@ -58,9 +62,7 @@ pub async fn track_ensure_cached(
     request: EnsureCachedRequest,
     state: State<'_, TrackCacheState>,
 ) -> Result<TrackCacheEntry, String> {
-    let fallback_urls = request
-        .fallback_urls()
-        .ok_or_else(|| "no stream URL provided".to_string())?;
+    let fallback_urls = request.fallback_urls().unwrap_or_default();
     let storage_urls = request.storage_urls.unwrap_or_default();
     let download_urls = request.download_urls.unwrap_or_default();
     state
@@ -73,6 +75,7 @@ pub async fn track_ensure_cached(
             hq: request.hq,
             liked: false,
             expected_duration_ms: request.duration_ms,
+            youtube_id: request.video_id.as_deref(),
         })
         .await
 }
@@ -86,9 +89,7 @@ pub async fn track_export(
     cover_url: Option<String>,
     state: State<'_, TrackCacheState>,
 ) -> Result<String, String> {
-    let fallback_urls = request
-        .fallback_urls()
-        .ok_or_else(|| "no stream URL provided".to_string())?;
+    let fallback_urls = request.fallback_urls().unwrap_or_default();
     let storage_urls = request.storage_urls.unwrap_or_default();
     let download_urls = request.download_urls.unwrap_or_default();
     state
@@ -102,6 +103,7 @@ pub async fn track_export(
                 hq: request.hq,
                 liked: false,
                 expected_duration_ms: request.duration_ms,
+                youtube_id: request.video_id.as_deref(),
             },
             dest_path,
             cover_url,
@@ -174,6 +176,7 @@ pub async fn track_preload(
                     hq,
                     liked: false,
                     expected_duration_ms: duration_ms,
+                    youtube_id: None,
                 })
                 .await
             {
@@ -249,4 +252,51 @@ pub fn track_cache_likes_running(state: State<'_, TrackCacheState>) -> bool {
 #[tauri::command]
 pub fn track_cancel_cache_likes(state: State<'_, TrackCacheState>) {
     state.cancel_cache_likes();
+}
+
+/// Download a YouTube track on demand through yt-dlp, reusing the normal cache
+/// pipeline (raw staging → ffmpeg transcode → clean m4a).
+#[tauri::command]
+pub async fn yt_ensure_cached(
+    video_id: String,
+    duration_ms: Option<u64>,
+    state: State<'_, TrackCacheState>,
+) -> Result<TrackCacheEntry, String> {
+    let urn = format!("youtube:tracks:{video_id}");
+    state
+        .ensure_cached(CacheRequest {
+            urn: &urn,
+            urls: &[],
+            download_urls: &[],
+            storage_urls: &[],
+            session_id: None,
+            hq: false,
+            liked: false,
+            expected_duration_ms: duration_ms,
+            youtube_id: Some(&video_id),
+        })
+        .await
+}
+
+/// Current audio cache root folder (the three cache subdirs live under it).
+#[tauri::command]
+pub fn track_get_cache_dir(state: State<'_, TrackCacheState>) -> String {
+    state.cache_root().to_string_lossy().into_owned()
+}
+
+/// Persist a new cache root, optionally moving existing files. The running
+/// session keeps its dirs — restart the app to apply.
+#[tauri::command]
+pub async fn track_set_cache_dir(
+    path: String,
+    move_files: bool,
+    state: State<'_, TrackCacheState>,
+) -> Result<String, String> {
+    state.set_cache_root(&path, move_files).await
+}
+
+/// Force-refresh the managed yt-dlp binary from the latest release.
+#[tauri::command]
+pub async fn yt_dlp_update(state: State<'_, TrackCacheState>) -> Result<bool, String> {
+    Ok(state.update_ytdlp().await.is_some())
 }

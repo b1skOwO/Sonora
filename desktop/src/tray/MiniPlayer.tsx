@@ -160,6 +160,13 @@ function VolumeControl({volume}: { volume: number }) {
 
 /* ── MiniPlayer ─────────────────────────────────────────────────── */
 
+/** Artwork with a broken-image fallback (this webview has no global scproxy retry). */
+function Artwork({ src }: { src: string }) {
+    const [failed, setFailed] = useState(false);
+    if (failed) return <div className="npb-artfb" />;
+    return <img src={src} alt="" onError={() => setFailed(true)} />;
+}
+
 export function MiniPlayer() {
     const np = useSyncExternalStore(subscribeNp, getNp);
     const pulse = useShowPulse();
@@ -189,7 +196,7 @@ export function MiniPlayer() {
                             title={t('player.openApp')}
                             onClick={() => sendCmd('show')}
                         >
-                            {np.artworkUrl ? <img src={np.artworkUrl} alt=""/> : <div className="npb-artfb"/>}
+                            {np.artworkUrl ? <Artwork src={np.artworkUrl}/> : <div className="npb-artfb"/>}
                             <span className="npb-ring"/>
                             <span className="npb-eq">
                 <i/>

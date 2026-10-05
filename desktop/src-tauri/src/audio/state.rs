@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicBool, AtomicU64};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 
@@ -47,6 +47,9 @@ pub struct AudioState {
     pub normalization_enabled: AtomicBool,
     pub normalization_gain: Mutex<f32>,
     pub volume: Mutex<f32>,
+    /// Live volume read by the DSP chain (f32 bits); lets `set_volume` apply to
+    /// the already-playing source without rebuilding the player.
+    pub volume_handle: Arc<AtomicU32>,
     pub playback_rate: Mutex<f32>,
     /// Source-time position integrator `(source_anchor, output_anchor)` in seconds.
     /// rodio's get_pos() is wall-clock (output) time; source time is integrated as
@@ -61,6 +64,10 @@ pub struct AudioState {
     pub suppress_stall_until_ms: AtomicU64,
     pub device_error: Arc<AtomicBool>,
     pub device_reconnected: Arc<AtomicBool>,
+    /// Sample rate of the currently open output device. The DSP chain resamples
+    /// every track to this rate before the mixer, because rodio's own
+    /// conversion is linear interpolation (audible high-frequency loss).
+    pub output_sample_rate: Arc<AtomicU32>,
     pub load_gen: AtomicU64,
     pub media_tx: Mutex<Option<std::sync::mpsc::Sender<MediaCmd>>>,
     pub audio_tx: std::sync::mpsc::Sender<AudioThreadCmd>,
@@ -81,10 +88,12 @@ pub fn init() -> AudioState {
     let (cmd_tx, cmd_rx) = std::sync::mpsc::channel::<AudioThreadCmd>();
     let device_error_flag = Arc::new(AtomicBool::new(false));
     let reconnected_flag = Arc::new(AtomicBool::new(false));
+    let output_sample_rate = Arc::new(AtomicU32::new(48_000));
 
     let cmd_tx_for_thread = cmd_tx.clone();
     let reconnected_for_thread = reconnected_flag.clone();
     let error_flag_for_thread = device_error_flag.clone();
+    let output_rate_for_thread = output_sample_rate.clone();
     std::thread::Builder::new()
         .name("audio-output".into())
         .spawn(move || {
@@ -93,6 +102,10 @@ pub fn init() -> AudioState {
             let error_flag = error_flag_for_thread;
             let mut device_sink =
                 open_device_sink(None, &cmd_tx, &error_flag).expect("no audio output device");
+            output_rate_for_thread.store(
+                device_sink.config().sample_rate().get(),
+                std::sync::atomic::Ordering::Relaxed,
+            );
             let shared_mixer = Arc::new(Mutex::new(device_sink.mixer().clone()));
             mixer_tx.send(shared_mixer.clone()).ok();
 
@@ -105,12 +118,20 @@ pub fn init() -> AudioState {
                             Ok(new_sink) => {
                                 let mixer = new_sink.mixer().clone();
                                 *shared_mixer.lock().unwrap() = mixer.clone();
+                                output_rate_for_thread.store(
+                                    new_sink.config().sample_rate().get(),
+                                    std::sync::atomic::Ordering::Relaxed,
+                                );
                                 device_sink = new_sink;
                                 reply.send(Ok(mixer)).ok();
                             }
                             Err(error) => {
                                 device_sink = open_device_sink(None, &cmd_tx, &error_flag)
                                     .expect("no audio output device");
+                                output_rate_for_thread.store(
+                                    device_sink.config().sample_rate().get(),
+                                    std::sync::atomic::Ordering::Relaxed,
+                                );
                                 *shared_mixer.lock().unwrap() = device_sink.mixer().clone();
                                 reply.send(Err(error)).ok();
                             }
@@ -124,6 +145,10 @@ pub fn init() -> AudioState {
                         match open_device_sink(None, &cmd_tx, &error_flag) {
                             Ok(new_sink) => {
                                 *shared_mixer.lock().unwrap() = new_sink.mixer().clone();
+                                output_rate_for_thread.store(
+                                    new_sink.config().sample_rate().get(),
+                                    std::sync::atomic::Ordering::Relaxed,
+                                );
                                 device_sink = new_sink;
                                 reconnected.store(true, std::sync::atomic::Ordering::Release);
                                 eprintln!("[audio] reconnected successfully");
@@ -133,6 +158,10 @@ pub fn init() -> AudioState {
                                 std::thread::sleep(Duration::from_secs(1));
                                 device_sink = open_device_sink(None, &cmd_tx, &error_flag)
                                     .expect("no audio output device");
+                                output_rate_for_thread.store(
+                                    device_sink.config().sample_rate().get(),
+                                    std::sync::atomic::Ordering::Relaxed,
+                                );
                                 *shared_mixer.lock().unwrap() = device_sink.mixer().clone();
                                 reconnected.store(true, std::sync::atomic::Ordering::Release);
                             }
@@ -153,6 +182,7 @@ pub fn init() -> AudioState {
         normalization_enabled: AtomicBool::new(true),
         normalization_gain: Mutex::new(1.0),
         volume: Mutex::new(0.25),
+        volume_handle: Arc::new(AtomicU32::new((0.25f32).to_bits())),
         playback_rate: Mutex::new(1.0),
         pos_anchor: Mutex::new((0.0, 0.0)),
         has_track: AtomicBool::new(false),
@@ -161,6 +191,7 @@ pub fn init() -> AudioState {
         suppress_stall_until_ms: AtomicU64::new(0),
         device_error: device_error_flag,
         device_reconnected: reconnected_flag,
+        output_sample_rate,
         load_gen: AtomicU64::new(0),
         media_tx: Mutex::new(None),
         audio_tx: cmd_tx,

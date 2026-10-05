@@ -21,7 +21,7 @@ export const ClusterHeader = React.memo(function ClusterHeader({
           background:
             'linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 55%, transparent), color-mix(in srgb, var(--color-accent) 12%, transparent))',
           border: '0.5px solid color-mix(in srgb, var(--color-accent) 40%, transparent)',
-          boxShadow: '0 0 22px var(--color-accent-glow), inset 0 1px 0 rgba(255,255,255,0.18)',
+          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.18)',
         }}
       >
         {icon}
@@ -37,10 +37,7 @@ export const ClusterHeader = React.memo(function ClusterHeader({
         </span>
       </div>
       <div className="min-w-0 flex-1 flex flex-col gap-1">
-        <h3
-          className="text-[15px] md:text-[16px] font-black tracking-tight leading-none text-white"
-          style={{ textShadow: '0 0 24px var(--color-accent-glow)' }}
-        >
+        <h3 className="text-[15px] md:text-[16px] font-black tracking-tight leading-none text-white">
           {title}
         </h3>
         <p className="text-[11.5px] text-white/45 leading-snug">{description}</p>

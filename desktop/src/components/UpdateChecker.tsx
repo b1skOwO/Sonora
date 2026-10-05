@@ -1,10 +1,10 @@
-import {openUrl} from '@tauri-apps/plugin-opener';
-import {useMemo} from 'react';
-import {useTranslation} from 'react-i18next';
-import {proxiedAssetUrl} from '../lib/asset-url';
-import {APP_VERSION} from '../lib/constants';
-import {AlertCircle, ExternalLink, Sparkles, X} from '../lib/icons';
-import type {GithubRelease} from '../lib/update-check';
+import { openUrl } from '@tauri-apps/plugin-opener';
+import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
+import { proxiedAssetUrl } from '../lib/asset-url';
+import { APP_VERSION } from '../lib/constants';
+import { AlertCircle, ExternalLink, Sparkles, X } from '../lib/icons';
+import type { GithubRelease } from '../lib/update-check';
 
 function stripLeadingV(version: string) {
   return version.replace(/^v/, '');
@@ -197,8 +197,7 @@ export function UpdateChecker({
 
         {/* Release notes */}
         {release.body && (
-            <div
-                className="selectable mx-5 mb-4 max-h-60 overflow-y-auto rounded-xl bg-black/30 border border-white/[0.08] p-4 space-y-1">
+          <div className="selectable mx-5 mb-4 max-h-60 overflow-y-auto rounded-xl bg-black/30 border border-white/[0.08] p-4 space-y-1">
             {renderedNotes}
           </div>
         )}
@@ -215,7 +214,7 @@ export function UpdateChecker({
           <button
             type="button"
             onClick={() => openUrl(release.html_url)}
-            className="flex-1 py-2.5 rounded-xl bg-accent hover:bg-accent-hover text-[13px] text-accent-contrast font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-[0_0_20px_var(--color-accent-glow)]"
+            className="flex-1 py-2.5 rounded-xl bg-accent hover:bg-accent-hover text-[13px] text-accent-contrast font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1.5 "
           >
             {t('update.download')}
             <ExternalLink size={13} />

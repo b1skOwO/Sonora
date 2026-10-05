@@ -1,61 +1,66 @@
 import * as Popover from '@radix-ui/react-popover';
 import * as Slider from '@radix-ui/react-slider';
-import {useQuery, useQueryClient} from '@tanstack/react-query';
-import React, {useCallback, useEffect, useRef, useState, useSyncExternalStore} from 'react';
-import {useTranslation} from 'react-i18next';
-import {useNavigate} from 'react-router-dom';
-import {useShallow} from 'zustand/shallow';
-import {api} from '../../lib/api';
+import { useQueryClient } from '@tanstack/react-query';
+import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
+import { useShallow } from 'zustand/shallow';
+import { api } from '../../lib/api';
+import { downloadTrack } from '../../lib/cache';
 import {
-    getCurrentTime,
-    getDownloadProgress,
-    getDuration,
-    handlePrev,
-    seek,
-    subscribe,
+  getCurrentTime,
+  getDownloadProgress,
+  getDuration,
+  handlePrev,
+  seek,
+  subscribe,
 } from '../../lib/audio';
-import {toggleDislike, useDislikeStatus} from '../../lib/dislikes';
-import {art, formatTime} from '../../lib/formatters';
-import {invalidateAllLikesCache} from '../../lib/hooks';
+import { toggleDislike, useDislikeStatus } from '../../lib/dislikes';
+import { art, formatTime } from '../../lib/formatters';
+import { invalidateAllLikesCache, useTrack } from '../../lib/hooks';
 import {
-    audioLines16,
-    Heart,
-    listMusic16,
-    MicVocal,
-    pauseBlack20,
-    playBlack20,
-    repeat1Icon16,
-    repeatAbIcon16,
-    repeatIcon16,
-    shuffleIcon16,
-    skipBack20,
-    skipForward20,
-    slidersHorizontal16,
-    ThumbsDown,
-    volume1Icon16,
-    volume2Icon16,
-    volumeXIcon16,
+  audioLines16,
+  Download,
+  Heart,
+  listMusic16,
+  Loader2,
+  MicVocal,
+  pauseBlack20,
+  playBlack20,
+  repeat1Icon16,
+  repeatAbIcon16,
+  repeatIcon16,
+  shuffleIcon16,
+  skipBack20,
+  skipForward20,
+  slidersHorizontal16,
+  ThumbsDown,
+  volume1Icon16,
+  volume2Icon16,
+  volumeXIcon16,
 } from '../../lib/icons';
-import {optimisticToggleLike} from '../../lib/likes';
-import {usePerfMode} from '../../lib/perf';
-import {useArtistDisplay, useArtistLinkItems, useDisplayTitle} from '../../lib/track-display';
-import {useLyricsStore} from '../../stores/lyrics';
+import { optimisticToggleLike } from '../../lib/likes';
+import { usePerfMode } from '../../lib/perf';
+import { getTrackDisplay, useArtistDisplay, useArtistLinkItems, useDisplayTitle } from '../../lib/track-display';
+import { isYoutubeUrn } from '../../lib/youtube';
+import { useLyricsStore } from '../../stores/lyrics';
 import {
-    AB_MIN_GAP,
-    getEffectivePitchSemitones,
-    PITCH_SEMITONES_MAX,
-    PITCH_SEMITONES_MIN,
-    PITCH_SEMITONES_STEP,
-    PLAYBACK_RATE_MAX,
-    PLAYBACK_RATE_MIN,
-    PLAYBACK_RATE_STEP,
-    type Track,
-    usePlayerStore,
+  AB_MIN_GAP,
+  getEffectivePitchSemitones,
+  PITCH_SEMITONES_MAX,
+  PITCH_SEMITONES_MIN,
+  PITCH_SEMITONES_STEP,
+  PLAYBACK_RATE_MAX,
+  PLAYBACK_RATE_MIN,
+  PLAYBACK_RATE_STEP,
+  type Track,
+  usePlayerStore,
 } from '../../stores/player';
-import {useSettingsStore} from '../../stores/settings';
-import {ArtistNameLinks} from '../music/ArtistNameLinks';
-import {EqualizerPanel} from '../music/EqualizerPanel';
-import {UploadKindDot} from '../music/UploadKindDot';
+import { useSettingsStore } from '../../stores/settings';
+import { ArtistNameLinks } from '../music/ArtistNameLinks';
+import { EqualizerPanel } from '../music/EqualizerPanel';
+import { UploadKindDot } from '../music/UploadKindDot';
 
 /* ── Track loading progress (SC → SCD download) ──────────────── */
 
@@ -211,7 +216,7 @@ const AbLoopOverlay = React.memo(({ duration }: { duration: number }) => {
         className={handleClass}
         style={{ left: `${aPct}%` }}
       >
-        <span className="h-3.5 w-[3px] rounded-full bg-accent shadow-[0_0_8px_var(--color-accent-glow)]" />
+        <span className="h-3.5 w-[3px] rounded-full bg-accent" />
       </span>
       {bPct != null && (
         <span
@@ -220,7 +225,7 @@ const AbLoopOverlay = React.memo(({ duration }: { duration: number }) => {
           className={handleClass}
           style={{ left: `${bPct}%` }}
         >
-          <span className="h-3.5 w-[3px] rounded-full bg-accent shadow-[0_0_8px_var(--color-accent-glow)]" />
+          <span className="h-3.5 w-[3px] rounded-full bg-accent" />
         </span>
       )}
       <span ref={tipRef} className={tipClass} style={{ left: `${aPct}%` }} />
@@ -311,7 +316,7 @@ export const ProgressSlider = React.memo(() => {
       </Slider.Track>
       <Slider.Thumb
         ref={thumbRef}
-        className="block w-3 h-3 rounded-full bg-accent shadow-[0_0_10px_var(--color-accent-glow)] scale-0 opacity-0 group-hover:scale-100 group-hover:opacity-100 transition-all duration-150 outline-none will-change-transform"
+        className="block w-3 h-3 rounded-full bg-accent shadow-[0_1px_3px_rgba(0,0,0,0.7)] scale-0 opacity-0 group-hover:scale-100 group-hover:opacity-100 transition-all duration-150 outline-none will-change-transform"
       />
       <AbLoopOverlay duration={duration} />
     </Slider.Root>
@@ -392,16 +397,111 @@ export const ControlVolumeBtn = React.memo(({ size = 'default' }: { size?: 'defa
   );
 });
 
+/* ── Download button ─────────────────────────────────────────── */
+
+export const DownloadBtn = React.memo(() => {
+  const { t } = useTranslation();
+  const [loading, setLoading] = useState(false);
+  const track = usePlayerStore((s) => s.currentTrack);
+
+  const download = async () => {
+    if (!track || loading) return;
+    setLoading(true);
+    try {
+      const display = getTrackDisplay(track);
+      await downloadTrack(
+        track.urn,
+        display.artistLine || track.user?.username || '',
+        display.title,
+        {
+          artworkUrl: track.artwork_url,
+          durationMs: track.duration,
+        },
+      );
+      toast.success(t('track.downloaded'));
+    } catch (e: unknown) {
+      if (e instanceof Error && e.message === 'cancelled') return;
+      toast.error(String(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={() => void download()}
+      disabled={!track || loading}
+      title={t('track.download')}
+      aria-label={t('track.download')}
+      className="w-9 h-9 rounded-full flex items-center justify-center text-white/40 hover:text-white/70 hover:bg-white/[0.04] transition-all duration-150 cursor-pointer disabled:opacity-30"
+    >
+      {loading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+    </button>
+  );
+});
+
 /* ── Volume % label ──────────────────────────────────────────── */
 
 export const VolumeLabel = React.memo(() => {
+  const { t } = useTranslation();
   const volume = usePlayerStore((s) => s.volume);
+  const setVolume = usePlayerStore((s) => s.setVolume);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!editing) return;
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, [editing]);
+
+  const commit = useCallback(() => {
+    const value = Number.parseInt(draft, 10);
+    if (Number.isFinite(value)) setVolume(value);
+    setEditing(false);
+  }, [draft, setVolume]);
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        type="text"
+        inputMode="numeric"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value.replace(/\D/g, '').slice(0, 3))}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            commit();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            setEditing(false);
+          }
+        }}
+        aria-label={t('player.volume')}
+        className="w-[38px] h-[18px] rounded-md bg-white/[0.08] border border-white/20 text-[10px] tabular-nums text-white/90 text-right px-1 outline-none focus:border-white/40"
+      />
+    );
+  }
+
   return (
-    <span
-      className={`text-[10px] tabular-nums w-[34px] text-right shrink-0 ${volume > 100 ? 'text-amber-400/70' : 'text-white/30'}`}
+    <button
+      type="button"
+      onClick={() => {
+        setDraft(String(volume));
+        setEditing(true);
+      }}
+      title={t('player.volume')}
+      aria-label={t('player.volume')}
+      className={`text-[10px] tabular-nums w-[34px] text-right shrink-0 cursor-pointer transition-colors hover:text-white/60 ${
+        volume > 100 ? 'text-amber-400/70' : 'text-white/30'
+      }`}
     >
       {volume}%
-    </span>
+    </button>
   );
 });
 
@@ -450,7 +550,7 @@ const PlaybackQualityBadge = React.memo(() => {
       </span>
       {playbackSource === 'storage' && (
         <span className="inline-flex h-6 shrink-0 items-center gap-1.5 rounded-md border border-[#b7ffd8]/[0.16] bg-[#b7ffd8]/[0.07] px-2 text-[8px] font-medium tracking-[0.12em] text-[#dff7e9]/82">
-          <span className="h-1.5 w-1.5 rounded-full bg-[#b7ffd8] shadow-[0_0_8px_rgba(183,255,216,0.55)]" />
+          <span className="h-1.5 w-1.5 rounded-full bg-[#b7ffd8]" />
           {t('player.qualityCDN')}
         </span>
       )}
@@ -461,12 +561,8 @@ const PlaybackQualityBadge = React.memo(() => {
 /* ── Like / Dislike buttons ──────────────────────────────────── */
 
 function useTrackReactions(trackUrn: string) {
-  const { data: trackData } = useQuery({
-    queryKey: ['track', trackUrn],
-    queryFn: () => api<Track>(`/tracks/${encodeURIComponent(trackUrn)}`),
-    enabled: !!trackUrn,
-    staleTime: 30_000,
-  });
+  // YouTube tracks have no backend track document — skip the lookup.
+  const { data: trackData } = useTrack(isYoutubeUrn(trackUrn) ? undefined : trackUrn);
   return trackData;
 }
 
@@ -492,6 +588,9 @@ function LikeButton({
   }, [trackUrn]);
 
   const isLiked = liked ?? trackData?.user_favorite ?? false;
+
+  // Likes are SoundCloud-backed — hide the control for YouTube tracks.
+  if (isYoutubeUrn(trackUrn)) return null;
 
   const toggle = async () => {
     const next = !isLiked;
@@ -539,6 +638,9 @@ export function NowBarDislikeButton({
 }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
+
+  // Dislikes are SoundCloud-backed — hide the control for YouTube tracks.
+  if (isYoutubeUrn(trackUrn)) return null;
 
   const toggle = async () => {
     if (!trackData) return;
@@ -635,13 +737,13 @@ const AbLoopBtn = React.memo(() => {
       onClick={() => cycleAbPoint(getCurrentTime())}
       className={`relative w-[30px] h-[30px] rounded-full flex items-center justify-center transition-all duration-200 ease-[var(--ease-apple)] cursor-pointer active:scale-90 ${
         active
-          ? 'text-accent bg-accent/15 shadow-[0_0_14px_-4px_var(--color-accent-glow)]'
+          ? 'text-accent bg-accent/15'
           : 'text-white/55 hover:text-white hover:bg-white/[0.08] hover:-translate-y-px'
       }`}
     >
       {repeatAbIcon16}
       {awaitingB && (
-        <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 animate-pulse rounded-full bg-accent shadow-[0_0_6px_var(--color-accent-glow)]" />
+        <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
       )}
     </button>
   );
@@ -747,7 +849,7 @@ export const PlaybackRateSlider = React.memo(() => {
         <Slider.Track className="relative h-[3px] grow rounded-full bg-white/[0.08] transition-all duration-150 group-hover/rate:h-[4px]">
           <Slider.Range className="absolute h-full rounded-full bg-accent" />
         </Slider.Track>
-        <Slider.Thumb className="block h-2.5 w-2.5 rounded-full bg-accent shadow-[0_0_10px_var(--color-accent-glow)] outline-none transition-all duration-150 scale-0 opacity-0 group-hover/rate:scale-100 group-hover/rate:opacity-100" />
+        <Slider.Thumb className="block h-2.5 w-2.5 rounded-full bg-accent shadow-[0_1px_3px_rgba(0,0,0,0.7)] outline-none transition-all duration-150 scale-0 opacity-0 group-hover/rate:scale-100 group-hover/rate:opacity-100" />
       </Slider.Root>
       {/* 1.00x tick mark */}
       <div className="relative mt-1 h-2 w-full pointer-events-none">
@@ -860,7 +962,7 @@ export const PitchSlider = React.memo(() => {
         <Slider.Track className="relative h-[3px] grow rounded-full bg-white/[0.08] transition-all duration-150 group-hover/pitch:h-[4px]">
           <Slider.Range className="absolute h-full rounded-full bg-accent" />
         </Slider.Track>
-        <Slider.Thumb className="block h-2.5 w-2.5 rounded-full bg-accent shadow-[0_0_10px_var(--color-accent-glow)] outline-none transition-all duration-150 scale-0 opacity-0 group-hover/pitch:scale-100 group-hover/pitch:opacity-100 disabled:scale-0 disabled:opacity-0" />
+        <Slider.Thumb className="block h-2.5 w-2.5 rounded-full bg-accent shadow-[0_1px_3px_rgba(0,0,0,0.7)] outline-none transition-all duration-150 scale-0 opacity-0 group-hover/pitch:scale-100 group-hover/pitch:opacity-100 disabled:scale-0 disabled:opacity-0" />
       </Slider.Root>
       {/* 0 semi tick */}
       <div className="relative mt-1 h-2 w-full pointer-events-none">
@@ -1071,7 +1173,6 @@ export const NowPlayingBar = React.memo(
     return (
       <div className="npb">
         <BackgroundGlow />
-        <div className="npb-underglow" />
 
         <div
           className={`npb-dock${loadProgress != null ? ' is-loading' : ''}`}
@@ -1106,6 +1207,7 @@ export const NowPlayingBar = React.memo(
                 <TuningBtn />
                 <EqBtn />
                 <LyricsBtn />
+                <DownloadBtn />
                 <QueueBtn onClick={onQueueToggle} active={queueOpen} />
                 <ControlVolumeBtn size="sm" />
                 <div className="npb-vol-slider flex items-center gap-2 pl-1">

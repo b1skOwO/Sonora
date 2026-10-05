@@ -2,6 +2,7 @@ import {useQuery} from '@tanstack/react-query';
 import {useMemo} from 'react';
 import type {Track, TrackScdMeta} from '../stores/player';
 import {api} from './api';
+import {isYoutubeUrn} from './youtube';
 
 /**
  * Клиентский добор `_scd_meta` (статус-бейдж трека) для шелфов из SC-источников.
@@ -25,6 +26,7 @@ function isTerminal(meta: TrackScdMeta | null): boolean {
 }
 
 async function fetchMeta(urn: string): Promise<TrackScdMeta | null> {
+    if (isYoutubeUrn(urn)) return null;
     if (metaCache.has(urn)) return metaCache.get(urn) ?? null;
     const full = await api<Track>(`/tracks/${encodeURIComponent(urn)}`).catch(() => null);
     const meta = full?._scd_meta ?? null;

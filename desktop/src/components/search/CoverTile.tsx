@@ -1,7 +1,7 @@
-import {Compass, Pause, Play, Sparkles} from 'lucide-react';
-import {memo} from 'react';
-import {useTranslation} from 'react-i18next';
-import {preloadTrack} from '../../lib/audio';
+import { Compass, Pause, Play, Sparkles } from 'lucide-react';
+import { memo } from 'react';
+import { useTranslation } from 'react-i18next';
+import { preloadTrack } from '../../lib/audio';
 import {
   hardStopHoverPreview,
   PREVIEW_WINDOW_MS,
@@ -9,12 +9,12 @@ import {
   stopHoverPreview,
   useIsPreviewActive,
 } from '../../lib/audioPreview';
-import {art} from '../../lib/formatters';
-import {usePerfMode} from '../../lib/perf';
-import {useArtistDisplay, useDisplayTitle} from '../../lib/track-display';
-import {useTrackPlay} from '../../lib/useTrackPlay';
-import type {Track} from '../../stores/player';
-import {hashStr, type WallItem} from './utils';
+import { art } from '../../lib/formatters';
+import { usePerfMode } from '../../lib/perf';
+import { useArtistDisplay, useDisplayTitle } from '../../lib/track-display';
+import { useTrackPlay } from '../../lib/useTrackPlay';
+import type { Track } from '../../stores/player';
+import { hashStr, type WallItem } from './utils';
 
 interface CoverTileProps {
   item: WallItem;
@@ -208,7 +208,7 @@ export const CoverTile = memo(function CoverTile({ item, getQueue, onDive }: Cov
           <div
             className="absolute inset-0 rounded-2xl pointer-events-none"
             style={{
-              boxShadow: 'inset 0 0 0 2px var(--color-accent), 0 0 24px var(--color-accent-glow)',
+              boxShadow: 'inset 0 0 0 2px var(--color-accent)',
             }}
           />
         )}
@@ -235,7 +235,7 @@ export const CoverTile = memo(function CoverTile({ item, getQueue, onDive }: Cov
                   '--tg-ring-len': '1000',
                   strokeDashoffset: 1000,
                   animation: `tg-ring-sweep ${PREVIEW_WINDOW_MS}ms linear forwards`,
-                  filter: 'drop-shadow(0 0 5px var(--color-accent-glow))',
+                  filter: 'drop-shadow(0 12px 26px rgba(0,0,0,0.5))',
                 } as React.CSSProperties
               }
             />

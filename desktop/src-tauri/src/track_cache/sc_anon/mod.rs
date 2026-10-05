@@ -24,9 +24,11 @@ const SC_API_V2: &str = "https://api-v2.soundcloud.com";
 const SC_USER_AGENT: &str =
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 
-/// Preset preference: progressive first (one GET, no chunk failures), then
-/// HLS by preset preference.
-const PRESET_ORDER: &[&str] = &["mp3_1_0", "aac_160k", "opus_0_0", "abr_sq"];
+/// Preferred presets, best quality first — mirrors the SoundCloud web player,
+/// which streams HLS AAC (`aac_160k`, falling back to `aac_96k`). `abr_sq` is
+/// deliberately excluded: its resolve endpoint returns 404 for anonymous
+/// clients, so trying it would only add a wasted round trip per track.
+const PRESET_ORDER: &[&str] = &["aac_160k", "aac_96k", "opus_0_0"];
 
 /// Circuit breaker: trip after this many consecutive network failures so users
 /// behind a regulator that blocks SC don't pay 1.5s connect-timeout per track.
@@ -398,8 +400,9 @@ impl AnonClient {
     }
 }
 
-/// Drop previews/snipped/restricted, then rank: progressive first, then HLS,
-/// each ordered by preset preference.
+/// Drop previews/snipped/restricted, then rank by quality (SoundCloud-web
+/// parity): HLS within each preferred preset, then any remaining HLS, and only
+/// then legacy progressive streams.
 fn ranked_transcodings(transcodings: &[Transcoding]) -> Vec<&Transcoding> {
     let candidates: Vec<&Transcoding> = transcodings
         .iter()
@@ -410,7 +413,12 @@ fn ranked_transcodings(transcodings: &[Transcoding]) -> Vec<&Transcoding> {
                 .and_then(|f| f.protocol.as_deref())
                 .unwrap_or("")
                 .contains("encrypted");
-            !encrypted && !t.snipped.unwrap_or(false) && !t.url.contains("/preview")
+            !encrypted
+                && !t.snipped.unwrap_or(false)
+                && !t.url.contains("/preview")
+                // Anonymous resolve returns 404 for the ABR stream; the server
+                // path can still use it, this direct path cannot.
+                && t.preset.as_deref() != Some("abr_sq")
         })
         .collect();
 
@@ -423,31 +431,30 @@ fn ranked_transcodings(transcodings: &[Transcoding]) -> Vec<&Transcoding> {
     };
 
     let mut ordered: Vec<&Transcoding> = Vec::with_capacity(candidates.len());
+    fn push_unique<'a>(ordered: &mut Vec<&'a Transcoding>, t: &'a Transcoding) {
+        if !ordered.iter().any(|o| std::ptr::eq(*o, t)) {
+            ordered.push(t);
+        }
+    }
 
     for preset in PRESET_ORDER {
-        if let Some(t) = candidates
-            .iter()
-            .find(|t| is_progressive(t) && t.preset.as_deref() == Some(preset))
-        {
-            ordered.push(t);
+        for progressive in [false, true] {
+            if let Some(t) = candidates
+                .iter()
+                .find(|t| is_progressive(t) == progressive && t.preset.as_deref() == Some(preset))
+            {
+                push_unique(&mut ordered, t);
+            }
         }
     }
     for t in &candidates {
-        if is_progressive(t) && !ordered.iter().any(|o| std::ptr::eq(*o, *t)) {
-            ordered.push(t);
-        }
-    }
-    for preset in PRESET_ORDER {
-        if let Some(t) = candidates
-            .iter()
-            .find(|t| !is_progressive(t) && t.preset.as_deref() == Some(preset))
-        {
-            ordered.push(t);
+        if !is_progressive(t) {
+            push_unique(&mut ordered, t);
         }
     }
     for t in &candidates {
-        if !ordered.iter().any(|o| std::ptr::eq(*o, *t)) {
-            ordered.push(t);
+        if is_progressive(t) {
+            push_unique(&mut ordered, t);
         }
     }
     ordered
@@ -486,10 +493,68 @@ fn build_transcoding_target(
 
 #[cfg(test)]
 mod tests {
-    use super::build_transcoding_target;
+    use super::{build_transcoding_target, ranked_transcodings, Transcoding, TranscodingFormat};
 
     const PROGRESSIVE_URL: &str =
         "https://api-v2.soundcloud.com/media/soundcloud:tracks:2028682452/1dc4586b/stream/progressive";
+
+    fn transcoding(preset: &str, protocol: &str, url: &str) -> Transcoding {
+        Transcoding {
+            url: url.to_string(),
+            preset: Some(preset.to_string()),
+            snipped: None,
+            format: Some(TranscodingFormat {
+                protocol: Some(protocol.to_string()),
+            }),
+        }
+    }
+
+    #[test]
+    fn ranks_hls_aac_160k_before_legacy_progressive_mp3() {
+        let list = vec![
+            transcoding("mp3_1_0", "progressive", "https://x/mp3"),
+            transcoding("aac_96k", "hls", "https://x/aac96.m3u8"),
+            transcoding("aac_160k", "hls", "https://x/aac160.m3u8"),
+            transcoding("aac_160k", "progressive", "https://x/aac160p"),
+        ];
+
+        let ranked: Vec<(String, String)> = ranked_transcodings(&list)
+            .iter()
+            .map(|t| {
+                (
+                    t.preset.clone().unwrap_or_default(),
+                    t.format
+                        .as_ref()
+                        .and_then(|f| f.protocol.clone())
+                        .unwrap_or_default(),
+                )
+            })
+            .collect();
+
+        assert_eq!(
+            ranked,
+            vec![
+                ("aac_160k".to_string(), "hls".to_string()),
+                ("aac_160k".to_string(), "progressive".to_string()),
+                ("aac_96k".to_string(), "hls".to_string()),
+                ("mp3_1_0".to_string(), "progressive".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn drops_snipped_preview_encrypted_and_abr_transcodings() {
+        let mut snipped = transcoding("aac_160k", "hls", "https://x/snip.m3u8");
+        snipped.snipped = Some(true);
+        let list = vec![
+            snipped,
+            transcoding("aac_160k", "hls-encrypted", "https://x/enc.m3u8"),
+            transcoding("abr_sq", "hls", "https://x/abr.m3u8"),
+            transcoding("mp3_1_0", "progressive", "https://x/preview"),
+        ];
+
+        assert!(ranked_transcodings(&list).is_empty());
+    }
 
     #[test]
     fn transcoding_target_includes_track_authorization() {

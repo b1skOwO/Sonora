@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "soundcloud-desktop",
+  "productName": "Sonora",
   "version": "8.4.13",
   "identifier": "com.soundcloud.desktop",
   "build": {
@@ -13,7 +13,7 @@
     "macOSPrivateApi": true,
     "windows": [
       {
-        "title": "SoundCloud Desktop",
+        "title": "Sonora",
         "width": 1200,
         "height": 800,
         "minWidth": 800,

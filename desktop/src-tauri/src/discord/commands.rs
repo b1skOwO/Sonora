@@ -84,32 +84,57 @@ pub fn discord_set_activity(
     let show_button = track.show_button.unwrap_or(true);
 
     let large_image = track.artwork_url.as_deref().unwrap_or("soundcloud_logo");
+    let artist_text = if track.artist.trim().is_empty() {
+        track.title.as_str()
+    } else {
+        track.artist.as_str()
+    };
+    let has_artist = !track.artist.trim().is_empty();
 
+    // Artwork hover tooltip: deliberately unset — the artist already owns the
+    // card's name line, and repeating it here made the artist show up twice.
     let assets = Assets::new().large_image(large_image);
 
+    // `name` overrides the application name Discord shows on the player card.
+    // Track/Artist modes put the artist there instead of "SoundCloud", and the
+    // artist is then *not* repeated in details/state. Activity mode keeps the
+    // default header because its details line already carries the artist.
     let mut activity = Activity::new()
         .activity_type(ActivityType::Listening)
         .assets(assets);
+    if !matches!(mode, DiscordRpcMode::Activity) && has_artist {
+        activity = activity.name(artist_text);
+    }
 
     activity = match mode {
-        DiscordRpcMode::Track => activity.details(&track.title).state(if is_playing {
-            track.artist.as_str()
-        } else {
-            "Paused"
-        }),
-        DiscordRpcMode::Artist => {
-            let activity = activity.details(&track.artist);
+        // Artist on the name line, title below; "Paused" only when stopped.
+        DiscordRpcMode::Track => {
+            let activity = activity.details(&track.title);
             if is_playing {
                 activity
             } else {
                 activity.state("Paused")
             }
         }
-        DiscordRpcMode::Activity => {
+        // Artist only — the name line already shows it.
+        DiscordRpcMode::Artist => {
             if is_playing {
                 activity
             } else {
-                activity.details("Paused")
+                activity.state("Paused")
+            }
+        }
+        // Default header, artist + title in the content lines.
+        DiscordRpcMode::Activity => {
+            let activity = activity.details(artist_text);
+            if is_playing {
+                if has_artist {
+                    activity.state(&track.title)
+                } else {
+                    activity
+                }
+            } else {
+                activity.state("Paused")
             }
         }
     };
@@ -124,7 +149,12 @@ pub fn discord_set_activity(
 
     if show_button
         && let Some(ref url) = track.track_url {
-            activity = activity.buttons(vec![Button::new("Listen on SoundCloud", url)]);
+            let label = if url.contains("youtube.com") || url.contains("youtu.be") {
+                "Listen on YouTube"
+            } else {
+                "Listen on SoundCloud"
+            };
+            activity = activity.buttons(vec![Button::new(label, url)]);
         }
 
     let result = client.set_activity(activity);

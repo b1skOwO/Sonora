@@ -2,18 +2,32 @@ import {
   type DefaultError,
   type InfiniteData,
   type QueryKey,
-  useInfiniteQuery,
   type UseInfiniteQueryResult,
+  useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import {useEffect, useMemo, useRef} from 'react';
-import type {Track} from '../stores/player';
-import {api} from './api';
-import {initLikedUrns} from './likes';
-import {rememberLikedTracks, rememberTracks} from './offline-index';
-import {fetchRelatedTracks} from './related';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useAuthStore } from '../stores/auth';
+import type { Track } from '../stores/player';
+import { api } from './api';
+import { initLikedUrns } from './likes';
+import { rememberLikedTracks, rememberTracks } from './offline-index';
+import {
+  canUsePublicFallback,
+  fetchPublicPlaylist,
+  fetchPublicPlaylistTracks,
+  fetchPublicTrack,
+  fetchPublicUserFollowers,
+  fetchPublicUserFollowings,
+  fetchPublicUserLikes,
+  fetchPublicUserPlaylistLikes,
+  fetchPublicUserPlaylists,
+  fetchPublicUserTracks,
+  findImportedPublicPlaylist,
+} from './public-sc';
+import { fetchRelatedTracks } from './related';
 
 /* ── Types ─────────────────────────────────────────────────────── */
 
@@ -34,6 +48,11 @@ export interface PagedResponse<T> {
   page: number;
   page_size: number;
   has_more: boolean;
+  next_href?: string;
+  sync?: {
+    status?: string;
+    retryAfterSeconds?: number;
+  };
 }
 
 type TrackPage = PagedResponse<Track>;
@@ -137,6 +156,9 @@ const SHORT_CACHE_MS = 1000 * 60 * 2;
 const MEDIUM_CACHE_MS = 1000 * 60 * 5;
 const SEARCH_CACHE_MS = 1000 * 60 * 2;
 const INFINITE_GC_MS = 1000 * 60 * 3;
+const MAX_COLLECTION_SYNC_POLLS = 12;
+/** Статусы, после которых ресурс можно перечитать напрямую из SoundCloud. */
+const PUBLIC_FALLBACK_STATUSES = [404, 500, 502, 503, 504];
 
 /**
  * Cold-эндпоинты (треки/плейлисты/лайки/фолловинги юзеров, /me/*) живут в
@@ -183,14 +205,17 @@ interface PagedQueryOptions<T> {
   staleTime?: number;
   gcTime?: number;
   enabled?: boolean;
+  refetchOnMount?: boolean;
   maxPages?: number;
   /** Auto-fetch all pages until exhausted. Use sparingly. */
   autoFetchAll?: boolean;
   dedupe?: (item: T) => string;
+  /** HTTP-статусы, которые вызывающий обработает сам (fallback и т.п.). */
+  silentStatuses?: number[];
 }
 
 type PagedQueryResult<T> = UseInfiniteQueryResult<
-  InfiniteData<PagedResponse<T>, number>,
+  InfiniteData<PagedResponse<T>, number | string>,
   DefaultError
 > & { items: T[] };
 
@@ -203,23 +228,43 @@ function usePagedQuery<T>(opts: PagedQueryOptions<T>): PagedQueryResult<T> {
   const query = useInfiniteQuery<
     PagedResponse<T>,
     DefaultError,
-    InfiniteData<PagedResponse<T>, number>,
+    InfiniteData<PagedResponse<T>, number | string>,
     QueryKey,
-    number
+    number | string
   >({
     queryKey: opts.queryKey,
-    queryFn: ({ pageParam }) => api<PagedResponse<T>>(opts.url(pageParam, limit)),
+    queryFn: ({ pageParam }) =>
+      api<PagedResponse<T>>(
+        typeof pageParam === 'string'
+          ? pagedUrl(pageParam, pageParam, limit)
+          : opts.url(pageParam, limit),
+        opts.silentStatuses ? { silentStatuses: opts.silentStatuses } : undefined,
+      ),
     initialPageParam: 0,
-    getNextPageParam: (last) => (last.has_more ? last.page + 1 : undefined),
+    getNextPageParam: (last) => {
+      if (last.next_href) return last.next_href;
+      return last.has_more ? last.page + 1 : undefined;
+    },
     staleTime: opts.staleTime,
     gcTime: opts.gcTime ?? INFINITE_GC_MS,
     maxPages: opts.maxPages,
     enabled: opts.enabled,
+    // The API can return HTTP 200 with an empty placeholder while it refreshes
+    // this user's cached collection. Keep polling instead of rendering that as
+    // a definitive empty result; the response supplies a suggested retry delay.
+    refetchInterval: (q) => {
+      const refreshing = q.state.data?.pages.some((page) => page.sync?.status === 'refreshing');
+      if (!refreshing) return false;
+      if (q.state.dataUpdateCount >= MAX_COLLECTION_SYNC_POLLS) return false;
+      const retryAfter = q.state.data?.pages.find((page) => page.sync?.status === 'refreshing')
+        ?.sync?.retryAfterSeconds;
+      return Math.max(2, retryAfter ?? 5) * 1000;
+    },
     // Списки рефрешатся только явными invalidate'ами из мутаций. Remount/
     // reconnect не должен перетягивать весь infinite-query: для SC cursor-лент
     // это перепроходит сдвинувшийся курсор и тасует выдачу. Focus-рефетч уже
     // выключен глобально в query-client.
-    refetchOnMount: false,
+    refetchOnMount: opts.refetchOnMount ?? false,
     refetchOnReconnect: false,
   });
 
@@ -239,10 +284,65 @@ function usePagedQuery<T>(opts: PagedQueryOptions<T>): PagedQueryResult<T> {
   return Object.assign(query, { items }) as PagedQueryResult<T>;
 }
 
-function pagedUrl(base: string, page: number, limit: number, extra?: string): string {
+/**
+ * Backend paged collection with a direct SoundCloud fallback. The backend
+ * mirror can answer 200 with an empty collection while a whole profile is
+ * still "refreshing" (or fail outright) — in that case read the same public
+ * collection straight from SoundCloud instead of rendering it as empty.
+ */
+function usePagedPublicFallback<T>(
+  opts: PagedQueryOptions<T> & {
+    /** URN used for the public read; undefined disables the fallback. */
+    publicUrn: string | undefined;
+    publicKey: QueryKey;
+    fetchPublic: (userUrn: string) => Promise<T[]>;
+  },
+): PagedQueryResult<T> {
+  const { publicUrn, publicKey, fetchPublic, ...pagedOpts } = opts;
+  const query = usePagedQuery<T>({
+    ...pagedOpts,
+    silentStatuses: pagedOpts.silentStatuses ?? PUBLIC_FALLBACK_STATUSES,
+  });
+  const backendEmpty = query.items.length === 0;
+  const syncPending = query.data?.pages.some((page) => page.sync?.status === 'refreshing') ?? false;
+  const needsPublic = !!publicUrn && backendEmpty && (query.isError || syncPending);
+  const publicQuery = useQuery({
+    queryKey: publicKey,
+    queryFn: () => fetchPublic(publicUrn!),
+    enabled: needsPublic,
+    staleTime: opts.staleTime,
+    gcTime: INFINITE_GC_MS,
+    retry: 1,
+  });
+
+  const items = backendEmpty && publicQuery.data ? publicQuery.data : query.items;
+  return Object.assign(query, {
+    items,
+    isLoading: query.isLoading || (needsPublic && publicQuery.isLoading),
+    isFetching: query.isFetching || publicQuery.isFetching,
+    isError: query.isError && publicQuery.isError,
+    hasNextPage: backendEmpty ? false : query.hasNextPage,
+    isFetchingNextPage: backendEmpty ? false : query.isFetchingNextPage,
+  }) as PagedQueryResult<T>;
+}
+
+function pagedUrl(base: string, page: number | string, limit: number, extra?: string): string {
+  if (typeof page === 'string') return collectionHrefToPath(page);
   const sep = base.includes('?') ? '&' : '?';
-  const params = `limit=${limit}&page=${page}${extra ? `&${extra}` : ''}`;
+  // SoundCloud's user collection endpoints use linked partitioning. The
+  // profile collections otherwise return a first page without the metadata
+  // our page-based hooks need, making populated playlists/followers look empty.
+  const params = `limit=${limit}&page=${page}&linked_partitioning=1${extra ? `&${extra}` : ''}`;
   return `${base}${sep}${params}`;
+}
+
+function collectionHrefToPath(href: string): string {
+  try {
+    const parsed = new URL(href);
+    return `${parsed.pathname}${parsed.search}`;
+  } catch {
+    return href;
+  }
 }
 
 /* ── History ───────────────────────────────────────────────────── */
@@ -299,11 +399,15 @@ export function useFeatured() {
 /* ── Liked tracks ──────────────────────────────────────────────── */
 
 export function useLikedTracks(limit = 30) {
-  const query = usePagedQuery<Track>({
+  const myUrn = useAuthStore((s) => s.user?.urn);
+  const query = usePagedPublicFallback<Track>({
     queryKey: ['me', 'likes', 'tracks', limit],
     url: (page, l) => pagedUrl('/me/likes/tracks', page, l),
     limit,
     staleTime: COLD_CACHE_MS,
+    publicUrn: myUrn,
+    publicKey: ['me', 'likes', 'tracks', limit, 'soundcloud-public', myUrn],
+    fetchPublic: fetchPublicUserLikes,
   });
 
   const tracks = query.items;
@@ -334,12 +438,29 @@ export function fetchAllLikedTracks(
 
   const promise = (async () => {
     const all: Track[] = [];
-    for (let page = 0; ; page++) {
-      const data = await api<TrackPage>(pagedUrl('/me/likes/tracks', page, pageSize));
-      for (const t of data.collection) all.push(t);
-      void rememberTracks(data.collection);
-      onPage?.(data.collection);
-      if (!data.has_more) break;
+    let refreshing = false;
+    try {
+      for (let page = 0; ; page++) {
+        const data = await api<TrackPage>(pagedUrl('/me/likes/tracks', page, pageSize), {
+          silentStatuses: PUBLIC_FALLBACK_STATUSES,
+        });
+        refreshing = data.sync?.status === 'refreshing';
+        for (const t of data.collection) all.push(t);
+        void rememberTracks(data.collection);
+        onPage?.(data.collection);
+        if (!data.has_more) break;
+      }
+    } catch (error) {
+      if (!canUsePublicFallback(error)) throw error;
+      refreshing = true;
+    }
+    if (all.length === 0 && refreshing) {
+      const myUrn = useAuthStore.getState().user?.urn;
+      if (myUrn) {
+        const publicTracks = await fetchPublicUserLikes(myUrn);
+        void rememberLikedTracks(publicTracks);
+        return publicTracks;
+      }
     }
     void rememberLikedTracks(all);
     return all;
@@ -362,15 +483,24 @@ export function invalidateAllLikesCache() {
 /** Все треки плейлиста, по страницам до конца — под shuffle-continuation. */
 export function fetchAllPlaylistTracks(playlistUrn: string, pageSize = 200): Promise<Track[]> {
   return (async () => {
+    const imported = findImportedPublicPlaylist(playlistUrn);
+    if (imported) return imported.tracks;
     const all: Track[] = [];
     const base = `/playlists/${encodeURIComponent(playlistUrn)}/tracks`;
-    for (let page = 0; ; page++) {
-      const data = await api<TrackPage>(pagedUrl(base, page, pageSize));
-      for (const t of data.collection) all.push(t);
-      void rememberTracks(data.collection);
-      if (!data.has_more) break;
+    try {
+      for (let page = 0; ; page++) {
+        const data = await api<TrackPage>(pagedUrl(base, page, pageSize), {
+          silentStatuses: PUBLIC_FALLBACK_STATUSES,
+        });
+        for (const t of data.collection) all.push(t);
+        void rememberTracks(data.collection);
+        if (!data.has_more) break;
+      }
+      return all;
+    } catch (error) {
+      if (!canUsePublicFallback(error)) throw error;
+      return fetchPublicPlaylistTracks(playlistUrn);
     }
-    return all;
   })();
 }
 
@@ -453,27 +583,83 @@ export function useTrackFavoriters(trackUrn: string | undefined, limit = 12) {
 export function usePlaylist(playlistUrn: string | undefined) {
   return useQuery({
     queryKey: ['playlist', playlistUrn],
-    queryFn: () => api<Playlist>(`/playlists/${encodeURIComponent(playlistUrn!)}`),
+    queryFn: async () => {
+      const imported = findImportedPublicPlaylist(playlistUrn);
+      if (imported) return imported;
+      try {
+        return await api<Playlist>(`/playlists/${encodeURIComponent(playlistUrn!)}`, {
+          silentStatuses: PUBLIC_FALLBACK_STATUSES,
+        });
+      } catch (error) {
+        if (!canUsePublicFallback(error)) throw error;
+        return fetchPublicPlaylist(playlistUrn!);
+      }
+    },
     enabled: !!playlistUrn,
     staleTime: COLD_CACHE_MS,
     gcTime: INFINITE_GC_MS,
+    retry: false,
   });
 }
 
 /* ── Playlist Tracks (cold) ───────────────────────────────────── */
 
 export function usePlaylistTracks(playlistUrn: string | undefined) {
+  const imported = findImportedPublicPlaylist(playlistUrn);
   const query = usePagedQuery<Track>({
     queryKey: ['playlist', playlistUrn, 'tracks'],
     url: (page, limit) =>
       pagedUrl(`/playlists/${encodeURIComponent(playlistUrn!)}/tracks`, page, limit),
     limit: 200,
     staleTime: COLD_CACHE_MS,
-    enabled: !!playlistUrn,
+    enabled: !!playlistUrn && !imported,
     autoFetchAll: true,
+    silentStatuses: PUBLIC_FALLBACK_STATUSES,
   });
 
-  return { tracks: query.items, ...query };
+  // Backend mirror missing this playlist (404) or down (5xx) — read the
+  // public playlist straight from SoundCloud instead of an empty page.
+  const publicQuery = useQuery({
+    queryKey: ['playlist', playlistUrn, 'tracks', 'soundcloud-public'],
+    queryFn: () => fetchPublicPlaylistTracks(playlistUrn!),
+    enabled: !!playlistUrn && !imported && query.isError,
+    staleTime: COLD_CACHE_MS,
+    gcTime: INFINITE_GC_MS,
+    retry: 1,
+  });
+
+  const tracks = imported?.tracks ?? publicQuery.data ?? query.items;
+  return {
+    ...query,
+    tracks,
+    isLoading: imported ? false : query.isLoading || (query.isError && publicQuery.isLoading),
+    isFetching: imported ? false : query.isFetching || publicQuery.isFetching,
+    isError: imported ? false : query.isError && publicQuery.isError,
+    hasNextPage: imported || publicQuery.data ? false : query.hasNextPage,
+    isFetchingNextPage: imported ? false : query.isFetchingNextPage,
+  };
+}
+
+/* ── Track Detail (cold) ──────────────────────────────────────── */
+
+export function useTrack(trackUrn: string | undefined) {
+  return useQuery({
+    queryKey: ['track', trackUrn],
+    queryFn: async () => {
+      try {
+        return await api<Track>(`/tracks/${encodeURIComponent(trackUrn!)}`, {
+          silentStatuses: PUBLIC_FALLBACK_STATUSES,
+        });
+      } catch (error) {
+        if (!canUsePublicFallback(error)) throw error;
+        return fetchPublicTrack(trackUrn!);
+      }
+    },
+    enabled: !!trackUrn,
+    staleTime: SHORT_CACHE_MS,
+    gcTime: INFINITE_GC_MS,
+    retry: false,
+  });
 }
 
 /* ── User Profile (cold) ──────────────────────────────────────── */
@@ -489,7 +675,7 @@ export function useUser(userUrn: string | undefined) {
 }
 
 export function useUserTracks(userUrn: string | undefined) {
-  const query = usePagedQuery<Track>({
+  const query = usePagedPublicFallback<Track>({
     queryKey: ['user', userUrn, 'tracks'],
     url: (page, limit) => pagedUrl(`/users/${encodeURIComponent(userUrn!)}/tracks`, page, limit),
     limit: 30,
@@ -500,6 +686,9 @@ export function useUserTracks(userUrn: string | undefined) {
     maxPages: 8,
     enabled: !!userUrn,
     dedupe: (t) => t.urn,
+    publicUrn: userUrn,
+    publicKey: ['user', userUrn, 'tracks', 'soundcloud-public'],
+    fetchPublic: fetchPublicUserTracks,
   });
 
   return { tracks: query.items, ...query };
@@ -511,15 +700,25 @@ export function useUserPopularTracks(userUrn: string | undefined) {
     queryFn: async () => {
       const all: Track[] = [];
       const pageSize = 100;
-      for (let page = 0; ; page++) {
-        const data = await api<TrackPage>(
-          pagedUrl(`/users/${encodeURIComponent(userUrn!)}/tracks`, page, pageSize),
-        );
-        for (const t of data.collection) all.push(t);
-        if (!data.has_more) break;
+      let refreshing = false;
+      try {
+        for (let page = 0; ; page++) {
+          const data = await api<TrackPage>(
+            pagedUrl(`/users/${encodeURIComponent(userUrn!)}/tracks`, page, pageSize),
+            { silentStatuses: PUBLIC_FALLBACK_STATUSES },
+          );
+          refreshing = data.sync?.status === 'refreshing';
+          for (const t of data.collection) all.push(t);
+          if (!data.has_more) break;
+        }
+      } catch (error) {
+        if (!canUsePublicFallback(error)) throw error;
+        refreshing = true;
       }
-      all.sort((a, b) => (b.playback_count ?? 0) - (a.playback_count ?? 0));
-      return all;
+      const tracks =
+        all.length === 0 && refreshing && userUrn ? await fetchPublicUserTracks(userUrn) : all;
+      tracks.sort((a, b) => (b.playback_count ?? 0) - (a.playback_count ?? 0));
+      return tracks;
     },
     enabled: !!userUrn,
     staleTime: COLD_CACHE_MS,
@@ -528,21 +727,84 @@ export function useUserPopularTracks(userUrn: string | undefined) {
 }
 
 export function useUserPlaylists(userUrn: string | undefined) {
+  const [syncAttempt, setSyncAttempt] = useState(0);
+  const retrySync = useCallback(() => setSyncAttempt((attempt) => attempt + 1), []);
   const query = usePagedQuery<Playlist>({
-    queryKey: ['user', userUrn, 'playlists'],
-    url: (page, limit) => pagedUrl(`/users/${encodeURIComponent(userUrn!)}/playlists`, page, limit),
+    queryKey: ['user', userUrn, 'playlists', syncAttempt],
+    url: (page, limit) =>
+      pagedUrl(
+        `/users/${encodeURIComponent(userUrn!)}/playlists`,
+        page,
+        limit,
+        'show_tracks=false',
+      ),
     limit: 30,
     staleTime: COLD_CACHE_MS,
     maxPages: 8,
     enabled: !!userUrn,
+    refetchOnMount: true,
     dedupe: (p) => p.urn,
+    silentStatuses: PUBLIC_FALLBACK_STATUSES,
   });
 
-  return { playlists: query.items, ...query };
+  const publicQuery = useQuery({
+    queryKey: ['user', userUrn, 'playlists', 'soundcloud-public'],
+    queryFn: () => fetchPublicUserPlaylists(userUrn!),
+    enabled: !!userUrn,
+    staleTime: COLD_CACHE_MS,
+    gcTime: INFINITE_GC_MS,
+    retry: 1,
+  });
+
+  const publicPermalinkQuery = useQuery({
+    queryKey: ['user', userUrn, 'playlists', 'soundcloud-public-permalink'],
+    queryFn: async () => {
+      const profile = await api<UserProfile>(`/users/${encodeURIComponent(userUrn!)}`, {
+        silentStatuses: PUBLIC_FALLBACK_STATUSES,
+      });
+      const reference = profile.permalink || profile.permalink_url || profile.id.toString();
+      return fetchPublicUserPlaylists(reference);
+    },
+    enabled: !!userUrn && publicQuery.isError,
+    staleTime: COLD_CACHE_MS,
+    gcTime: INFINITE_GC_MS,
+    retry: 1,
+  });
+
+  // Backend copy is authoritative while it has data (it includes private
+  // playlists). Only when it is empty (e.g. still refreshing) or broken do we
+  // read the public SoundCloud collection directly.
+  const backendPlaylists = query.items;
+  const publicPlaylists = publicQuery.data ?? publicPermalinkQuery.data;
+  const playlists = backendPlaylists.length > 0 ? backendPlaylists : (publicPlaylists ?? []);
+  const waitingForPublic = backendPlaylists.length === 0 && !publicPlaylists;
+  const directFailed = publicQuery.isError;
+  const publicFallbackFailed = directFailed && publicPermalinkQuery.isError;
+  const isLoading =
+    waitingForPublic &&
+    (publicQuery.isLoading ||
+      (directFailed && publicPermalinkQuery.isLoading) ||
+      (query.isLoading && !query.isError));
+  const isFetching =
+    publicQuery.isFetching ||
+    publicPermalinkQuery.isFetching ||
+    (waitingForPublic && query.isFetching);
+  const isError = publicFallbackFailed && query.isError;
+  return {
+    ...query,
+    playlists,
+    isLoading,
+    isFetching,
+    isError,
+    syncPending:
+      publicFallbackFailed &&
+      (query.data?.pages.some((page) => page.sync?.status === 'refreshing') ?? false),
+    retrySync,
+  };
 }
 
 export function useUserLikedTracks(userUrn: string | undefined) {
-  const query = usePagedQuery<Track>({
+  const query = usePagedPublicFallback<Track>({
     queryKey: ['user', userUrn, 'likes', 'tracks'],
     url: (page, limit) =>
       pagedUrl(`/users/${encodeURIComponent(userUrn!)}/likes/tracks`, page, limit),
@@ -551,14 +813,19 @@ export function useUserLikedTracks(userUrn: string | undefined) {
     maxPages: 8,
     enabled: !!userUrn,
     dedupe: (t) => t.urn,
+    publicUrn: userUrn,
+    publicKey: ['user', userUrn, 'likes', 'tracks', 'soundcloud-public'],
+    fetchPublic: fetchPublicUserLikes,
   });
 
   return { tracks: query.items, ...query };
 }
 
 export function useUserFollowings(userUrn: string | undefined) {
-  const query = usePagedQuery<SCUser>({
-    queryKey: ['user', userUrn, 'followings'],
+  const [syncAttempt, setSyncAttempt] = useState(0);
+  const retrySync = useCallback(() => setSyncAttempt((attempt) => attempt + 1), []);
+  const query = usePagedPublicFallback<SCUser>({
+    queryKey: ['user', userUrn, 'followings', syncAttempt],
     url: (page, limit) =>
       pagedUrl(`/users/${encodeURIComponent(userUrn!)}/followings`, page, limit),
     limit: 30,
@@ -566,81 +833,111 @@ export function useUserFollowings(userUrn: string | undefined) {
     maxPages: 8,
     enabled: !!userUrn,
     dedupe: (u) => u.urn,
+    publicUrn: userUrn,
+    publicKey: ['user', userUrn, 'followings', 'soundcloud-public'],
+    fetchPublic: fetchPublicUserFollowings,
   });
 
-  return { users: query.items, ...query };
+  return { users: query.items, retrySync, ...query };
 }
 
 /* `/users/{urn}/followers` остался горячим на бэке (входящих подписчиков мы не
  * храним как сущность) — короткий staleTime, как раньше. */
 export function useUserFollowers(userUrn: string | undefined) {
-  const query = usePagedQuery<SCUser>({
-    queryKey: ['user', userUrn, 'followers'],
+  const [syncAttempt, setSyncAttempt] = useState(0);
+  const retrySync = useCallback(() => setSyncAttempt((attempt) => attempt + 1), []);
+  const query = usePagedPublicFallback<SCUser>({
+    queryKey: ['user', userUrn, 'followers', syncAttempt],
     url: (page, limit) => pagedUrl(`/users/${encodeURIComponent(userUrn!)}/followers`, page, limit),
     limit: 30,
     staleTime: SHORT_CACHE_MS,
     maxPages: 8,
     enabled: !!userUrn,
+    refetchOnMount: true,
     dedupe: (u) => u.urn,
+    publicUrn: userUrn,
+    publicKey: ['user', userUrn, 'followers', 'soundcloud-public'],
+    fetchPublic: fetchPublicUserFollowers,
   });
 
-  return { users: query.items, ...query };
+  return { users: query.items, retrySync, ...query };
 }
 
 export function useUserWebProfiles(userUrn: string | undefined) {
   return useQuery({
     queryKey: ['user', userUrn, 'web-profiles'],
-    queryFn: () => api<WebProfile[]>(`/users/${encodeURIComponent(userUrn!)}/web-profiles`),
+    queryFn: () =>
+      api<WebProfile[]>(`/users/${encodeURIComponent(userUrn!)}/web-profiles`, {
+        silentStatuses: PUBLIC_FALLBACK_STATUSES,
+      }),
     enabled: !!userUrn,
     staleTime: MEDIUM_CACHE_MS,
     gcTime: INFINITE_GC_MS,
-  });
-}
-
-export function useUserSubscription(userUrn: string | undefined) {
-  return useQuery({
-    queryKey: ['user', userUrn, 'subscription'],
-    queryFn: () => api<{ premium: boolean }>(`/users/${encodeURIComponent(userUrn!)}/subscription`),
-    enabled: !!userUrn,
-    staleTime: MEDIUM_CACHE_MS,
-    gcTime: INFINITE_GC_MS,
-    select: (d) => d.premium,
+    retry: false,
   });
 }
 
 /* ── My Library (cold) ─────────────────────────────────────────── */
 
 export function useMyFollowings(limit = 30) {
-  const query = usePagedQuery<SCUser>({
+  const myUrn = useAuthStore((s) => s.user?.urn);
+  const query = usePagedPublicFallback<SCUser>({
     queryKey: ['me', 'followings', limit],
     url: (page, l) => pagedUrl('/me/followings', page, l),
     limit,
     staleTime: COLD_CACHE_MS,
+    publicUrn: myUrn,
+    publicKey: ['me', 'followings', limit, 'soundcloud-public', myUrn],
+    fetchPublic: fetchPublicUserFollowings,
   });
 
   return { users: query.items, ...query };
 }
 
-export function useMyLikedPlaylists(limit = 30) {
-  const query = usePagedQuery<Playlist>({
-    queryKey: ['me', 'likes', 'playlists', limit],
-    url: (page, l) => pagedUrl('/me/likes/playlists', page, l),
+/**
+ * `/me/*` playlist collection with a public SoundCloud fallback: when the
+ * backend mirror is empty+refreshing (or down), read the same collection off
+ * the logged-in user's public profile so the library stays populated.
+ */
+function useMyPlaylistsQuery(
+  queryKey: QueryKey,
+  url: (page: number, limit: number) => string,
+  limit: number,
+  publicKey: QueryKey,
+  fetchPublic: (userUrn: string) => Promise<Playlist[]>,
+) {
+  const myUrn = useAuthStore((s) => s.user?.urn);
+  const query = usePagedPublicFallback<Playlist>({
+    queryKey,
+    url,
     limit,
     staleTime: COLD_CACHE_MS,
+    publicUrn: myUrn,
+    publicKey,
+    fetchPublic,
   });
 
   return { playlists: query.items, ...query };
 }
 
-export function useMyPlaylists(limit = 30) {
-  const query = usePagedQuery<Playlist>({
-    queryKey: ['me', 'playlists', limit],
-    url: (page, l) => pagedUrl('/me/playlists', page, l),
+export function useMyLikedPlaylists(limit = 30) {
+  return useMyPlaylistsQuery(
+    ['me', 'likes', 'playlists', limit],
+    (page, l) => pagedUrl('/me/likes/playlists', page, l),
     limit,
-    staleTime: COLD_CACHE_MS,
-  });
+    ['me', 'likes', 'playlists', limit, 'soundcloud-public'],
+    fetchPublicUserPlaylistLikes,
+  );
+}
 
-  return { playlists: query.items, ...query };
+export function useMyPlaylists(limit = 30) {
+  return useMyPlaylistsQuery(
+    ['me', 'playlists', limit],
+    (page, l) => pagedUrl('/me/playlists', page, l),
+    limit,
+    ['me', 'playlists', limit, 'soundcloud-public'],
+    fetchPublicUserPlaylists,
+  );
 }
 
 /* ── Playlist Mutations ────────────────────────────────────────── */

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { type Aura, auraRgba } from '../../lib/aura';
 import { Users } from '../../lib/icons';
-import {usePerfMode} from '../../lib/perf';
+import { usePerfMode } from '../../lib/perf';
 import { Avatar } from '../ui/Avatar';
 import type { AlbumArtist } from './types';
 
@@ -47,7 +47,6 @@ function groupByRole(artists: AlbumArtist[]): CastGroup[] {
 const CastCard = memo(function CastCard({
   artist,
   roleLabel,
-  aura,
 }: {
   artist: AlbumArtist;
   roleLabel: string;
@@ -66,7 +65,7 @@ const CastCard = memo(function CastCard({
     >
       <span
         className="relative w-12 h-12 rounded-full overflow-hidden shrink-0 ring-2 ring-white/10 group-hover:ring-white/30 transition-all duration-500"
-        style={{ boxShadow: `0 8px 18px ${auraRgba(aura, 0.18)}` }}
+        style={{ boxShadow: '0 8px 20px rgba(0,0,0,0.45)' }}
       >
         <Avatar src={artist.avatar_url} alt={artist.name} size={48} />
       </span>
@@ -120,9 +119,9 @@ function AlbumCastImpl({ artists, aura }: AlbumCastProps) {
       className="rounded-[2rem] p-5 md:p-7"
       style={{
         background:
-            b > 0
-                ? 'linear-gradient(180deg, rgba(255,255,255,0.035) 0%, rgba(255,255,255,0.015) 100%)'
-                : 'rgba(18,18,22,0.85)',
+          b > 0
+            ? 'linear-gradient(180deg, rgba(255,255,255,0.035) 0%, rgba(255,255,255,0.015) 100%)'
+            : 'rgba(18,18,22,0.85)',
         backdropFilter: b > 0 ? `blur(${b}px) saturate(160%)` : undefined,
         WebkitBackdropFilter: b > 0 ? `blur(${b}px) saturate(160%)` : undefined,
         boxShadow:

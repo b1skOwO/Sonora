@@ -7,6 +7,7 @@ mod network;
 mod rt;
 mod shared;
 mod track_cache;
+mod ytdlp;
 
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
@@ -55,15 +56,20 @@ pub fn run() {
                 .app_data_dir()
                 .expect("failed to resolve app data dir");
 
-            let audio_dir = cache_dir.join("audio");
+            // Audio cache root: a user-chosen folder (persisted by
+            // `track_set_cache_dir`) or the default app cache dir. The other
+            // caches (assets / wallpapers / images / ffmpeg) stay in app_cache_dir.
+            let cache_root = read_audio_cache_root(&data_dir).unwrap_or_else(|| cache_dir.clone());
+
+            let audio_dir = cache_root.join("audio");
             std::fs::create_dir_all(&audio_dir).ok();
 
-            let liked_audio_dir = cache_dir.join("audio_liked");
+            let liked_audio_dir = cache_root.join("audio_liked");
             std::fs::create_dir_all(&liked_audio_dir).ok();
 
             // Raw staging ("А") for freshly downloaded bytes pending transcode
             // into the clean m4a caches ("Б" = audio_dir / audio_liked).
-            let incoming_audio_dir = cache_dir.join("audio_incoming");
+            let incoming_audio_dir = cache_root.join("audio_incoming");
             std::fs::create_dir_all(&incoming_audio_dir).ok();
 
             let assets_dir = cache_dir.join("assets");
@@ -119,8 +125,16 @@ pub fn run() {
             let ffmpeg_dir = cache_dir.join("ffmpeg");
             std::fs::create_dir_all(&ffmpeg_dir).ok();
 
-            let mut track_cache_state =
-                track_cache::init(audio_dir, liked_audio_dir, incoming_audio_dir);
+            let ytdlp_dir = cache_dir.join("ytdlp");
+            std::fs::create_dir_all(&ytdlp_dir).ok();
+
+            let mut track_cache_state = track_cache::init(
+                audio_dir,
+                liked_audio_dir,
+                incoming_audio_dir,
+                ytdlp_dir,
+                data_dir.join("audio-cache.json"),
+            );
             track_cache_state.set_app_handle(app.handle().clone());
             let recovery_state = track_cache_state.clone();
             app.manage(track_cache_state);
@@ -206,12 +220,18 @@ pub fn run() {
             audio::save_track_to_path,
             import::ym_import_start,
             import::ym_import_stop,
+            import::yt_playlist_fetch,
+            app_restart,
             track_cache::track_ensure_cached,
             track_cache::track_export,
             track_cache::track_is_cached,
             track_cache::track_transcode_status,
             track_cache::track_get_cache_path,
             track_cache::track_get_cache_info,
+            track_cache::track_get_cache_dir,
+            track_cache::track_set_cache_dir,
+            track_cache::yt_ensure_cached,
+            track_cache::yt_dlp_update,
             track_cache::track_preload,
             track_cache::track_cache_size,
             track_cache::track_liked_cache_size,
@@ -239,4 +259,20 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+/// Relaunch the app — used after changing the audio cache folder (the new root
+/// is applied on startup).
+#[tauri::command]
+fn app_restart(app: tauri::AppHandle) {
+    app.restart();
+}
+
+/// User-chosen audio cache root from `audio-cache.json` (written by
+/// `track_set_cache_dir`), when it is an absolute path.
+fn read_audio_cache_root(data_dir: &std::path::Path) -> Option<std::path::PathBuf> {
+    let raw = std::fs::read_to_string(data_dir.join("audio-cache.json")).ok()?;
+    let value: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    let path = std::path::PathBuf::from(value.get("root")?.as_str()?);
+    path.is_absolute().then_some(path)
 }

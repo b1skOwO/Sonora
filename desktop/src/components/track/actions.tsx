@@ -1,15 +1,23 @@
-import {useQueryClient} from '@tanstack/react-query';
-import React, {useEffect, useState} from 'react';
-import {useTranslation} from 'react-i18next';
-import {toast} from 'sonner';
-import {api} from '../../lib/api';
-import {downloadTrack} from '../../lib/cache';
-import {fc} from '../../lib/formatters';
-import {invalidateAllLikesCache} from '../../lib/hooks';
-import {Check, Download, Heart, LinkIcon, Loader2, pauseCurrent16, playCurrent16,} from '../../lib/icons';
-import {optimisticToggleLike, setLikedUrn, useLiked} from '../../lib/likes';
-import {getTrackDisplay} from '../../lib/track-display';
-import type {Track} from '../../stores/player';
+import { useQueryClient } from '@tanstack/react-query';
+import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
+import { api } from '../../lib/api';
+import { downloadTrack } from '../../lib/cache';
+import { fc } from '../../lib/formatters';
+import { invalidateAllLikesCache } from '../../lib/hooks';
+import {
+  Check,
+  Download,
+  Heart,
+  LinkIcon,
+  Loader2,
+  pauseCurrent16,
+  playCurrent16,
+} from '../../lib/icons';
+import { optimisticToggleLike, setLikedUrn, useLiked } from '../../lib/likes';
+import { getTrackDisplay } from '../../lib/track-display';
+import type { Track } from '../../stores/player';
 
 /** Accent like-chip: icon + count, glows accent when active. */
 const EngagementChip = React.memo(function EngagementChip({
@@ -33,7 +41,7 @@ const EngagementChip = React.memo(function EngagementChip({
       aria-label={label}
       className={`inline-flex items-center gap-1.5 px-3.5 h-11 rounded-2xl text-[12.5px] font-semibold tabular-nums border transition-all duration-300 ease-[var(--ease-apple)] cursor-pointer active:scale-[0.96] ${
         active
-          ? 'bg-accent/15 border-accent/30 text-accent shadow-[0_0_18px_var(--color-accent-glow)]'
+          ? 'bg-accent/15 border-accent/30 text-accent '
           : 'bg-white/[0.04] border-white/[0.07] text-white/65 hover:bg-white/[0.07] hover:text-white/90 hover:border-white/[0.12]'
       }`}
     >
@@ -198,7 +206,7 @@ export const PlayPill = React.memo(function PlayPill({
         isPlaying ? 'bg-white text-black' : 'bg-accent text-accent-contrast'
       }`}
       style={{
-        boxShadow: '0 12px 32px var(--color-accent-glow), inset 0 1px 0 rgba(255,255,255,0.3)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)',
       }}
     >
       <span

@@ -3,28 +3,23 @@ import { useAuthStore } from '../stores/auth';
 import { useAuthRecoveryStore } from '../stores/auth-recovery';
 import { setSessionId } from './api';
 import { trackedInvoke as invoke } from './diagnostics';
-import { setIsPremium } from './premium-cache';
 import { queryClient } from './query-client';
 
 interface ServerAuthState {
   token: string | null;
-  premium?: boolean;
 }
 
 /**
  * Apply Rust-owned session state to the frontend mirrors. The api-client token
  * mirror and the auth store are written ONLY here — always with a value Rust
- * just confirmed (command return or the `auth:changed` broadcast). Premium
- * mirror: `undefined` leaves it untouched (caller without the flag), token=null
- * clears it. Idempotent, so the initiating window and the tray can both run it.
+ * just confirmed (command return or the `auth:changed` broadcast). Idempotent,
+ * so the initiating window and the tray can both run it.
  */
-export function applyAuthFromServer(token: string | null, premium?: boolean): void {
+export function applyAuthFromServer(token: string | null): void {
   setSessionId(token);
   if (token) {
-    if (premium !== undefined) setIsPremium(premium);
     useAuthStore.setState({ hasSession: true });
   } else {
-    setIsPremium(false);
     useAuthStore.setState({ hasSession: false, isAuthenticated: false, user: null });
     queryClient.clear();
     useAuthRecoveryStore.getState().reset();
@@ -60,10 +55,10 @@ export async function initAuthBridge(): Promise<void> {
   // Подписка ПЕРЕД снимком: логин/логаут, случившийся пока читаем снимок,
   // иначе потерялся бы целиком.
   await listen<ServerAuthState>('auth:changed', (e) => {
-    applyAuthFromServer(e.payload?.token ?? null, e.payload?.premium);
+    applyAuthFromServer(e.payload?.token ?? null);
   });
   const snap = await readAuthStatus();
   // Rust так и не ответил — зеркало не трогаем. Пусть его заполнит
   // `auth:changed`, а запросы подождут (`api-client`: гейт с потолком).
-  if (snap) applyAuthFromServer(snap.token ?? null, snap.premium);
+  if (snap) applyAuthFromServer(snap.token ?? null);
 }

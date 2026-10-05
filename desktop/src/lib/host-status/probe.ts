@@ -1,8 +1,7 @@
 import { fetch } from '@tauri-apps/plugin-http';
 import { useAppStatusStore } from '../../stores/app-status';
-import { API_BASE, API_STAR_BASE } from '../constants';
+import { API_BASE } from '../constants';
 import { edgeFetch } from '../edge';
-import { requestPremiumRecheck } from '../premium-cache';
 import { queryClient } from '../query-client';
 import { type NetVerdict, useHostStatusStore } from './store';
 
@@ -24,9 +23,6 @@ export function isHealthy(host: string): boolean {
 export function markHealthy(host: string): void {
   unhealthyUntil.delete(host);
   if (host === API_BASE) noteMainAlive();
-  else if (host === API_STAR_BASE && useHostStatusStore.getState().star !== 'up') {
-    useHostStatusStore.setState({ star: 'up' });
-  }
 }
 
 /** Пассивный фейл вердикт НЕ меняет — ставит cooldown и планирует пробу main. */
@@ -139,7 +135,7 @@ function anyTrue(checks: Promise<boolean>[]): Promise<boolean> {
   });
 }
 
-/** Только при обоюдном network-фейле main+star; строгая валидация против captive portal. */
+/** Только при network-фейле main; строгая валидация против captive portal. */
 async function checkInternet(): Promise<NetVerdict> {
   const online = await anyTrue([
     validatedFetch('https://www.gstatic.com/generate_204', (res) => res.status === 204),
@@ -205,34 +201,27 @@ export function requestProbe(opts?: { force?: boolean }): void {
 async function run(): Promise<void> {
   const main = await probeConfirmed(API_BASE);
   if (main.alive) {
-    useHostStatusStore.setState({ star: 'unknown', net: 'online' });
+    useHostStatusStore.setState({ net: 'online' });
     markHealthy(API_BASE); // noteMainAlive: up + стоп recheck-таймера (no-op, если уже up)
     // Снимаем ложный offline и когда вердикт уже 'up' (noteMainAlive тогда no-op).
     useAppStatusStore.getState().setBackendReachable(true);
     return;
   }
   const genAfterMainProbes = mainAliveGen;
-  const star = await probeConfirmed(API_STAR_BASE);
   // Бурст таймаутов = таймаутят все запросы → хост лёг, а не offline: модалку не глушим.
-  if (
-    main.netFail &&
-    star.netFail &&
-    !timeoutBurst() &&
-    (await checkInternet()) === 'no-internet'
-  ) {
-    // Не знаем, лежат ли хосты; backendReachable не трогаем — offline-флоу ведёт apiRequest.
-    useHostStatusStore.setState({ main: 'unknown', star: 'unknown', net: 'no-internet' });
+  if (main.netFail && !timeoutBurst() && (await checkInternet()) === 'no-internet') {
+    // Не знаем, лежит ли хост; backendReachable не трогаем — offline-флоу ведёт apiRequest.
+    useHostStatusStore.setState({ main: 'unknown', net: 'no-internet' });
     startRecheckTimer();
     return;
   }
-  // Реальный успех main за время star-пробы/internet-check — результат устарел, down не пишем.
+  // Реальный успех main за время internet-check — результат устарел, down не пишем.
   if (mainAliveGen !== genAfterMainProbes) return;
   const prev = useHostStatusStore.getState();
   const newIncident = prev.main !== 'down';
   const incidentId = newIncident ? prev.incidentId + 1 : prev.incidentId;
   useHostStatusStore.setState({
     main: 'down',
-    star: star.alive ? 'up' : 'down',
     net: 'online',
     incidentId,
     // Флап-гвард: недавно закрытая модалка не возвращается на новом инциденте.
@@ -240,8 +229,6 @@ async function run(): Promise<void> {
       ? { modalDismissedIncidentId: incidentId }
       : {}),
   });
-  if (star.alive) markHealthy(API_STAR_BASE); // карта + вердикт; backendReachable не трогаем
-  requestPremiumRecheck(); // протухший premium=true / потерянный premium у подписчика
   startRecheckTimer();
 }
 

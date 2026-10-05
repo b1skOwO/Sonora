@@ -5,4 +5,5 @@ mod state;
 mod transcode;
 
 pub use commands::*;
+pub use state::TrackCacheState;
 pub use state::init;

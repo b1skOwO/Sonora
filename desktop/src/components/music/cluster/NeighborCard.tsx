@@ -1,16 +1,20 @@
-import React, {useState} from 'react';
-import {useNavigate} from 'react-router-dom';
-import {useShallow} from 'zustand/shallow';
-import {art} from '../../../lib/formatters';
-import {Loader2, pauseBlack14, playBlack14} from '../../../lib/icons';
-import {usePerfMode} from '../../../lib/perf';
-import {recordClusterFeedback, setUrnCluster, useClusterFeedback,} from '../../../lib/recsFeedback';
-import {useArtistLinkItems, useDisplayTitle} from '../../../lib/track-display';
-import {useAutoHide} from '../../../lib/useAutoHide';
-import {type Track, usePlayerStore} from '../../../stores/player';
-import {ArtistNameLinks} from '../ArtistNameLinks';
-import {TrackStatusBadges} from '../TrackStatusBadges';
-import type {ClusterNeighborDto} from './types';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useShallow } from 'zustand/shallow';
+import { art } from '../../../lib/formatters';
+import { Loader2, pauseBlack14, playBlack14 } from '../../../lib/icons';
+import { usePerfMode } from '../../../lib/perf';
+import {
+  recordClusterFeedback,
+  setUrnCluster,
+  useClusterFeedback,
+} from '../../../lib/recsFeedback';
+import { useArtistLinkItems, useDisplayTitle } from '../../../lib/track-display';
+import { useAutoHide } from '../../../lib/useAutoHide';
+import { type Track, usePlayerStore } from '../../../stores/player';
+import { ArtistNameLinks } from '../ArtistNameLinks';
+import { TrackStatusBadges } from '../TrackStatusBadges';
+import type { ClusterNeighborDto } from './types';
 
 interface Props {
   neighbor: ClusterNeighborDto;
@@ -85,8 +89,7 @@ export const NeighborCard = React.memo(function NeighborCard({
       style={{
         background: 'rgba(255,255,255,0.025)',
         border: '0.5px solid color-mix(in srgb, var(--color-accent) 18%, transparent)',
-        boxShadow:
-          '0 18px 40px rgba(0,0,0,0.35), 0 0 30px var(--color-accent-glow), inset 0 1px 0 rgba(255,255,255,0.04)',
+        boxShadow: '0 18px 40px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)',
       }}
     >
       <div className="relative aspect-square w-full overflow-hidden">
@@ -128,7 +131,7 @@ export const NeighborCard = React.memo(function NeighborCard({
               perf.blur(14) > 0 ? `blur(${perf.blur(14)}px) saturate(160%)` : undefined,
             WebkitBackdropFilter:
               perf.blur(14) > 0 ? `blur(${perf.blur(14)}px) saturate(160%)` : undefined,
-            boxShadow: '0 6px 16px rgba(0,0,0,0.4), 0 0 10px var(--color-accent-glow)',
+            boxShadow: '0 6px 16px rgba(0,0,0,0.4)',
           }}
         >
           {avatar ? (
@@ -157,7 +160,7 @@ export const NeighborCard = React.memo(function NeighborCard({
             className="w-11 h-11 rounded-full flex items-center justify-center transition-transform duration-300 group-hover:scale-105"
             style={{
               background: 'rgba(255,255,255,0.92)',
-              boxShadow: '0 12px 36px rgba(0,0,0,0.45), 0 0 28px var(--color-accent-glow)',
+              boxShadow: '0 12px 36px rgba(0,0,0,0.45)',
             }}
           >
             {resolving ? (

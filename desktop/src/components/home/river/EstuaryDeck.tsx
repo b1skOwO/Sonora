@@ -1,14 +1,14 @@
 import React from 'react';
-import {useTranslation} from 'react-i18next';
-import {playWhite14, RefreshCw} from '../../../lib/icons';
-import {usePerfMode} from '../../../lib/perf';
-import type {Track} from '../../../stores/player';
-import {usePlayerStore} from '../../../stores/player';
-import {HideLikedToggle} from '../../music/soundwave/hide-liked-toggle';
-import {HideListenedToggle} from '../../music/soundwave/hide-listened-toggle';
-import {LanguageFilter} from '../../music/soundwave/language-filter';
-import {WaveTrackHeader} from '../../music/soundwave/track-header';
-import {LiveWaveform} from '../../music/soundwave/waveform';
+import { useTranslation } from 'react-i18next';
+import { playWhite14, RefreshCw } from '../../../lib/icons';
+import { usePerfMode } from '../../../lib/perf';
+import type { Track } from '../../../stores/player';
+import { usePlayerStore } from '../../../stores/player';
+import { HideLikedToggle } from '../../music/soundwave/hide-liked-toggle';
+import { HideListenedToggle } from '../../music/soundwave/hide-listened-toggle';
+import { LanguageFilter } from '../../music/soundwave/language-filter';
+import { WaveTrackHeader } from '../../music/soundwave/track-header';
+import { LiveWaveform } from '../../music/soundwave/waveform';
 
 /** Индикатор «эфир подстраивается» — три живых бара, только когда играет. */
 function AdaptDots() {
@@ -97,7 +97,7 @@ export const EstuaryDeck = React.memo(function EstuaryDeck({
               className="riv-anim size-2 rounded-full"
               style={{
                 background: 'var(--color-accent)',
-                boxShadow: perf.glow ? '0 0 8px var(--color-accent)' : undefined,
+
                 animation:
                   isPlaying && perf.idleAnim ? 'riv-pulse 1.6s ease-in-out infinite' : undefined,
               }}
@@ -147,7 +147,7 @@ export const EstuaryDeck = React.memo(function EstuaryDeck({
             type="button"
             onClick={onPlayWave}
             disabled={!canPlay}
-            className="flex h-10 cursor-pointer items-center gap-2.5 rounded-[12px] bg-accent px-5 text-[13.5px] font-semibold text-accent-contrast shadow-[0_6px_24px_var(--color-accent-glow),inset_0_1px_0_rgba(255,255,255,0.25)] transition-transform hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex h-10 cursor-pointer items-center gap-2.5 rounded-[12px] bg-accent px-5 text-[13.5px] font-semibold text-accent-contrast shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] transition-transform hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {playWhite14}
             {t('soundwave.river.playWave')}

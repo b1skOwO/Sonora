@@ -53,6 +53,11 @@ const MAX_TRUNCATED_RETRIES: u8 = 2;
 /// handed to the player is read in a separate command a few ms later; this keeps
 /// that file alive across the gap so playback never reads a just-deleted file.
 const INCOMING_GRACE_SECS: u64 = 30;
+/// Cache format version. Bumped when acquisition changes make older files lower
+/// quality: v2 = AAC HLS presets (web-player parity) instead of the legacy
+/// progressive MP3 stream. Older non-storage caches are dropped and re-fetched
+/// on the next play.
+const CACHE_FORMAT_VERSION: u8 = 2;
 
 /// Magic-byte validation for audio files
 fn is_valid_audio(prefix: &[u8], total_size: u64) -> bool {
@@ -112,7 +117,13 @@ fn urn_to_filename(urn: &str) -> String {
 
 fn filename_to_urn(filename: &str) -> Option<String> {
     let stripped = filename.strip_suffix(".audio")?;
-    Some(stripped.replace('_', ":"))
+    // URNs are `namespace:kind:id` — only the first two separators are
+    // structural, so underscores inside the id (YouTube video ids) survive.
+    let mut parts = stripped.splitn(3, '_');
+    let namespace = parts.next()?;
+    let kind = parts.next()?;
+    let id = parts.next()?;
+    Some(format!("{namespace}:{kind}:{id}"))
 }
 
 fn is_audio_cache_file(path: &Path) -> bool {
@@ -277,6 +288,7 @@ pub enum DownloadSource {
     Anon,
     Direct,
     Api,
+    Youtube,
 }
 
 impl DownloadSource {
@@ -286,6 +298,7 @@ impl DownloadSource {
             Self::Anon => "anon",
             Self::Direct => "direct",
             Self::Api => "api",
+            Self::Youtube => "youtube",
         }
     }
 }
@@ -295,6 +308,9 @@ struct TrackCacheMetadata {
     quality: PlaybackQuality,
     #[serde(default)]
     source: Option<DownloadSource>,
+    /// Cache format version; absent on files written before versioning (0).
+    #[serde(default)]
+    version: u8,
     /// Whether the transcoded output belongs in the protected `liked_dir`.
     /// Recorded on the raw incoming file so startup recovery routes it correctly.
     #[serde(default)]
@@ -398,6 +414,9 @@ pub struct CacheRequest<'a> {
     /// API-reported track length (ms), if known — enables truncated-download
     /// detection. `None` falls back to the size + magic-byte gate only.
     pub expected_duration_ms: Option<u64>,
+    /// YouTube video id — when set, the download goes through yt-dlp instead of
+    /// the SoundCloud URL fallbacks.
+    pub youtube_id: Option<&'a str>,
 }
 
 struct FallbackParams<'a> {
@@ -566,9 +585,21 @@ pub struct TrackCacheState {
     /// Per-host storage circuit breaker: host -> epoch secs of last failure.
     storage_cooldowns: Arc<StdMutex<HashMap<String, u64>>>,
     anon: Arc<AnonClient>,
+    /// Managed yt-dlp binary for the YouTube import/download path. Acquired
+    /// lazily on first use (bundled → system PATH → download).
+    ytdlp: Arc<Mutex<Option<PathBuf>>>,
+    ytdlp_dir: PathBuf,
+    /// Where the chosen cache root is persisted (`app_data_dir/audio-cache.json`).
+    config_path: PathBuf,
 }
 
-pub fn init(audio_dir: PathBuf, liked_dir: PathBuf, incoming_dir: PathBuf) -> TrackCacheState {
+pub fn init(
+    audio_dir: PathBuf,
+    liked_dir: PathBuf,
+    incoming_dir: PathBuf,
+    ytdlp_dir: PathBuf,
+    config_path: PathBuf,
+) -> TrackCacheState {
     // Sweep temps left by an interrupted previous run. Safe here: init() runs
     // during setup, before the webview can issue any download, so nothing the
     // sweep matches is live.
@@ -633,6 +664,9 @@ pub fn init(audio_dir: PathBuf, liked_dir: PathBuf, incoming_dir: PathBuf) -> Tr
         likes_cancel: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         storage_cooldowns: Arc::new(StdMutex::new(HashMap::new())),
         anon,
+        ytdlp: Arc::new(Mutex::new(None)),
+        ytdlp_dir,
+        config_path,
     }
 }
 
@@ -684,6 +718,28 @@ async fn write_cache_metadata(path: &Path, meta: &TrackCacheMetadata) {
 
     if tokio::fs::rename(&temp_path, &final_path).await.is_err() {
         tokio::fs::remove_file(&temp_path).await.ok();
+    }
+}
+
+/// Move cached audio files + metadata sidecars between cache dirs (rename,
+/// falling back to copy+remove across devices). Locked files are skipped.
+async fn move_cache_files(from: &Path, to: &Path) {
+    let Ok(mut entries) = tokio::fs::read_dir(from).await else {
+        return;
+    };
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+        if !(name_str.ends_with(".audio") || name_str.ends_with(".audio.meta.json")) {
+            continue;
+        }
+        let dest = to.join(&name);
+        if tokio::fs::rename(entry.path(), &dest).await.is_ok() {
+            continue;
+        }
+        if tokio::fs::copy(entry.path(), &dest).await.is_ok() {
+            tokio::fs::remove_file(entry.path()).await.ok();
+        }
     }
 }
 
@@ -776,6 +832,7 @@ async fn write_response_to_cache(
     let cache_meta = TrackCacheMetadata {
         quality,
         source: Some(source),
+        version: CACHE_FORMAT_VERSION,
         liked: false,
         expected_duration_ms: None,
         duration_ms: None,
@@ -853,6 +910,7 @@ async fn write_bytes_to_cache(
     let cache_meta = TrackCacheMetadata {
         quality,
         source: Some(source),
+        version: CACHE_FORMAT_VERSION,
         liked: false,
         expected_duration_ms: None,
         duration_ms: None,
@@ -964,6 +1022,91 @@ impl TrackCacheState {
     /// acquisition failed (transcoding disabled, raw bytes served instead).
     fn ffmpeg(&self) -> Option<PathBuf> {
         self.ffmpeg.lock().ok().and_then(|g| g.clone())
+    }
+
+    /// Current yt-dlp path, acquiring it on first use (bundled → system PATH →
+    /// download). `None` when acquisition fails (offline / GitHub unreachable).
+    pub async fn ytdlp(&self) -> Option<PathBuf> {
+        let mut slot = self.ytdlp.lock().await;
+        if let Some(path) = slot.as_ref() {
+            return Some(path.clone());
+        }
+        match crate::ytdlp::acquire(&self.ytdlp_dir).await {
+            Some(path) => {
+                let line = format!("[TrackCache] yt-dlp ready: {}", path.display());
+                println!("{line}");
+                self.diag("INFO", line);
+                *slot = Some(path.clone());
+                Some(path)
+            }
+            None => {
+                let line = "[TrackCache] yt-dlp unavailable".to_string();
+                eprintln!("{line}");
+                self.diag("WARN", line);
+                None
+            }
+        }
+    }
+
+    /// Root folder the three audio cache dirs live under (shown in Settings).
+    pub fn cache_root(&self) -> PathBuf {
+        self.audio_dir
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| self.audio_dir.clone())
+    }
+
+    /// Force-refresh the managed yt-dlp binary (used when YouTube changes break
+    /// the installed version). Returns the new path on success.
+    pub async fn update_ytdlp(&self) -> Option<PathBuf> {
+        let mut slot = self.ytdlp.lock().await;
+        match crate::ytdlp::update(&self.ytdlp_dir).await {
+            Some(path) => {
+                *slot = Some(path.clone());
+                Some(path)
+            }
+            None => None,
+        }
+    }
+
+    /// Persist a new cache root and (optionally) move existing files. The running
+    /// session keeps its current dirs — the caller restarts the app to apply.
+    pub async fn set_cache_root(&self, root: &str, move_files: bool) -> Result<String, String> {
+        let new_root = PathBuf::from(root.trim());
+        if !new_root.is_absolute() {
+            return Err("cache path must be absolute".into());
+        }
+        if new_root == self.cache_root() {
+            return Ok(new_root.display().to_string());
+        }
+        if !self.active.lock().await.is_empty() {
+            return Err("downloads are in progress".into());
+        }
+
+        let new_audio = new_root.join("audio");
+        let new_liked = new_root.join("audio_liked");
+        let new_incoming = new_root.join("audio_incoming");
+        for dir in [&new_audio, &new_liked, &new_incoming] {
+            tokio::fs::create_dir_all(dir)
+                .await
+                .map_err(|e| format!("create {}: {e}", dir.display()))?;
+        }
+
+        if move_files {
+            move_cache_files(&self.audio_dir, &new_audio).await;
+            move_cache_files(&self.liked_dir, &new_liked).await;
+            move_cache_files(&self.incoming_dir, &new_incoming).await;
+        }
+
+        let payload = serde_json::json!({ "root": new_root.to_string_lossy() });
+        tokio::fs::write(&self.config_path, payload.to_string())
+            .await
+            .map_err(|e| format!("persist cache dir: {e}"))?;
+
+        let line = format!("[TrackCache] cache root set to {}", new_root.display());
+        println!("{line}");
+        self.diag("INFO", line);
+        Ok(new_root.display().to_string())
     }
 
     /// Acquire ffmpeg (system PATH or download into `install_dir`) and publish it
@@ -1082,6 +1225,22 @@ impl TrackCacheState {
             self.remove_cached(urn);
             return None;
         }
+        // Files fetched before the quality bump came from the legacy progressive
+        // MP3 preset; drop them so the next play re-acquires the AAC stream the
+        // web player uses. Storage copies are already canonical and stay.
+        if let Some(m) = meta.as_ref()
+            && m.version < CACHE_FORMAT_VERSION
+            && !matches!(m.source, Some(DownloadSource::Storage))
+        {
+            let line = format!(
+                "[TrackCache] dropping v{} cache for {urn} (stream-quality bump)",
+                m.version
+            );
+            eprintln!("{line}");
+            self.diag("INFO", line);
+            self.remove_cached(urn);
+            return None;
+        }
         Some(TrackCacheEntry::from_path_and_meta(&path, meta))
     }
 
@@ -1119,6 +1278,7 @@ impl TrackCacheState {
             hq,
             liked,
             expected_duration_ms,
+            youtube_id,
         } = req;
 
         if let Some(entry) = self.get_cache_entry(urn) {
@@ -1176,8 +1336,10 @@ impl TrackCacheState {
         );
         drop(active);
 
-        let download_result = self
-            .download_with_fallback(FallbackParams {
+        let download_result = if let Some(video_id) = youtube_id {
+            self.download_youtube(target_dir, urn, video_id).await
+        } else {
+            self.download_with_fallback(FallbackParams {
                 target_dir,
                 urn,
                 urls,
@@ -1186,7 +1348,8 @@ impl TrackCacheState {
                 session_id,
                 hq,
             })
-            .await;
+            .await
+        };
 
         // Stamp the raw file with routing + integrity info, then kick off the
         // background transcode (А → Б). Playback uses the raw path immediately.
@@ -1228,6 +1391,7 @@ impl TrackCacheState {
         let mut meta = read_cache_metadata(incoming_path).unwrap_or(TrackCacheMetadata {
             quality: PlaybackQuality::Sq,
             source: None,
+            version: CACHE_FORMAT_VERSION,
             liked,
             expected_duration_ms,
             duration_ms: None,
@@ -1283,6 +1447,17 @@ impl TrackCacheState {
         }
 
         let meta = read_cache_metadata(&incoming);
+        // Raw bytes staged before the quality bump were fetched from the legacy
+        // MP3 preset; promoting them would just enshrine the lower quality.
+        if meta
+            .as_ref()
+            .map(|m| m.version)
+            .unwrap_or(CACHE_FORMAT_VERSION)
+            < CACHE_FORMAT_VERSION
+        {
+            self.remove_incoming(urn).await;
+            return Ok(());
+        }
         let liked = meta.as_ref().map(|m| m.liked).unwrap_or(false);
         let expected = meta.as_ref().and_then(|m| m.expected_duration_ms);
         let quality = meta
@@ -1338,6 +1513,7 @@ impl TrackCacheState {
         let clean_meta = TrackCacheMetadata {
             quality,
             source,
+            version: CACHE_FORMAT_VERSION,
             liked,
             expected_duration_ms: accepted_expected,
             duration_ms: probed,
@@ -1508,6 +1684,51 @@ impl TrackCacheState {
             return Ok(dest_path);
         }
         Err("Cannot export to m4a: audio transcoder is still preparing or unavailable".into())
+    }
+
+    /// Download a YouTube video's audio via yt-dlp into the raw staging dir and
+    /// stamp it with the source + cache version, so the normal А→Б transcode
+    /// promotes it like any other download.
+    async fn download_youtube(
+        &self,
+        target_dir: &Path,
+        urn: &str,
+        video_id: &str,
+    ) -> Result<PathBuf, String> {
+        let Some(ytdlp) = self.ytdlp().await else {
+            return Err("yt-dlp is not available".into());
+        };
+        let url = format!("https://www.youtube.com/watch?v={video_id}");
+        let dest = target_dir.join(urn_to_filename(urn));
+        println!("[TrackCache] {urn} → yt-dlp");
+        let ffmpeg = self.ffmpeg();
+        let app = self.app_handle.clone();
+        let progress_urn = urn.to_string();
+        crate::ytdlp::download_audio(&ytdlp, ffmpeg.as_deref(), &url, &dest, |progress| {
+            if let Some(app) = app.as_ref() {
+                let _ = app.emit(
+                    "track:download-progress",
+                    serde_json::json!({
+                        "urn": progress_urn,
+                        "downloaded": 0,
+                        "total": 0,
+                        "progress": progress,
+                        "source": "youtube",
+                    }),
+                );
+            }
+        })
+        .await?;
+        let meta = TrackCacheMetadata {
+            quality: PlaybackQuality::Sq,
+            source: Some(DownloadSource::Youtube),
+            version: CACHE_FORMAT_VERSION,
+            liked: false,
+            expected_duration_ms: None,
+            duration_ms: None,
+        };
+        write_cache_metadata(&dest, &meta).await;
+        Ok(dest)
     }
 
     /// Try each storage URL once (healthy hosts first), then API URLs with retries.
@@ -2118,6 +2339,7 @@ impl TrackCacheState {
                         hq,
                         liked: true,
                         expected_duration_ms: duration_ms,
+                        youtube_id: None,
                     })
                     .await;
                 if result.is_err() {

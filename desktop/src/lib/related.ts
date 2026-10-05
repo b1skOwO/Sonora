@@ -1,6 +1,7 @@
 import type {Track} from '../stores/player';
 import {api, ApiError} from './api';
 import type {PagedResponse} from './hooks';
+import {isYoutubeUrn} from './youtube';
 
 type RelatedTracks = PagedResponse<Track>;
 
@@ -20,6 +21,7 @@ export async function fetchRelatedTracks(
     limit = 10,
     page = 0,
 ): Promise<RelatedTracks> {
+    if (isYoutubeUrn(urn)) return emptyRelated(page, limit);
     try {
         return await api<RelatedTracks>(
             `/tracks/${encodeURIComponent(urn)}/related?limit=${limit}&page=${page}`,

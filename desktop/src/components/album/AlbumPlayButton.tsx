@@ -1,6 +1,6 @@
 import { memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { type Aura, auraRgb, auraRgba, isLight } from '../../lib/aura';
+import { type Aura, auraRgba, isLight } from '../../lib/aura';
 import { pauseBlack14, pauseWhite14, playBlack14, playWhite14 } from '../../lib/icons';
 import { useIsPlayingFrom } from '../../lib/useTrackPlay';
 import { type Track, usePlayerStore } from '../../stores/player';
@@ -62,7 +62,7 @@ function AlbumPlayButtonImpl({ tracks, aura }: AlbumPlayButtonProps) {
       style={{
         background: `linear-gradient(180deg, ${auraRgba(aura, 0.85)}, ${auraRgba(aura, 0.65)})`,
         color: lightAura ? '#000' : '#fff',
-        boxShadow: `0 12px 32px ${auraRgba(aura, 0.45)}, inset 0 0 0 1px ${auraRgba(aura, 0.55)}, inset 0 1px 0 rgba(255,255,255,0.3)`,
+        boxShadow: `0 12px 28px rgba(0,0,0,0.5), inset 0 0 0 1px ${auraRgba(aura, 0.55)}, inset 0 1px 0 rgba(255,255,255,0.3)`,
       }}
     >
       <span
@@ -79,7 +79,7 @@ function AlbumPlayButtonImpl({ tracks, aura }: AlbumPlayButtonProps) {
       </span>
       <span
         className="absolute inset-0 rounded-full pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700"
-        style={{ boxShadow: `0 0 60px ${auraRgb(aura)}` }}
+        style={{ boxShadow: `0 1px 3px rgba(0,0,0,0.5)` }}
       />
     </button>
   );

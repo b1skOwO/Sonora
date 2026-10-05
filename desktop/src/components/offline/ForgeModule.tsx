@@ -1,7 +1,7 @@
 import React from 'react';
-import {useTranslation} from 'react-i18next';
-import type {TranscodeStatus} from '../../lib/cache';
-import {usePerfMode} from '../../lib/perf';
+import { useTranslation } from 'react-i18next';
+import type { TranscodeStatus } from '../../lib/cache';
+import { usePerfMode } from '../../lib/perf';
 
 const CHEVRONS = Array.from({ length: 16 }, (_, i) => i);
 
@@ -95,9 +95,7 @@ function Station({
             burning
               ? {
                   color: 'var(--color-accent-hover)',
-                  textShadow: perf.glow
-                    ? '0 0 26px var(--color-accent-glow), 0 0 64px var(--color-accent-glow)'
-                    : undefined,
+                  textShadow: perf.glow ? '0 10px 28px rgba(0,0,0,0.45)' : undefined,
                 }
               : { color: 'rgba(255,255,255,0.92)' }
           }

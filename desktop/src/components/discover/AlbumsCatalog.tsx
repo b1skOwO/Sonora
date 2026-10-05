@@ -1,21 +1,21 @@
-import {memo, useCallback, useMemo, useState} from 'react';
-import {useTranslation} from 'react-i18next';
-import {type Aura, auraRgba} from '../../lib/aura';
+import { memo, useCallback, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { type Aura, auraRgba } from '../../lib/aura';
 import {
-    type AlbumKindFilter,
-    type AlbumSort,
-    type CatalogAlbum,
-    flattenPages,
-    reachedHardCap,
-    useDiscoverAlbums,
-    useDiscoverAlbumsByYear,
+  type AlbumKindFilter,
+  type AlbumSort,
+  type CatalogAlbum,
+  flattenPages,
+  reachedHardCap,
+  useDiscoverAlbums,
+  useDiscoverAlbumsByYear,
 } from '../../lib/discover';
-import {Disc3} from '../../lib/icons';
-import {Skeleton} from '../ui/Skeleton';
-import {VirtualGrid} from '../ui/VirtualGrid';
-import {AlbumGridCard} from './AlbumGridCard';
-import {FilterRow} from './FilterRow';
-import {InfiniteSentinel} from './InfiniteSentinel';
+import { Disc3 } from '../../lib/icons';
+import { Skeleton } from '../ui/Skeleton';
+import { VirtualGrid } from '../ui/VirtualGrid';
+import { AlbumGridCard } from './AlbumGridCard';
+import { FilterRow } from './FilterRow';
+import { InfiniteSentinel } from './InfiniteSentinel';
 
 interface AlbumsCatalogProps {
   aura: Aura;
@@ -29,26 +29,26 @@ function AlbumsCatalogImpl({ aura, query }: AlbumsCatalogProps) {
 
   const useYearBuckets = sort === 'recent' && !query;
 
-    const kindOptions = useMemo<ReadonlyArray<{ id: AlbumKindFilter; label: string }>>(
-        () => [
-            {id: 'all', label: t('discover.allKinds')},
-            {id: 'album', label: t('artist.kind.album')},
-            {id: 'ep', label: t('artist.kind.ep')},
-            {id: 'single', label: t('artist.kind.single')},
-            {id: 'compilation', label: t('artist.kind.compilation')},
-        ],
-        [t],
-    );
+  const kindOptions = useMemo<ReadonlyArray<{ id: AlbumKindFilter; label: string }>>(
+    () => [
+      { id: 'all', label: t('discover.allKinds') },
+      { id: 'album', label: t('artist.kind.album') },
+      { id: 'ep', label: t('artist.kind.ep') },
+      { id: 'single', label: t('artist.kind.single') },
+      { id: 'compilation', label: t('artist.kind.compilation') },
+    ],
+    [t],
+  );
 
-    const sortOptions = useMemo<ReadonlyArray<{ id: AlbumSort; label: string }>>(
-        () => [
-            {id: 'recent', label: t('discover.sortRecent')},
-            {id: 'popular', label: t('discover.sortPopular')},
-            {id: 'tracks', label: t('discover.sortTracks')},
-            {id: 'az', label: t('discover.sortAz')},
-        ],
-        [t],
-    );
+  const sortOptions = useMemo<ReadonlyArray<{ id: AlbumSort; label: string }>>(
+    () => [
+      { id: 'recent', label: t('discover.sortRecent') },
+      { id: 'popular', label: t('discover.sortPopular') },
+      { id: 'tracks', label: t('discover.sortTracks') },
+      { id: 'az', label: t('discover.sortAz') },
+    ],
+    [t],
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -60,7 +60,7 @@ function AlbumsCatalogImpl({ aura, query }: AlbumsCatalogProps) {
       {useYearBuckets ? (
         <YearBucketsView kind={kind} aura={aura} />
       ) : (
-        <FlatAlbumsView sort={sort} kind={kind} query={query} aura={aura} />
+        <FlatAlbumsView sort={sort} kind={kind} query={query} />
       )}
     </div>
   );
@@ -92,12 +92,10 @@ const FlatAlbumsView = memo(function FlatAlbumsView({
   sort,
   kind,
   query,
-  aura,
 }: {
   sort: AlbumSort;
   kind: AlbumKindFilter;
   query: string;
-  aura: Aura;
 }) {
   const albumsQuery = useDiscoverAlbums({ sort, kind, q: query });
   const items = useMemo(() => flattenPages(albumsQuery.data), [albumsQuery.data]);
@@ -127,7 +125,7 @@ const FlatAlbumsView = memo(function FlatAlbumsView({
           overscan={3}
           disabled={items.length < 40}
           getItemKey={(a) => a.id}
-          renderItem={(a) => <AlbumGridCard album={a} aura={aura} />}
+          renderItem={(a) => <AlbumGridCard album={a} />}
         />
       )}
 
@@ -180,7 +178,7 @@ const YearGroup = memo(function YearGroup({
 
       <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5">
         {items.map((al) => (
-            <AlbumGridCard key={al.id} album={al} aura={aura}/>
+          <AlbumGridCard key={al.id} album={al} />
         ))}
       </div>
     </div>

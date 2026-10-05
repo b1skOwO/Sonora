@@ -51,9 +51,6 @@ const AlbumPage = lazy(() =>
 const Discover = lazy(() =>
   import('./pages/Discover').then((module) => ({ default: module.Discover })),
 );
-const StarPage = lazy(() =>
-  import('./pages/StarPage').then((module) => ({ default: module.StarPage })),
-);
 const UpdateChecker = lazy(() =>
   import('./components/UpdateChecker').then((module) => ({ default: module.UpdateChecker })),
 );
@@ -332,14 +329,6 @@ export default function App() {
                   element={
                     <RouteLoader>
                       <Discover />
-                    </RouteLoader>
-                  }
-                />
-                <Route
-                  path="star"
-                  element={
-                    <RouteLoader>
-                      <StarPage />
                     </RouteLoader>
                   }
                 />

@@ -82,8 +82,7 @@ export const SoundWaveSimilarBlock = React.memo(function SoundWaveSimilarBlock({
     <section
       className="relative rounded-3xl overflow-hidden glass-featured select-none"
       style={{
-        boxShadow:
-          '0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 40px rgba(0,0,0,0.35), 0 0 40px var(--color-accent-glow)',
+        boxShadow: '0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 40px rgba(0,0,0,0.35)',
         borderColor: 'rgba(255,255,255,0.08)',
       }}
     >
@@ -105,7 +104,7 @@ export const SoundWaveSimilarBlock = React.memo(function SoundWaveSimilarBlock({
             className="relative w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
             style={{
               background: 'linear-gradient(135deg, var(--color-accent), rgba(255,255,255,0.12))',
-              boxShadow: '0 0 24px var(--color-accent-glow), inset 0 1px 0 rgba(255,255,255,0.2)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)',
             }}
           >
             <AudioLines size={17} style={{ color: 'var(--color-accent-contrast)' }} />
@@ -118,8 +117,7 @@ export const SoundWaveSimilarBlock = React.memo(function SoundWaveSimilarBlock({
               <span
                 className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.16em] px-2 py-[3px] rounded-full text-white/90"
                 style={{
-                  background:
-                    'linear-gradient(135deg, var(--color-accent-glow), rgba(255,255,255,0.06))',
+                  background: 'rgba(255,255,255,0.05)',
                   border: '0.5px solid var(--color-accent-glow)',
                 }}
               >
