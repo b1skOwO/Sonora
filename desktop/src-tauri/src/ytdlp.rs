@@ -143,7 +143,7 @@ async fn download(install_dir: &Path) -> Option<PathBuf> {
 /// Whether a URL targets YouTube (the only host the preflight applies to).
 fn is_youtube_target(url: &str) -> bool {
     let lower = url.to_lowercase();
-    lower.contains("youtube.com") || lower.contains("youtu.be")
+    lower.contains("youtube.com") || lower.contains("youtu.be") || lower.starts_with("ytsearch")
 }
 
 /// Quick reachability probe before spawning yt-dlp. Catches the common failure
@@ -272,6 +272,13 @@ pub async fn fetch_playlist(bin: &Path, url: &str) -> Result<YtPlaylist, String>
             entries: vec![entry],
         })
     }
+}
+
+/// Search YouTube through yt-dlp (`ytsearchN:`) and return the raw candidates.
+pub async fn search_tracks(bin: &Path, query: &str, limit: usize) -> Result<Vec<YtEntry>, String> {
+    let target = format!("ytsearch{limit}:{query}");
+    let playlist = fetch_playlist(bin, &target).await?;
+    Ok(playlist.entries)
 }
 
 fn parse_entry(value: &serde_json::Value) -> Option<YtEntry> {

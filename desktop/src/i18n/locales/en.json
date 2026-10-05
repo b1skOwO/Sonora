@@ -703,7 +703,8 @@
     "bypassWhitelistSoonDesc": "We're shipping bypass routing — stay tuned",
     "import": "Import",
     "importYandex": "Import from Yandex Music",
-    "importYoutube": "Import from YouTube"
+    "importYoutube": "Import from YouTube",
+    "importSpotify": "Import from Spotify"
   },
   "eq": {
     "title": "Equalizer",
@@ -766,6 +767,23 @@
     "updating": "Updating...",
     "updated": "yt-dlp updated",
     "updateFailed": "yt-dlp update failed"
+  },
+  "spotify": {
+    "instructions": "Paste a Spotify playlist link",
+    "hint": "Each track is searched on YouTube and played via yt-dlp (downloaded on first play). Up to 100 tracks per playlist.",
+    "urlPlaceholder": "https://open.spotify.com/playlist/...",
+    "start": "Start import",
+    "importing": "Reading the playlist...",
+    "matching": "Matching tracks on YouTube...",
+    "stop": "Stop",
+    "hide": "Hide",
+    "matched": "Matched",
+    "notFound": "Not found",
+    "done": "Import complete!",
+    "stopped": "Stopped — partial playlist saved",
+    "noMatches": "No tracks could be matched on YouTube",
+    "play": "Play",
+    "backgroundHint": "Import continues in the background. You can close this window."
   },
   "update": {
     "available": "Update available",

@@ -1,4 +1,4 @@
-//! Locally stored playlists imported from external services (currently YouTube).
+//! Locally stored playlists imported from external services (YouTube / Spotify).
 //!
 //! These never touch the SoundCloud backend: the tracks are synthetic
 //! `youtube:tracks:<id>` entries and their audio is fetched on demand by yt-dlp.
@@ -9,13 +9,15 @@ import type { Playlist } from '../lib/hooks';
 import { createThrottledJsonStorage } from '../lib/tauri-storage';
 import type { Track } from './player';
 
+export type LocalPlaylistSource = 'youtube' | 'spotify';
+
 export interface LocalPlaylist {
   id: string;
   title: string;
   uploader: string | null;
   artworkUrl: string | null;
   sourceUrl: string;
-  source: 'youtube';
+  source: LocalPlaylistSource;
   tracks: Track[];
   createdAt: number;
 }
@@ -54,9 +56,22 @@ export function localPlaylistById(id: string | undefined): LocalPlaylist | undef
   return useLocalPlaylistsStore.getState().playlists.find((p) => p.id === id);
 }
 
+/** URN prefixes used by local (non-backend) playlists. */
+const LOCAL_PLAYLIST_PREFIXES = ['youtube:playlists:', 'spotify:playlists:'];
+
+export function isLocalPlaylistUrn(urn: string | undefined): boolean {
+  return !!urn && LOCAL_PLAYLIST_PREFIXES.some((prefix) => urn.startsWith(prefix));
+}
+
+/** Human label of the service a local playlist was imported from. */
+export function localPlaylistSourceLabel(source: LocalPlaylistSource): string {
+  return source === 'spotify' ? 'Spotify' : 'YouTube';
+}
+
 /** Playlist-shaped view of a local import, for the shared `PlaylistCard`. */
 export function localPlaylistToCard(playlist: LocalPlaylist): Playlist {
   const stamp = new Date(playlist.createdAt).toISOString();
+  const sourceLabel = localPlaylistSourceLabel(playlist.source);
   return {
     id: 0,
     urn: playlist.id,
@@ -70,12 +85,12 @@ export function localPlaylistToCard(playlist: LocalPlaylist): Playlist {
     created_at: stamp,
     last_modified: stamp,
     sharing: 'private',
-    playlist_type: 'YouTube',
+    playlist_type: sourceLabel,
     tracks: playlist.tracks,
     user: {
       id: 0,
-      urn: 'youtube',
-      username: playlist.uploader ?? 'YouTube',
+      urn: playlist.source,
+      username: playlist.uploader ?? sourceLabel,
       avatar_url: '',
     },
   };

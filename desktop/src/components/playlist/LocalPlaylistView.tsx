@@ -2,8 +2,8 @@ import React, { useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { proxiedAssetUrl } from '../../lib/asset-url';
-import { ChevronLeft, pauseBlack20, Play, Shuffle, Youtube } from '../../lib/icons';
-import type { LocalPlaylist } from '../../stores/local-playlists';
+import { ChevronLeft, pauseBlack20, Play, Shuffle, Spotify, Youtube } from '../../lib/icons';
+import { localPlaylistSourceLabel, type LocalPlaylist } from '../../stores/local-playlists';
 import { usePlayerStore } from '../../stores/player';
 import { SequenceList } from './SequenceList';
 
@@ -17,6 +17,8 @@ export const LocalPlaylistView = React.memo(function LocalPlaylistView({
   const navigate = useNavigate();
   const sentinelRef = useRef<HTMLDivElement>(null);
   const tracks = playlist?.tracks ?? [];
+  const sourceLabel = playlist ? localPlaylistSourceLabel(playlist.source) : 'YouTube';
+  const SourceIcon = playlist?.source === 'spotify' ? Spotify : Youtube;
   const isCurrent = usePlayerStore(
     (s) => s.isPlaying && !!s.currentTrack && tracks.some((tr) => tr.urn === s.currentTrack!.urn),
   );
@@ -80,19 +82,19 @@ export const LocalPlaylistView = React.memo(function LocalPlaylistView({
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
-                  <Youtube size={40} className="text-white/25" />
+                  <SourceIcon size={40} className="text-white/25" />
                 </div>
               )}
             </div>
             <div className="min-w-0 flex-1 text-center md:text-left">
               <p className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.24em] text-white/45">
-                <Youtube size={12} /> YouTube
+                <SourceIcon size={12} /> {sourceLabel}
               </p>
               <h1 className="mt-2.5 text-[26px] md:text-[38px] font-black tracking-tight leading-[1.05] break-words text-white/95">
                 {playlist.title}
               </h1>
               <p className="mt-2 text-[13px] text-white/45">
-                {playlist.uploader ?? 'YouTube'} · {t('playlist.tracks', { count: tracks.length })}
+                {playlist.uploader ?? sourceLabel} · {t('playlist.tracks', { count: tracks.length })}
               </p>
               <div className="mt-5 flex items-center justify-center md:justify-start gap-3">
                 <button

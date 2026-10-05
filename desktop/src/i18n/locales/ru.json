@@ -695,7 +695,8 @@
     "bypassWhitelistSoonDesc": "Готовим обход — следите за обновлениями",
     "import": "Импорт",
     "importYandex": "Импорт из Yandex Music",
-    "importYoutube": "Импорт из YouTube"
+    "importYoutube": "Импорт из YouTube",
+    "importSpotify": "Импорт из Spotify"
   },
   "eq": {
     "title": "Эквалайзер",
@@ -758,6 +759,23 @@
     "updating": "Обновляю...",
     "updated": "yt-dlp обновлён",
     "updateFailed": "Не удалось обновить yt-dlp"
+  },
+  "spotify": {
+    "instructions": "Вставьте ссылку на плейлист Spotify",
+    "hint": "Каждый трек ищется на YouTube и играется через yt-dlp (скачивается при первом воспроизведении). До 100 треков на плейлист.",
+    "urlPlaceholder": "https://open.spotify.com/playlist/...",
+    "start": "Начать импорт",
+    "importing": "Читаю плейлист...",
+    "matching": "Ищу треки на YouTube...",
+    "stop": "Стоп",
+    "hide": "Скрыть",
+    "matched": "Найдено",
+    "notFound": "Не найдено",
+    "done": "Импорт завершён!",
+    "stopped": "Остановлено — сохранён частичный плейлист",
+    "noMatches": "Не удалось найти треки на YouTube",
+    "play": "Играть",
+    "backgroundHint": "Импорт идёт в фоне, окно можно закрыть."
   },
   "update": {
     "available": "Доступно обновление",

@@ -595,7 +595,8 @@
     "bypassWhitelistSoonDesc": "Atlatma rotalamasi gelistirme asamasinda",
     "import": "Ice aktar",
     "importYandex": "Yandex Music'ten ice aktar",
-    "importYoutube": "YouTube'dan ice aktar"
+    "importYoutube": "YouTube'dan ice aktar",
+    "importSpotify": "Spotify'dan ice aktar"
   },
   "eq": {
     "title": "Ekolayzir",
@@ -658,6 +659,23 @@
     "updating": "Guncelleniyor...",
     "updated": "yt-dlp guncellendi",
     "updateFailed": "yt-dlp guncellenemedi"
+  },
+  "spotify": {
+    "instructions": "Bir Spotify calma listesi baglantisi yapistirin",
+    "hint": "Her parca YouTube'da aranir ve yt-dlp ile oynatilir (ilk oynatmada indirilir). Calma listesi basina en fazla 100 parca.",
+    "urlPlaceholder": "https://open.spotify.com/playlist/...",
+    "start": "Ice aktarmayi baslat",
+    "importing": "Calma listesi okunuyor...",
+    "matching": "Parcalar YouTube'da araniyor...",
+    "stop": "Durdur",
+    "hide": "Gizle",
+    "matched": "Eslesti",
+    "notFound": "Bulunamadi",
+    "done": "Ice aktarma tamamlandi!",
+    "stopped": "Durduruldu — kismi calma listesi kaydedildi",
+    "noMatches": "YouTube'da hicbir parca eslestirilemedi",
+    "play": "Oynat",
+    "backgroundHint": "Ice aktarma arka planda surer, bu pencereyi kapatabilirsiniz."
   },
   "update": {
     "available": "Guncelleme mevcut",

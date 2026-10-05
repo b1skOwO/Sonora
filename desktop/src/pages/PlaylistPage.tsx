@@ -25,9 +25,8 @@ import { AlertCircle, ChevronLeft, X } from '../lib/icons';
 import { usePerfMode } from '../lib/perf';
 import { rawPlaylistCover } from '../lib/playlist-cover';
 import { armPlaylistContinuation } from '../lib/queue-continuation';
-import { YOUTUBE_PLAYLIST_PREFIX } from '../lib/youtube';
 import { useAuthStore } from '../stores/auth';
-import { useLocalPlaylistsStore } from '../stores/local-playlists';
+import { isLocalPlaylistUrn, useLocalPlaylistsStore } from '../stores/local-playlists';
 import { type Track, usePlayerStore } from '../stores/player';
 import { useSettingsStore } from '../stores/settings';
 
@@ -54,9 +53,9 @@ export const PlaylistPage = React.memo(function PlaylistPage() {
   const perf = usePerfMode();
   const myUrn = useAuthStore((s) => s.user?.urn);
 
-  // Locally imported (YouTube) playlists are served from the local store, not
-  // the backend — keep the queries disabled for them.
-  const isLocal = !!urn && urn.startsWith(YOUTUBE_PLAYLIST_PREFIX);
+  // Locally imported (YouTube / Spotify) playlists are served from the local
+  // store, not the backend — keep the queries disabled for them.
+  const isLocal = isLocalPlaylistUrn(urn);
   const localPlaylist = useLocalPlaylistsStore((s) =>
     urn ? s.playlists.find((p) => p.id === urn) : undefined,
   );

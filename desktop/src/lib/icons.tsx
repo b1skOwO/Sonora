@@ -81,7 +81,7 @@ import {
   X as _X,
 } from 'lucide-react';
 import { memo } from 'react';
-import { siInstagram, siX, siYoutube } from 'simple-icons';
+import { siInstagram, siSpotify, siX, siYoutube } from 'simple-icons';
 
 // ── Simple Icons (brand icons, replaces deprecated lucide brands) ──
 const SimpleIcon = memo(
@@ -182,6 +182,9 @@ export const Power = memo(_Power);
 export const RotateCcw = memo(_RotateCcw);
 export const Youtube = memo(({ size, className }: { size?: number; className?: string }) => (
   <SimpleIcon icon={siYoutube} size={size} className={className} />
+));
+export const Spotify = memo(({ size, className }: { size?: number; className?: string }) => (
+  <SimpleIcon icon={siSpotify} size={size} className={className} />
 ));
 
 // ── Pre-rendered JSX constants (hot-path, fixed props) ──────

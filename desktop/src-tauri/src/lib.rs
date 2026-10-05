@@ -221,6 +221,8 @@ pub fn run() {
             import::ym_import_start,
             import::ym_import_stop,
             import::yt_playlist_fetch,
+            import::spotify_import_start,
+            import::spotify_import_stop,
             app_restart,
             track_cache::track_ensure_cached,
             track_cache::track_export,
