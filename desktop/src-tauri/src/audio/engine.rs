@@ -5,7 +5,9 @@ use std::time::Duration;
 use tauri::State;
 use tokio::task;
 
-use crate::audio::decode::{create_player_from_bytes, resolve_normalization_gain};
+use crate::audio::decode::{
+    create_player_from_bytes, loudness_gain, peak_safety_gain, resolve_loudness_analysis,
+};
 use crate::audio::state::AudioState;
 use crate::audio::types::{AudioLoadResult, MediaCmd, EQ_BANDS, STALL_SUPPRESS_MS, TICK_INTERVAL_MS};
 
@@ -79,12 +81,14 @@ fn commit_loaded_track(
     state: &AudioState,
     bytes: Vec<u8>,
     new_player: rodio::Player,
-    normalization_gain: f32,
+    loudness: f32,
+    safety: f32,
 ) {
     apply_current_rate(state, &new_player);
     *state.player.lock().unwrap() = Some(new_player);
     *state.source_bytes.lock().unwrap() = Some(bytes);
-    *state.normalization_gain.lock().unwrap() = normalization_gain;
+    *state.normalization_gain.lock().unwrap() = loudness;
+    *state.normalization_safety.lock().unwrap() = safety;
     // Fresh track starts at source 0 / output 0.
     set_pos_anchor(state, 0.0, 0.0);
     state.has_track.store(true, Ordering::Relaxed);
@@ -104,33 +108,43 @@ async fn build_player_from_bytes(
     normalization_enabled: bool,
     normalization_cache_dir: Option<PathBuf>,
     normalization_cache_key: Option<String>,
+    known_peak_db: Option<f64>,
     start_paused: bool,
     eq_params: std::sync::Arc<std::sync::RwLock<crate::audio::types::EqParams>>,
     analyser_buffer: std::sync::Arc<crate::audio::analyser::AnalyserBuffer>,
     output_sample_rate: u32,
-) -> Result<(Vec<u8>, rodio::Player, Option<f64>, f32), String> {
+) -> Result<(Vec<u8>, rodio::Player, Option<f64>, f32, f32), String> {
     task::spawn_blocking(move || {
-        let normalization_gain = if normalization_enabled {
-            resolve_normalization_gain(
-                &bytes,
-                normalization_cache_dir.as_deref(),
-                normalization_cache_key.as_deref(),
-            )?
+        let analysis = resolve_loudness_analysis(
+            &bytes,
+            normalization_cache_dir.as_deref(),
+            normalization_cache_key.as_deref(),
+        )?;
+        // The whole-file peak (measured by the cache when downloading) is more
+        // trustworthy than the analysis window for the safety cap.
+        let known_peak = known_peak_db
+            .map(|db| 10f64.powf(db / 20.0))
+            .unwrap_or(0.0);
+        let peak = analysis.peak.max(known_peak);
+        let loudness = loudness_gain(analysis, peak);
+        let safety = peak_safety_gain(peak);
+        let applied = if normalization_enabled {
+            loudness.min(safety)
         } else {
-            1.0
+            safety
         };
         let (player, duration_secs) = create_player_from_bytes(
             &bytes,
             &mixer,
             volume,
             Some(volume_handle),
-            normalization_gain,
+            applied,
             start_paused,
             eq_params,
             analyser_buffer,
             output_sample_rate,
         )?;
-        Ok((bytes, player, duration_secs, normalization_gain))
+        Ok((bytes, player, duration_secs, loudness, safety))
     })
     .await
     .map_err(|e| format!("audio decode task failed: {e}"))?
@@ -156,16 +170,17 @@ pub fn reload_current_track(state: &AudioState) -> Result<(), String> {
     let mixer = state.mixer.lock().unwrap().clone();
     let vol = *state.volume.lock().unwrap();
     let normalization_enabled = state.normalization_enabled.load(Ordering::Relaxed);
-    let normalization_gain = *state.normalization_gain.lock().unwrap();
+    let loudness = *state.normalization_gain.lock().unwrap();
+    let safety = *state.normalization_safety.lock().unwrap();
     let (new_player, _) = create_player_from_bytes(
         &bytes,
         &mixer,
         vol,
         Some(state.volume_handle.clone()),
         if normalization_enabled {
-            normalization_gain
+            loudness.min(safety)
         } else {
-            1.0
+            safety
         },
         was_paused,
         state.eq_params.clone(),
@@ -195,6 +210,33 @@ pub fn reload_current_track(state: &AudioState) -> Result<(), String> {
     Ok(())
 }
 
+/// Whole-file peak (dBFS) recorded next to a cached file by the downloader.
+/// `None` for streamed sources (no sidecar) — the analysis window is used then.
+fn read_track_peak_db(path: &str) -> Option<f64> {
+    let raw = std::fs::read_to_string(format!("{path}.meta.json")).ok()?;
+    let value: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    value.get("peak_db").and_then(|v| v.as_f64())
+}
+
+/// Stamp the analysis cache key with the file identity: raw А and clean Б files
+/// for the same URN can differ in level (a re-encode is peak-attenuated), so a
+/// bare URN key would serve a stale analysis after the transcode swap.
+fn stamped_cache_key(base: Option<String>, path: &str) -> Option<String> {
+    let base = base?;
+    match std::fs::metadata(path) {
+        Ok(meta) => {
+            let mtime_ms = meta
+                .modified()
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_millis())
+                .unwrap_or(0);
+            Some(format!("{base}:{}:{mtime_ms}", meta.len()))
+        }
+        Err(_) => Some(base),
+    }
+}
+
 pub async fn load_file(
     path: String,
     normalization_cache_dir: Option<PathBuf>,
@@ -211,10 +253,12 @@ pub async fn load_file(
 
     stop_current_player(&state);
 
+    let known_peak_db = read_track_peak_db(&path);
+    let normalization_cache_key = stamped_cache_key(normalization_cache_key, &path);
     let mixer = state.mixer.lock().unwrap().clone();
     let vol = *state.volume.lock().unwrap();
     let normalization_enabled = state.normalization_enabled.load(Ordering::Relaxed);
-    let (bytes, new_player, duration_secs, normalization_gain) = build_player_from_bytes(
+    let (bytes, new_player, duration_secs, loudness, safety) = build_player_from_bytes(
         bytes,
         mixer,
         vol,
@@ -222,6 +266,7 @@ pub async fn load_file(
         normalization_enabled,
         normalization_cache_dir,
         normalization_cache_key,
+        known_peak_db,
         start_paused,
         state.eq_params.clone(),
         state.analyser_buffer.clone(),
@@ -229,7 +274,7 @@ pub async fn load_file(
     )
     .await?;
 
-    commit_loaded_track(&state, bytes, new_player, normalization_gain);
+    commit_loaded_track(&state, bytes, new_player, loudness, safety);
 
     Ok(AudioLoadResult { duration_secs })
 }
@@ -317,7 +362,7 @@ pub async fn load_url(
     let mixer = state.mixer.lock().unwrap().clone();
     let vol = *state.volume.lock().unwrap();
     let normalization_enabled = state.normalization_enabled.load(Ordering::Relaxed);
-    let (bytes, new_player, duration_secs, normalization_gain) = build_player_from_bytes(
+    let (bytes, new_player, duration_secs, loudness, safety) = build_player_from_bytes(
         bytes,
         mixer,
         vol,
@@ -325,6 +370,7 @@ pub async fn load_url(
         normalization_enabled,
         normalization_cache_dir,
         normalization_cache_key,
+        None,
         start_paused,
         state.eq_params.clone(),
         state.analyser_buffer.clone(),
@@ -332,7 +378,7 @@ pub async fn load_url(
     )
     .await?;
 
-    commit_loaded_track(&state, bytes, new_player, normalization_gain);
+    commit_loaded_track(&state, bytes, new_player, loudness, safety);
 
     Ok(AudioLoadResult { duration_secs })
 }
@@ -419,16 +465,17 @@ pub fn seek_to(state: &AudioState, position: f64) -> Result<(), String> {
     let mixer = state.mixer.lock().unwrap().clone();
     let vol = *state.volume.lock().unwrap();
     let normalization_enabled = state.normalization_enabled.load(Ordering::Relaxed);
-    let normalization_gain = *state.normalization_gain.lock().unwrap();
+    let loudness = *state.normalization_gain.lock().unwrap();
+    let safety = *state.normalization_safety.lock().unwrap();
     let (new_player, _) = create_player_from_bytes(
         &bytes,
         &mixer,
         vol,
         Some(state.volume_handle.clone()),
         if normalization_enabled {
-            normalization_gain
+            loudness.min(safety)
         } else {
-            1.0
+            safety
         },
         was_paused,
         state.eq_params.clone(),

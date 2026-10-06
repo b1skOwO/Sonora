@@ -581,7 +581,7 @@
     "discordRpcButton": "SoundCloud dugmesi",
     "discordRpcButtonDesc": "Parcayi SoundCloud'da acan dugmeyi goster",
     "normalizeVolume": "Ses duzeyi dengeleme",
-    "normalizeVolumeDesc": "Sessiz ve yuksek parcarlari daha esit bir seviyeye getirir",
+    "normalizeVolumeDesc": "Sessiz ve yuksek parcarlari daha esit bir seviyeye getirir. Kirpilma korumasi her durumda acik kalir.",
     "highQualityStreaming": "Yuksek kalite akis",
     "highQualityStreamingDesc": "Oynatma sirasinda mevcut en yuksek kaliteyi tercih et",
     "bypassWhitelist": "Beyaz listeleri atla",

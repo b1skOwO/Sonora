@@ -684,7 +684,7 @@
     "discordRpcButton": "Кнопка SoundCloud",
     "discordRpcButtonDesc": "Показывать кнопку перехода к треку в SoundCloud",
     "normalizeVolume": "Нормализация громкости",
-    "normalizeVolumeDesc": "Выравнивает тихие и громкие треки до более ровного уровня",
+    "normalizeVolumeDesc": "Выравнивает тихие и громкие треки до более ровного уровня. Защита от клиппинга работает в любом случае.",
     "highQualityStreaming": "Высокое качество стрима",
     "highQualityStreamingDesc": "Стараться воспроизводить треки в максимально доступном качестве",
     "bypassWhitelist": "Обход белых списков",

@@ -24,10 +24,11 @@ use tokio::process::Command;
 /// AAC bitrate for re-encoded output. Matches the storage canonical (256k m4a);
 /// sources that are already AAC are stream-copied and keep their original rate.
 const AAC_BITRATE: &str = "256k";
-/// Peak ceiling applied when re-encoding (not when stream-copying): keeps hot
-/// masters from hard-clipping inside the encoder / at s16 conversion. `level=0`
-/// disables the filter's auto-gain so quiet tracks are left untouched.
-const LIMITER_FILTER: &str = "alimiter=limit=0.98:level=0";
+/// Peak ceiling for re-encoded files. Sources routinely decode above full scale
+/// (measured up to +6 dB on SoundCloud streams), which hard-clips inside the
+/// encoder / the s16 conversion. A plain static attenuation — not a limiter —
+/// brings the peak here, so dynamics are left untouched.
+const ENCODE_PEAK_CEILING_DB: f64 = -0.5;
 
 /// Output container/codec of the clean cache ("Б"). Chosen by the user in
 /// Settings → Cache; applies to newly forged files (old ones re-forge on play).
@@ -225,14 +226,16 @@ async fn run(mut cmd: Command, what: &str) -> Result<(), String> {
 
 /// Transcode (or stream-copy) `input` into the chosen `format` at
 /// `out_dir/final_name`, atomically. Already-AAC payloads are copied when the
-/// target is m4a (near-free); everything else is re-encoded with a peak
-/// limiter so hot sources can't clip. The temp render is always cleaned up.
+/// target is m4a (near-free); everything else is re-encoded after a static,
+/// peak-derived attenuation so hot sources can't clip. The temp render is
+/// always cleaned up.
 pub async fn transcode_audio(
     ffmpeg: &Path,
     input: &Path,
     out_dir: &Path,
     final_name: &str,
     format: AudioFormat,
+    peak_db: Option<f64>,
 ) -> Result<PathBuf, String> {
     let final_path = out_dir.join(final_name);
     let tmp = temp_sibling(out_dir, final_name, format.extension());
@@ -262,8 +265,17 @@ pub async fn transcode_audio(
     }
 
     if !copied {
+        // Static attenuation to the ceiling (never a boost): the only level
+        // change applied to re-encodes, so transients keep their shape.
+        let gain_db = peak_db
+            .map(|peak| ENCODE_PEAK_CEILING_DB - peak)
+            .filter(|gain| *gain < -0.05);
+
         let mut cmd = base_command(ffmpeg);
-        cmd.arg("-i").arg(input).args(["-vn", "-af", LIMITER_FILTER]);
+        cmd.arg("-i").arg(input).args(["-vn"]);
+        if let Some(gain_db) = gain_db {
+            cmd.arg("-af").arg(format!("volume={gain_db:.2}dB"));
+        }
         match format {
             AudioFormat::M4a => {
                 cmd.args(["-c:a", "aac", "-b:a", AAC_BITRATE, "-movflags", "+faststart"]);
@@ -377,8 +389,43 @@ pub async fn export_with_cover(
     }
 }
 
-/// Probe a media file's duration in milliseconds via ffmpeg's `Duration:` line.
-/// Used to validate cached files against the API-reported length. `None` when
+/// Whole-file sample peak in dBFS via ffmpeg's `astats` — may be positive for
+/// hot lossy sources (their decoded float overshoots full scale). `None` when
+/// ffmpeg fails or prints no peak. `astats` reports through the log system, so
+/// this one cannot use the quiet `base_command`.
+pub async fn probe_peak_db(ffmpeg: &Path, path: &Path) -> Option<f64> {
+    let mut cmd = Command::new(ffmpeg);
+    cmd.args(["-nostdin", "-hide_banner", "-loglevel", "info", "-i"])
+        .arg(path)
+        .args(["-vn", "-af", "astats", "-f", "null", "-"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000);
+    }
+    let output = cmd.output().await.ok()?;
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    parse_peak_db(&stderr)
+}
+
+/// Last `Peak level dB:` line of astats output — the overall section.
+fn parse_peak_db(stderr: &str) -> Option<f64> {
+    stderr
+        .lines()
+        .filter_map(|line| {
+            let idx = line.find("Peak level dB:")?;
+            line[idx + "Peak level dB:".len()..]
+                .trim()
+                .parse::<f64>()
+                .ok()
+        })
+        .last()
+}
+
+/// Probe a media file's duration in milliseconds via ffmpeg's `Duration:` line./// Used to validate cached files against the API-reported length. `None` when
 /// ffmpeg is unavailable or the line can't be parsed.
 pub async fn probe_duration_ms(ffmpeg: &Path, path: &Path) -> Option<u64> {
     let mut cmd = Command::new(ffmpeg);
@@ -418,7 +465,7 @@ fn parse_duration_ms(stderr: &str) -> Option<u64> {
 
 #[cfg(test)]
 mod tests {
-    use super::{AudioFormat, is_mp4_container, parse_duration_ms};
+    use super::{AudioFormat, is_mp4_container, parse_duration_ms, parse_peak_db};
 
     #[test]
     fn detects_mp4_container() {
@@ -444,5 +491,15 @@ mod tests {
         assert_eq!(AudioFormat::from_label("MP3"), Some(AudioFormat::Mp3));
         assert_eq!(AudioFormat::from_label(" wav "), Some(AudioFormat::Wav));
         assert_eq!(AudioFormat::from_label("flac"), None);
+    }
+
+    #[test]
+    fn parses_astats_peak() {
+        let s = "[Parsed_astats_0 @ 0x1] Channel: 1\n\
+                 [Parsed_astats_0 @ 0x1] Peak level dB: 5.000629\n\
+                 [Parsed_astats_0 @ 0x1] Overall\n\
+                 [Parsed_astats_0 @ 0x1] Peak level dB: 6.603768\n";
+        assert_eq!(parse_peak_db(s), Some(6.603768));
+        assert_eq!(parse_peak_db("no stats here"), None);
     }
 }

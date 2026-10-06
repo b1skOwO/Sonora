@@ -689,7 +689,7 @@
     "discordRpcButton": "Show SoundCloud button",
     "discordRpcButtonDesc": "Display the button that opens the track in SoundCloud",
     "normalizeVolume": "Volume normalization",
-    "normalizeVolumeDesc": "Balances quiet and loud tracks to a more even level",
+    "normalizeVolumeDesc": "Balances quiet and loud tracks to a more even level. Clipping protection stays on either way.",
     "highQualityStreaming": "High quality streaming",
     "highQualityStreamingDesc": "Prefer the highest available quality during playback",
     "bypassWhitelist": "Bypass whitelists",

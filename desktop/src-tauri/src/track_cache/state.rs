@@ -326,6 +326,11 @@ struct TrackCacheMetadata {
     /// `None` — the format is decided when they are forged.
     #[serde(default)]
     format: Option<AudioFormat>,
+    /// Whole-file sample peak in dBFS, measured by ffmpeg when the file lands
+    /// (may be positive — lossy sources routinely overshoot full scale). Feeds
+    /// the playback peak safety so hot tracks can't hard-clip at the output.
+    #[serde(default)]
+    peak_db: Option<f64>,
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -861,6 +866,7 @@ async fn write_response_to_cache(
         expected_duration_ms: None,
         duration_ms: None,
         format: None,
+        peak_db: None,
     };
 
     if let Ok(meta) = tokio::fs::metadata(&final_path).await
@@ -940,6 +946,7 @@ async fn write_bytes_to_cache(
         expected_duration_ms: None,
         duration_ms: None,
         format: None,
+        peak_db: None,
     };
 
     if let Ok(meta) = tokio::fs::metadata(&final_path).await
@@ -1462,10 +1469,18 @@ impl TrackCacheState {
             expected_duration_ms,
             duration_ms: None,
             format: None,
+            peak_db: None,
         });
         meta.liked = liked;
         if expected_duration_ms.is_some() {
             meta.expected_duration_ms = expected_duration_ms;
+        }
+        // Measure the whole-file peak once, off the download path: the playback
+        // peak safety needs it so hot lossy sources can't hard-clip.
+        if let Some(ffmpeg) = self.ffmpeg()
+            && let Some(peak_db) = transcode::probe_peak_db(&ffmpeg, incoming_path).await
+        {
+            meta.peak_db = Some(peak_db);
         }
         write_cache_metadata(incoming_path, &meta).await;
     }
@@ -1547,10 +1562,21 @@ impl TrackCacheState {
 
         let final_name = urn_to_filename(urn);
         let format = self.cache_format();
-        let clean_path =
-            transcode::transcode_audio(ffmpeg, &incoming, &dest_dir, &final_name, format).await?;
+        let raw_peak_db = meta.as_ref().and_then(|m| m.peak_db);
+        let clean_path = transcode::transcode_audio(
+            ffmpeg,
+            &incoming,
+            &dest_dir,
+            &final_name,
+            format,
+            raw_peak_db,
+        )
+        .await?;
 
         let probed = transcode::probe_duration_ms(ffmpeg, &clean_path).await;
+        // The clean file may be peak-attenuated by the re-encode — record its
+        // own peak so the playback safety targets the file actually played.
+        let clean_peak_db = transcode::probe_peak_db(ffmpeg, &clean_path).await;
 
         // The transcode faithfully reproduces the source, so a too-short result
         // means the *download* was cut off — discard so the next play retries.
@@ -1587,6 +1613,7 @@ impl TrackCacheState {
             expected_duration_ms: accepted_expected,
             duration_ms: probed,
             format: Some(format),
+            peak_db: clean_peak_db,
         };
         write_cache_metadata(&clean_path, &clean_meta).await;
         // Defer dropping the raw А file: the path may have just been handed to the
@@ -1797,6 +1824,7 @@ impl TrackCacheState {
             expected_duration_ms: None,
             duration_ms: None,
             format: None,
+            peak_db: None,
         };
         write_cache_metadata(&dest, &meta).await;
         Ok(dest)

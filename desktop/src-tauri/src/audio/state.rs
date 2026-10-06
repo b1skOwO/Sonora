@@ -45,7 +45,10 @@ pub struct AudioState {
     pub mixer: Arc<Mutex<Mixer>>,
     pub eq_params: Arc<RwLock<EqParams>>,
     pub normalization_enabled: AtomicBool,
+    /// Loudness gain (RMS target) of the current track, before the peak safety.
     pub normalization_gain: Mutex<f32>,
+    /// Always-on peak-safety gain of the current track (attenuation only).
+    pub normalization_safety: Mutex<f32>,
     pub volume: Mutex<f32>,
     /// Live volume read by the DSP chain (f32 bits); lets `set_volume` apply to
     /// the already-playing source without rebuilding the player.
@@ -183,6 +186,7 @@ pub fn init() -> AudioState {
         eq_params: Arc::new(RwLock::new(EqParams::default())),
         normalization_enabled: AtomicBool::new(true),
         normalization_gain: Mutex::new(1.0),
+        normalization_safety: Mutex::new(1.0),
         volume: Mutex::new(0.25),
         volume_handle: Arc::new(AtomicU32::new((0.25f32).to_bits())),
         playback_rate: Mutex::new(1.0),

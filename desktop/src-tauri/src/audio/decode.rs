@@ -15,10 +15,10 @@ use crate::audio::resample::ResampleSource;
 use crate::audio::types::{
     ChannelCount, EqParams, SampleRate, NORMALIZATION_ANALYSIS_SAMPLES,
     NORMALIZATION_BLOCK_SAMPLES, NORMALIZATION_MAX_ATTENUATION_DB, NORMALIZATION_MAX_BOOST_DB,
-    NORMALIZATION_TARGET_PEAK, NORMALIZATION_TARGET_RMS,
+    NORMALIZATION_SAFETY_PEAK, NORMALIZATION_TARGET_PEAK, NORMALIZATION_TARGET_RMS,
 };
 
-const NORMALIZATION_CACHE_VERSION: u8 = 2;
+const NORMALIZATION_CACHE_VERSION: u8 = 3;
 
 pub fn is_ogg_opus(bytes: &[u8]) -> bool {
     // OpusHead appears at byte 28 in a standard OGG Opus header page
@@ -191,20 +191,34 @@ fn normalization_cache_file(cache_dir: &Path, cache_key: &str) -> PathBuf {
     cache_dir.join(format!("{hash}.gain"))
 }
 
-fn read_cached_normalization_gain(
-    cache_dir: Option<&Path>,
-    cache_key: Option<&str>,
-) -> Option<f32> {
-    let path = normalization_cache_file(cache_dir?, cache_key?);
-    let raw = std::fs::read_to_string(path).ok()?;
-    let (version, value) = raw.trim().split_once(':')?;
-    if version != NORMALIZATION_CACHE_VERSION.to_string() {
-        return None;
-    }
-    value.parse::<f32>().ok()
+/// Peak + gated RMS of the analysis window 窶・the numbers the loudness and
+/// safety gains are derived from.
+#[derive(Clone, Copy, Debug)]
+pub struct LoudnessAnalysis {
+    pub peak: f64,
+    pub rms: f64,
 }
 
-fn write_cached_normalization_gain(cache_dir: Option<&Path>, cache_key: Option<&str>, gain: f32) {
+fn read_cached_analysis(
+    cache_dir: Option<&Path>,
+    cache_key: Option<&str>,
+) -> Option<LoudnessAnalysis> {
+    let path = normalization_cache_file(cache_dir?, cache_key?);
+    let raw = std::fs::read_to_string(path).ok()?;
+    let mut parts = raw.trim().split(':');
+    if parts.next()? != NORMALIZATION_CACHE_VERSION.to_string() {
+        return None;
+    }
+    let peak = parts.next()?.parse::<f64>().ok()?;
+    let rms = parts.next()?.parse::<f64>().ok()?;
+    Some(LoudnessAnalysis { peak, rms })
+}
+
+fn write_cached_analysis(
+    cache_dir: Option<&Path>,
+    cache_key: Option<&str>,
+    analysis: LoudnessAnalysis,
+) {
     let Some(cache_dir) = cache_dir else {
         return;
     };
@@ -217,10 +231,16 @@ fn write_cached_normalization_gain(cache_dir: Option<&Path>, cache_key: Option<&
     }
 
     let path = normalization_cache_file(cache_dir, cache_key);
-    let _ = std::fs::write(path, format!("{NORMALIZATION_CACHE_VERSION}:{gain:.6}"));
+    let _ = std::fs::write(
+        path,
+        format!(
+            "{NORMALIZATION_CACHE_VERSION}:{:.6}:{:.6}",
+            analysis.peak, analysis.rms
+        ),
+    );
 }
 
-fn normalization_gain_from_samples<I>(samples: I) -> f32
+fn analyze_samples<I>(samples: I) -> LoudnessAnalysis
 where
     I: IntoIterator<Item = f32>,
 {
@@ -232,8 +252,7 @@ where
 
     for sample in samples.into_iter().take(NORMALIZATION_ANALYSIS_SAMPLES) {
         let value = sample as f64;
-        let abs = value.abs();
-        peak = peak.max(abs);
+        peak = peak.max(value.abs());
         block_sum_sq += value * value;
         block_count += 1;
         count += 1;
@@ -249,26 +268,29 @@ where
         block_powers.push(block_sum_sq / block_count as f64);
     }
 
-    if count == 0 {
-        return 1.0;
+    if count == 0 || block_powers.is_empty() {
+        return LoudnessAnalysis { peak: 0.0, rms: 1.0 };
     }
 
-    if block_powers.is_empty() {
-        return 1.0;
-    }
-
+    // Gate out the quietest 40% of blocks so silence/intros don't skew the RMS.
     block_powers.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let keep_from = ((block_powers.len() as f64) * 0.4).floor() as usize;
     let kept = &block_powers[keep_from.min(block_powers.len().saturating_sub(1))..];
     let gated_power = kept.iter().copied().sum::<f64>() / kept.len() as f64;
-    let rms = gated_power.sqrt().max(1e-6);
-    let target_gain = NORMALIZATION_TARGET_RMS / rms;
-    let peak_safe_gain = if peak > 0.0 {
-        NORMALIZATION_TARGET_PEAK / peak
-    } else {
-        target_gain
-    };
 
+    LoudnessAnalysis {
+        peak,
+        rms: gated_power.sqrt().max(1e-6),
+    }
+}
+
+/// Loudness gain for the user's normalization setting: brings the gated RMS to
+/// the target, capped so peaks stay under the target peak; clamped to
+/// [-8, +9] dB and snapped to unity when it lands close to it.
+pub fn loudness_gain(analysis: LoudnessAnalysis, peak: f64) -> f32 {
+    let peak = peak.max(1e-6);
+    let target_gain = NORMALIZATION_TARGET_RMS / analysis.rms;
+    let peak_safe_gain = NORMALIZATION_TARGET_PEAK / peak;
     let max_boost = 10f64.powf(NORMALIZATION_MAX_BOOST_DB / 20.0);
     let max_attenuation = 10f64.powf(NORMALIZATION_MAX_ATTENUATION_DB / 20.0);
     let gain = target_gain
@@ -282,29 +304,39 @@ where
     }
 }
 
-pub fn resolve_normalization_gain(
+/// Always-on peak safety: attenuation-only gain that keeps decoded samples
+/// (which overshoot full scale by up to several dB in lossy sources) from hard
+/// clipping at the output. Applied regardless of the normalization setting 窶・
+/// it is a static gain, so dynamics are untouched.
+pub fn peak_safety_gain(peak: f64) -> f32 {
+    (NORMALIZATION_SAFETY_PEAK / peak.max(1e-6)).min(1.0) as f32
+}
+
+pub fn resolve_loudness_analysis(
     bytes: &[u8],
     cache_dir: Option<&Path>,
     cache_key: Option<&str>,
-) -> Result<f32, String> {
-    if let Some(gain) = read_cached_normalization_gain(cache_dir, cache_key) {
-        return Ok(gain);
+) -> Result<LoudnessAnalysis, String> {
+    if let Some(analysis) = read_cached_analysis(cache_dir, cache_key) {
+        return Ok(analysis);
     }
 
-    let gain = if is_ogg_opus(bytes) {
-        normalization_gain_from_samples(
+    let analysis = if is_ogg_opus(bytes) {
+        analyze_samples(
             OpusSource::new(bytes.to_vec()).map_err(|e| format!("Failed to decode: {}", e))?,
         )
-    } else { match Decoder::new(Cursor::new(bytes.to_vec())) { Ok(source) => {
-        normalization_gain_from_samples(source)
-    } _ => {
-        normalization_gain_from_samples(
-            OpusSource::new(bytes.to_vec()).map_err(|e| format!("Failed to decode: {}", e))?,
-        )
-    }}};
+    } else {
+        match Decoder::new(Cursor::new(bytes.to_vec())) {
+            Ok(source) => analyze_samples(source),
+            _ => analyze_samples(
+                OpusSource::new(bytes.to_vec())
+                    .map_err(|e| format!("Failed to decode: {}", e))?,
+            ),
+        }
+    };
 
-    write_cached_normalization_gain(cache_dir, cache_key, gain);
-    Ok(gain)
+    write_cached_analysis(cache_dir, cache_key, analysis);
+    Ok(analysis)
 }
 
 /// Append `source` to `player`, resampling to `output_sample_rate` first when
@@ -317,7 +349,7 @@ where
     match NonZero::new(output_sample_rate) {
         Some(rate) if rate != source.sample_rate() => {
             eprintln!(
-                "[audio] resampling {} Hz → {} Hz",
+                "[audio] resampling {} Hz 竊・{} Hz",
                 source.sample_rate(),
                 rate
             );
@@ -327,7 +359,7 @@ where
     }
 }
 
-/// Wrap `source` into the shared DSP chain (gain → EQ → analyser → volume) and
+/// Wrap `source` into the shared DSP chain (gain 竊・EQ 竊・analyser 竊・volume) and
 /// append it to the player. With a `volume_handle` the player's own volume stays
 /// at 1.0 and the chain applies the live user volume. The chain is resampled to
 /// the device rate at the very end, so EQ/analyser keep running at the source
@@ -424,3 +456,4 @@ pub fn create_player_from_bytes(
 
     Ok((player, duration))
 }
+
