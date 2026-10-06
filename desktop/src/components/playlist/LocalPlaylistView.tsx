@@ -1,10 +1,19 @@
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { proxiedAssetUrl } from '../../lib/asset-url';
-import { ChevronLeft, pauseBlack20, Play, Shuffle, Spotify, Youtube } from '../../lib/icons';
+import {
+  ChevronLeft,
+  ListPlus,
+  pauseBlack20,
+  Play,
+  Shuffle,
+  Spotify,
+  Youtube,
+} from '../../lib/icons';
 import { localPlaylistSourceLabel, type LocalPlaylist } from '../../stores/local-playlists';
 import { usePlayerStore } from '../../stores/player';
+import { AddTracksDialog } from './AddTracksDialog';
 import { SequenceList } from './SequenceList';
 
 /** Playlist page for locally imported YouTube playlists — no backend involved. */
@@ -19,6 +28,8 @@ export const LocalPlaylistView = React.memo(function LocalPlaylistView({
   const tracks = playlist?.tracks ?? [];
   const sourceLabel = playlist ? localPlaylistSourceLabel(playlist.source) : 'YouTube';
   const SourceIcon = playlist?.source === 'spotify' ? Spotify : Youtube;
+  const [showAdd, setShowAdd] = useState(false);
+  const trackUrnSet = useMemo(() => new Set(tracks.map((tr) => tr.urn)), [tracks]);
   const isCurrent = usePlayerStore(
     (s) => s.isPlaying && !!s.currentTrack && tracks.some((tr) => tr.urn === s.currentTrack!.urn),
   );
@@ -114,6 +125,14 @@ export const LocalPlaylistView = React.memo(function LocalPlaylistView({
                   <Shuffle size={17} />
                   {t('playlist.shuffle')}
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAdd(true)}
+                  className="inline-flex items-center gap-2 px-5 py-3 rounded-full font-bold text-[14px] text-white/80 bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] cursor-pointer transition-all"
+                >
+                  <ListPlus size={17} />
+                  {t('playlist.addTracks')}
+                </button>
               </div>
             </div>
           </div>
@@ -129,6 +148,16 @@ export const LocalPlaylistView = React.memo(function LocalPlaylistView({
           isFetchingNextPage={false}
         />
       </div>
+
+      <AddTracksDialog
+        open={showAdd}
+        onOpenChange={setShowAdd}
+        target={
+          playlist
+            ? { kind: 'local', playlistId: playlist.id, existingUrns: trackUrnSet }
+            : null
+        }
+      />
     </div>
   );
 });

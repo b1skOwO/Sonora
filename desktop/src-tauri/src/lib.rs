@@ -234,6 +234,7 @@ pub fn run() {
             import::ym_import_start,
             import::ym_import_stop,
             import::yt_playlist_fetch,
+            import::yt_search,
             import::spotify_import_start,
             import::spotify_import_stop,
             app_restart,

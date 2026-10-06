@@ -8,6 +8,7 @@ import {
   Check,
   Heart,
   LinkIcon,
+  ListPlus,
   MapPin,
   pauseCurrent16,
   playCurrent16,
@@ -119,6 +120,7 @@ export const PlaylistActions = React.memo(function PlaylistActions({
   onShuffle,
   onTogglePin,
   onDelete,
+  onAddTracks,
 }: {
   playlist: Playlist;
   isOwner: boolean;
@@ -128,6 +130,7 @@ export const PlaylistActions = React.memo(function PlaylistActions({
   onShuffle: () => void;
   onTogglePin: () => void;
   onDelete: () => void;
+  onAddTracks?: () => void;
 }) {
   const { t } = useTranslation();
 
@@ -162,6 +165,18 @@ export const PlaylistActions = React.memo(function PlaylistActions({
         <Shuffle size={14} />
         <span className="hidden sm:inline">{t('playlist.shuffle')}</span>
       </button>
+
+      {onAddTracks && (
+        <button
+          type="button"
+          onClick={onAddTracks}
+          title={t('playlist.addTracks')}
+          className="inline-flex items-center gap-1.5 px-3.5 h-11 rounded-2xl text-[12.5px] font-semibold border bg-white/[0.04] border-white/[0.07] text-white/65 hover:bg-white/[0.07] hover:text-white/90 hover:border-white/[0.12] transition-all duration-300 ease-[var(--ease-apple)] cursor-pointer active:scale-[0.96]"
+        >
+          <ListPlus size={14} />
+          <span className="hidden sm:inline">{t('playlist.addTracks')}</span>
+        </button>
+      )}
 
       {!playlist.urn.startsWith('soundcloud:playlists:imported-') && (
         <PlaylistLikeBtn playlistUrn={playlist.urn} count={playlist.likes_count} />

@@ -6,6 +6,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useShallow } from 'zustand/shallow';
 import { CrateLedger } from '../components/playlist/CrateLedger';
+import { AddTracksDialog } from '../components/playlist/AddTracksDialog';
 import { PLAYLIST_KEYFRAMES } from '../components/playlist/keyframes';
 import { LocalPlaylistView } from '../components/playlist/LocalPlaylistView';
 import { MoreCrates } from '../components/playlist/MoreCrates';
@@ -71,6 +72,7 @@ export const PlaylistPage = React.memo(function PlaylistPage() {
   const updateTracks = useUpdatePlaylistTracks(urn);
   const deletePlaylist = useDeletePlaylist();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showAddTracks, setShowAddTracks] = useState(false);
 
   const { pinnedPlaylists, pinPlaylist, unpinPlaylist } = useSettingsStore(
     useShallow((s) => ({
@@ -277,6 +279,7 @@ export const PlaylistPage = React.memo(function PlaylistPage() {
           onShuffle={handleShuffle}
           onTogglePin={handleTogglePin}
           onDelete={() => setShowDeleteConfirm(true)}
+          onAddTracks={isOwner ? () => setShowAddTracks(true) : undefined}
         />
 
         <CrateLedger playlist={playlist} tracks={tracks} />
@@ -313,6 +316,12 @@ export const PlaylistPage = React.memo(function PlaylistPage() {
           excludeUrn={playlist.urn}
         />
       </div>
+
+      <AddTracksDialog
+        open={showAddTracks}
+        onOpenChange={setShowAddTracks}
+        target={urn ? { kind: 'sc', playlistUrn: urn, existingUrns: trackUrnSet } : null}
+      />
 
       <Dialog.Root open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <Dialog.Portal>

@@ -47,6 +47,7 @@ export const PlaylistHero = React.memo(function PlaylistHero({
   onShuffle,
   onTogglePin,
   onDelete,
+  onAddTracks,
 }: {
   playlist: Playlist;
   tracks: Track[];
@@ -59,6 +60,7 @@ export const PlaylistHero = React.memo(function PlaylistHero({
   onShuffle: () => void;
   onTogglePin: () => void;
   onDelete: () => void;
+  onAddTracks?: () => void;
 }) {
   const { t } = useTranslation();
   const kl = kindLabelKey(playlist.kind);
@@ -152,6 +154,7 @@ export const PlaylistHero = React.memo(function PlaylistHero({
               onShuffle={onShuffle}
               onTogglePin={onTogglePin}
               onDelete={onDelete}
+              onAddTracks={onAddTracks}
             />
           </div>
 
