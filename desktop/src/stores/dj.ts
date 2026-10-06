@@ -17,6 +17,8 @@ export interface DjDeckTick {
   playing: boolean;
   position: number;
   duration: number | null;
+  crossfade: number;
+  automix: boolean;
 }
 
 export interface DjDeck {
@@ -31,6 +33,13 @@ export interface DjDeck {
   speed: number;
   /** Low / mid / high gains in dB. */
   eq: [number, number, number];
+  /** DJ filter: -1 = LPF sweep, 0 = bypass, +1 = HPF sweep. */
+  filter: number;
+  /** Flanger depth 0..1 (0 = off). */
+  flanger: number;
+  /** Waveform overview (0..1 bars). */
+  peaks: number[];
+  bpm: number | null;
   loopA: number | null;
   loopB: number | null;
   loading: boolean;
@@ -46,6 +55,10 @@ function emptyDeck(): DjDeck {
     volume: 0.8,
     speed: 1,
     eq: [0, 0, 0],
+    filter: 0,
+    flanger: 0,
+    peaks: [],
+    bpm: null,
     loopA: null,
     loopB: null,
     loading: false,
@@ -62,6 +75,7 @@ interface DjStoreState {
   open: boolean;
   active: boolean;
   crossfade: number;
+  automix: boolean;
   decks: [DjDeck, DjDeck];
   openPanel: () => void;
   closePanel: () => void;
@@ -72,9 +86,13 @@ interface DjStoreState {
   setVolume: (deck: 0 | 1, volume: number) => void;
   setSpeed: (deck: 0 | 1, speed: number) => void;
   setEq: (deck: 0 | 1, band: 0 | 1 | 2, gain: number) => void;
+  setFilter: (deck: 0 | 1, value: number) => void;
+  setFlanger: (deck: 0 | 1, value: number) => void;
+  syncTempo: (deck: 0 | 1) => void;
   setLoopPoint: (deck: 0 | 1, point: 'a' | 'b') => void;
   clearLoop: (deck: 0 | 1) => void;
   setCrossfade: (value: number) => void;
+  setAutomix: (enabled: boolean) => void;
 }
 
 let tickBound = false;
@@ -84,6 +102,8 @@ function bindTick() {
   void listen<DjDeckTick[]>('dj:tick', (event) => {
     useDjStore.setState((state) => {
       let decks = state.decks;
+      let crossfade = state.crossfade;
+      let automix = state.automix;
       for (const tick of event.payload) {
         const index: 0 | 1 = tick.deck === 1 ? 1 : 0;
         const deck = decks[index];
@@ -93,8 +113,11 @@ function bindTick() {
           position: tick.position,
           duration: tick.duration ?? deck.duration,
         });
+        // The auto-mix ramp moves the crossfader — follow it.
+        if (Math.abs(tick.crossfade - crossfade) > 0.001) crossfade = tick.crossfade;
+        automix = tick.automix;
       }
-      return { decks };
+      return { decks, crossfade, automix };
     });
   });
 }
@@ -103,6 +126,7 @@ export const useDjStore = create<DjStoreState>((set, get) => ({
   open: false,
   active: false,
   crossfade: 0.5,
+  automix: false,
   decks: [emptyDeck(), emptyDeck()],
 
   openPanel: () => {
@@ -132,7 +156,11 @@ export const useDjStore = create<DjStoreState>((set, get) => ({
     set((state) => ({ decks: patchDeck(state.decks, deck, { loading: true }) }));
     try {
       const info = await ensureTrackCached(track.urn, undefined, track.duration);
-      const result = await invoke<{ durationSecs: number | null }>('dj_load', {
+      const result = await invoke<{
+        durationSecs: number | null;
+        peaks: number[];
+        bpm: number | null;
+      }>('dj_load', {
         deck,
         path: info.path,
       });
@@ -144,6 +172,8 @@ export const useDjStore = create<DjStoreState>((set, get) => ({
           position: 0,
           duration: result.durationSecs ?? track.duration / 1000,
           speed: 1,
+          peaks: result.peaks ?? [],
+          bpm: result.bpm ?? null,
           loopA: null,
           loopB: null,
           loading: false,
@@ -195,6 +225,28 @@ export const useDjStore = create<DjStoreState>((set, get) => ({
     void invoke('dj_set_eq', { deck, low: eq[0], mid: eq[1], high: eq[2] }).catch(() => {});
   },
 
+  setFilter: (deck, value) => {
+    const filter = Math.max(-1, Math.min(1, value));
+    set((state) => ({ decks: patchDeck(state.decks, deck, { filter }) }));
+    void invoke('dj_set_filter', { deck, value: filter }).catch(() => {});
+  },
+
+  setFlanger: (deck, value) => {
+    const flanger = Math.max(0, Math.min(1, value));
+    set((state) => ({ decks: patchDeck(state.decks, deck, { flanger }) }));
+    void invoke('dj_set_flanger', { deck, value: flanger }).catch(() => {});
+  },
+
+  /** Match this deck's tempo to the other deck (needs both BPM estimates). */
+  syncTempo: (deck) => {
+    const other: 0 | 1 = deck === 0 ? 1 : 0;
+    const target = get().decks[other];
+    const source = get().decks[deck];
+    if (!target.bpm || !source.bpm || target.bpm <= 0) return;
+    const rate = Math.max(0.5, Math.min(2, target.bpm / source.bpm));
+    get().setSpeed(deck, rate);
+  },
+
   setLoopPoint: (deck, point) => {
     const current = get().decks[deck];
     const loopA = point === 'a' ? current.position : current.loopA;
@@ -212,5 +264,10 @@ export const useDjStore = create<DjStoreState>((set, get) => ({
     const crossfade = Math.max(0, Math.min(1, value));
     set({ crossfade });
     void invoke('dj_set_crossfade', { value: crossfade }).catch(() => {});
+  },
+
+  setAutomix: (enabled) => {
+    set({ automix: enabled });
+    void invoke('dj_set_automix', { enabled }).catch(() => {});
   },
 }));

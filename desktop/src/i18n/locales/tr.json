@@ -698,7 +698,13 @@
     "loading": "Yukleniyor...",
     "close": "Kapat",
     "pickEmpty": "Kuyruk bos",
-    "masterNote": "Ana ses oynatici cubugundan ayarlanir"
+    "masterNote": "Ana ses oynatici cubugundan ayarlanir",
+    "bpm": "BPM",
+    "sync": "Sync",
+    "filter": "Filtre",
+    "flanger": "Flanger",
+    "automix": "Oto mix",
+    "automixHint": "Parca bitmeden diger deck'e gecer"
   },
   "update": {
     "available": "Guncelleme mevcut",

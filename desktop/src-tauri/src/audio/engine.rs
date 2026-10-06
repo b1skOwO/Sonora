@@ -400,7 +400,10 @@ pub fn seek_to(state: &AudioState, position: f64) -> Result<(), String> {
     // For position 0, always recreate the player to avoid decoder state issues
     if position > 0.0 {
         let player = state.player.lock().unwrap();
+        // rodio reports a successful seek on an *empty* (ended/stopped) player
+        // without moving it — fall through to the recreate path instead.
         if let Some(ref player) = *player
+            && !player.empty()
             && player.try_seek(target).is_ok() {
                 state.ended_notified.store(false, Ordering::Relaxed);
                 set_pos_anchor(state, position, output_target);

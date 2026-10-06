@@ -48,6 +48,8 @@ let cachedDuration = 0;
 let downloadProgress: number | null = null;
 let loadGen = 0;
 let lastEndedUrn: string | null = null;
+/** Seek requested while nothing is loaded — applied right after the reload. */
+let pendingSeek: number | null = null;
 const listeners = new Set<() => void>();
 const API_PREVIEW_DURATION_MS = 30_000;
 
@@ -93,7 +95,15 @@ function setDownloadProgress(value: number | null): void {
 }
 
 export function seek(seconds: number) {
-  if (!hasTrack) return;
+  if (!hasTrack) {
+    // Stopped/ended source: rodio can't seek it (and play() does nothing).
+    // Reload the current track and apply the seek once it's ready.
+    const track = usePlayerStore.getState().currentTrack;
+    if (!track) return;
+    pendingSeek = seconds;
+    void loadTrack(track);
+    return;
+  }
   invoke('audio_seek', { position: seconds }).catch(console.error);
   cachedTime = seconds;
   notify();
@@ -322,6 +332,7 @@ async function loadCachedFile(
 async function loadTrack(track: Track) {
   const gen = ++loadGen;
   const isNewTrack = currentUrn !== track.urn;
+  if (isNewTrack) pendingSeek = null;
   stopTrack();
   currentUrn = track.urn;
   const urn = track.urn;
@@ -444,6 +455,15 @@ function afterLoad(track: Track, gen: number) {
     return;
   }
   hasTrack = true;
+
+  // A seek requested while the source was stopped/ended rides in on the reload.
+  if (pendingSeek != null) {
+    const target = pendingSeek;
+    pendingSeek = null;
+    invoke('audio_seek', { position: target }).catch(console.error);
+    cachedTime = target;
+    notify();
+  }
 
   const historyTrack =
     usePlayerStore.getState().currentTrack?.urn === track.urn

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { proxiedAssetUrl } from '../../lib/asset-url';
 import { formatTime } from '../../lib/formatters';
@@ -8,6 +8,61 @@ import { usePlayerStore, type Track } from '../../stores/player';
 
 const BUTTON_CLASS =
   'px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-white/[0.06] text-white/70 hover:bg-white/[0.1] border border-white/[0.06] hover:border-white/[0.12] transition-all cursor-pointer';
+
+/** Waveform overview with a played/unplayed split; click to seek. */
+function Waveform({
+  peaks,
+  progress,
+  onSeek,
+}: {
+  peaks: number[];
+  progress: number;
+  onSeek: (pct: number) => void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    if (width <= 0 || height <= 0) return;
+    if (canvas.width !== Math.round(width * dpr)) {
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+
+    const bars = peaks.length;
+    if (bars === 0) return;
+    const barWidth = width / bars;
+    const mid = height / 2;
+    const accent =
+      getComputedStyle(document.documentElement).getPropertyValue('--color-accent').trim() ||
+      '#ffffff';
+    for (let i = 0; i < bars; i += 1) {
+      const amp = Math.max(0.03, peaks[i]) * (height * 0.46);
+      const played = (i + 0.5) / bars <= progress;
+      ctx.fillStyle = played ? accent : 'rgba(255,255,255,0.22)';
+      ctx.fillRect(i * barWidth, mid - amp, Math.max(0.6, barWidth - 0.35), amp * 2);
+    }
+  }, [peaks, progress]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="w-full h-14 cursor-pointer"
+      onClick={(e) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        onSeek(Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)));
+      }}
+    />
+  );
+}
 
 function DeckCard({ index }: { index: 0 | 1 }) {
   const { t } = useTranslation();
@@ -19,6 +74,9 @@ function DeckCard({ index }: { index: 0 | 1 }) {
   const setVolume = useDjStore((s) => s.setVolume);
   const setSpeed = useDjStore((s) => s.setSpeed);
   const setEq = useDjStore((s) => s.setEq);
+  const setFilter = useDjStore((s) => s.setFilter);
+  const setFlanger = useDjStore((s) => s.setFlanger);
+  const syncTempo = useDjStore((s) => s.syncTempo);
   const setLoopPoint = useDjStore((s) => s.setLoopPoint);
   const clearLoop = useDjStore((s) => s.clearLoop);
   const [picking, setPicking] = useState(false);
@@ -121,19 +179,29 @@ function DeckCard({ index }: { index: 0 | 1 }) {
       )}
 
       <div>
-        <div
-          className="h-1.5 rounded-full bg-white/[0.07] overflow-hidden cursor-pointer"
-          onClick={(e) => {
-            const rect = e.currentTarget.getBoundingClientRect();
-            const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-            if (duration > 0) seek(index, pct * duration);
-          }}
-        >
-          <div
-            className="h-full bg-[var(--color-accent)] transition-[width] duration-150"
-            style={{ width: `${progress}%` }}
+        {deck.peaks.length > 0 ? (
+          <Waveform
+            peaks={deck.peaks}
+            progress={duration > 0 ? deck.position / duration : 0}
+            onSeek={(pct) => {
+              if (duration > 0) seek(index, pct * duration);
+            }}
           />
-        </div>
+        ) : (
+          <div
+            className="h-1.5 rounded-full bg-white/[0.07] overflow-hidden cursor-pointer"
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+              if (duration > 0) seek(index, pct * duration);
+            }}
+          >
+            <div
+              className="h-full bg-[var(--color-accent)] transition-[width] duration-150"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        )}
         <div className="flex justify-between mt-1 text-[10px] text-white/35 tabular-nums">
           <span>{formatTime(deck.position)}</span>
           <span>{duration > 0 ? formatTime(duration) : '--:--'}</span>
@@ -182,6 +250,23 @@ function DeckCard({ index }: { index: 0 | 1 }) {
         />
       </div>
 
+      <div className="flex items-center gap-2">
+        <span className="text-[11px] text-white/45 uppercase tracking-[0.18em] font-bold">
+          {t('dj.bpm')}
+        </span>
+        <span className="text-[12px] tabular-nums text-white/70">
+          {deck.bpm ? deck.bpm.toFixed(1) : '--'}
+        </span>
+        <button
+          type="button"
+          onClick={() => syncTempo(index)}
+          disabled={!deck.bpm}
+          className={`${BUTTON_CLASS} ml-auto disabled:opacity-30`}
+        >
+          {t('dj.sync')}
+        </button>
+      </div>
+
       <div className="grid grid-cols-3 gap-2">
         {(['dj.eqLow', 'dj.eqMid', 'dj.eqHigh'] as const).map((key, band) => (
           <div key={key} className="space-y-1">
@@ -203,6 +288,42 @@ function DeckCard({ index }: { index: 0 | 1 }) {
             />
           </div>
         ))}
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <div className="flex items-center justify-between text-[10px] text-white/40">
+            <span className="uppercase tracking-wider">{t('dj.filter')}</span>
+            <span className="tabular-nums">
+              {deck.filter < -0.02 ? 'LPF' : deck.filter > 0.02 ? 'HPF' : '—'}
+            </span>
+          </div>
+          <input
+            type="range"
+            min={-1}
+            max={1}
+            step={0.01}
+            value={deck.filter}
+            onChange={(e) => setFilter(index, Number(e.target.value))}
+            onDoubleClick={() => setFilter(index, 0)}
+            className="w-full accent-[var(--color-accent)] cursor-pointer"
+          />
+        </div>
+        <div className="space-y-1">
+          <div className="flex items-center justify-between text-[10px] text-white/40">
+            <span className="uppercase tracking-wider">{t('dj.flanger')}</span>
+            <span className="tabular-nums">{Math.round(deck.flanger * 100)}%</span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={deck.flanger}
+            onChange={(e) => setFlanger(index, Number(e.target.value))}
+            className="w-full accent-[var(--color-accent)] cursor-pointer"
+          />
+        </div>
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
@@ -259,6 +380,8 @@ export function DjPanel() {
   const closePanel = useDjStore((s) => s.closePanel);
   const crossfade = useDjStore((s) => s.crossfade);
   const setCrossfade = useDjStore((s) => s.setCrossfade);
+  const automix = useDjStore((s) => s.automix);
+  const setAutomix = useDjStore((s) => s.setAutomix);
 
   if (!open) return null;
 
@@ -267,8 +390,14 @@ export function DjPanel() {
       className="fixed inset-0 z-[95] flex flex-col bg-[#08080b]/95 backdrop-blur-2xl"
       style={{ isolation: 'isolate' }}
     >
-      <header className="flex items-center justify-between px-5 md:px-8 py-4 border-b border-white/[0.06]">
-        <span className="inline-flex items-center gap-2.5 text-[15px] font-bold text-white/90">
+      <header
+        data-tauri-drag-region
+        className="flex items-center justify-between px-5 md:px-8 py-4 border-b border-white/[0.06]"
+      >
+        <span
+          data-tauri-drag-region
+          className="inline-flex items-center gap-2.5 text-[15px] font-bold text-white/90"
+        >
           <Disc3 size={18} className="text-[var(--color-accent)]" />
           {t('dj.title')}
         </span>
@@ -306,6 +435,20 @@ export function DjPanel() {
             </div>
             <p className="text-[11px] text-white/30 leading-relaxed text-center">
               {t('dj.masterNote')}
+            </p>
+            <button
+              type="button"
+              onClick={() => setAutomix(!automix)}
+              className={`w-full py-2 rounded-xl text-[12px] font-semibold border transition-all cursor-pointer ${
+                automix
+                  ? 'bg-[var(--color-accent)] text-black border-transparent'
+                  : 'bg-white/[0.06] text-white/70 border-white/[0.06] hover:bg-white/[0.1]'
+              }`}
+            >
+              {t('dj.automix')}
+            </button>
+            <p className="text-[11px] text-white/30 leading-relaxed text-center">
+              {t('dj.automixHint')}
             </p>
           </div>
 

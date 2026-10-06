@@ -806,7 +806,13 @@
     "loading": "Loading...",
     "close": "Close",
     "pickEmpty": "Queue is empty",
-    "masterNote": "Master volume follows the player bar"
+    "masterNote": "Master volume follows the player bar",
+    "bpm": "BPM",
+    "sync": "Sync",
+    "filter": "Filter",
+    "flanger": "Flanger",
+    "automix": "Auto mix",
+    "automixHint": "Fades to the other deck near the end"
   },
   "update": {
     "available": "Update available",
