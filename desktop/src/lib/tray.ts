@@ -22,6 +22,8 @@ interface TrayNp {
   title: string;
   artist: string;
   artworkUrl: string | null;
+  /** Unproxied artwork URL — fallback when the proxy image fails to load. */
+  artworkRaw: string | null;
   artworkLarge: string | null;
   isPlaying: boolean;
   volume: number;
@@ -42,6 +44,7 @@ function buildNp(): TrayNp {
       title: '',
       artist: '',
       artworkUrl: null,
+      artworkRaw: null,
       artworkLarge: null,
       isPlaying: false,
       volume: s.volume,
@@ -58,6 +61,7 @@ function buildNp(): TrayNp {
     title: getDisplayTitle(tr),
     artist: getArtistDisplay(tr).primary || tr.user?.username || '',
     artworkUrl: art(tr.artwork_url, 't200x200'),
+    artworkRaw: tr.artwork_url ?? null,
     artworkLarge: art(tr.artwork_url, 't500x500'),
     isPlaying: s.isPlaying,
     volume: s.volume,

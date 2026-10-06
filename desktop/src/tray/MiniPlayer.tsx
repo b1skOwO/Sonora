@@ -160,11 +160,24 @@ function VolumeControl({volume}: { volume: number }) {
 
 /* ── MiniPlayer ─────────────────────────────────────────────────── */
 
-/** Artwork with a broken-image fallback (this webview has no global scproxy retry). */
-function Artwork({ src }: { src: string }) {
-    const [failed, setFailed] = useState(false);
-    if (failed) return <div className="npb-artfb" />;
-    return <img src={src} alt="" onError={() => setFailed(true)} />;
+/** Artwork with a raw-URL retry and a broken-image fallback. This webview has
+ *  no global scproxy retry, and the failure stage must reset per track —
+ *  otherwise one bad image sticks for every following track. Call with
+ *  `key={src}` so a new track starts over at the proxied URL. */
+function Artwork({ src, fallback }: { src: string; fallback?: string | null }) {
+    // 0 = proxied src, 1 = raw fallback, 2 = placeholder
+    const [stage, setStage] = useState(0);
+    if (stage === 2) return <div className="npb-artfb" />;
+    const active = stage === 1 && fallback ? fallback : src;
+    return (
+        <img
+            src={active}
+            alt=""
+            onError={() =>
+                setStage((s) => (s === 0 && fallback && fallback !== src ? 1 : 2))
+            }
+        />
+    );
 }
 
 export function MiniPlayer() {
@@ -196,7 +209,11 @@ export function MiniPlayer() {
                             title={t('player.openApp')}
                             onClick={() => sendCmd('show')}
                         >
-                            {np.artworkUrl ? <Artwork src={np.artworkUrl}/> : <div className="npb-artfb"/>}
+                            {np.artworkUrl ? (
+                                <Artwork key={np.artworkUrl} src={np.artworkUrl} fallback={np.artworkRaw}/>
+                            ) : (
+                                <div className="npb-artfb"/>
+                            )}
                             <span className="npb-ring"/>
                             <span className="npb-eq">
                 <i/>

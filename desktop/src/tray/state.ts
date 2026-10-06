@@ -13,6 +13,8 @@ export interface TrayNp {
     title: string;
     artist: string;
     artworkUrl: string | null;
+    /** Unproxied artwork URL — fallback when the proxy image fails to load. */
+    artworkRaw: string | null;
     artworkLarge: string | null;
     isPlaying: boolean;
     volume: number;
@@ -41,6 +43,7 @@ const EMPTY: TrayNp = {
     title: '',
     artist: '',
     artworkUrl: null,
+    artworkRaw: null,
     artworkLarge: null,
     isPlaying: false,
     volume: 50,
