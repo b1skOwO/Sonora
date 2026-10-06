@@ -102,6 +102,18 @@ export function setCacheDir(path: string, moveFiles: boolean): Promise<string> {
   return invoke<string>('track_set_cache_dir', { path, moveFiles });
 }
 
+/** Clean-cache container/codec chosen in Settings → Cache. */
+export type AudioCacheFormat = 'm4a' | 'mp3' | 'wav';
+
+export function getCacheFormat(): Promise<AudioCacheFormat> {
+  return invoke<AudioCacheFormat>('track_get_cache_format');
+}
+
+/** Persist the output format; clean files in another format re-forge on next play. */
+export function setCacheFormat(format: AudioCacheFormat): Promise<string> {
+  return invoke<string>('track_set_cache_format', { format });
+}
+
 /** Relaunch the app (used after changing the cache folder). */
 export function restartApp(): Promise<void> {
   return invoke('app_restart');
@@ -141,7 +153,7 @@ export function listCachedUrns(): Promise<string[]> {
 export interface CacheInventoryEntry {
   urn: string;
   bytes: number;
-  /** "clean" = transcoded m4a (Б), "raw" = staged for transcode (А). */
+  /** "clean" = transcoded file (Б), "raw" = staged for transcode (А). */
   stage: 'clean' | 'raw';
   liked: boolean;
   quality: PlaybackQuality | null;
@@ -339,8 +351,9 @@ export interface DownloadTrackOptions {
   durationMs?: number;
 }
 
-/** Download-to-file: writes a clean m4a (transcoding/fetching as needed) with
- *  the cover art embedded. Rust resolves the clean cache → raw cache → stream. */
+/** Download-to-file: writes a clean file in the format chosen in Settings
+ *  (transcoding/fetching as needed) with the cover art embedded. Rust resolves
+ *  the clean cache → raw cache → stream. */
 export async function downloadTrack(
   urn: string,
   artist: string,
@@ -349,11 +362,20 @@ export async function downloadTrack(
 ): Promise<string> {
   const { save } = await import('@tauri-apps/plugin-dialog');
 
-  const filename = sanitizeFilename(`${artist} - ${title}.m4a`);
+  // The save dialog matches the cache format so the export never muxes into a
+  // mismatched container.
+  let format: AudioCacheFormat = 'm4a';
+  try {
+    format = await getCacheFormat();
+  } catch {
+    /* fall back to m4a */
+  }
+
+  const filename = sanitizeFilename(`${artist} - ${title}.${format}`);
 
   const dest = await save({
     defaultPath: filename,
-    filters: [{ name: 'Audio', extensions: ['m4a'] }],
+    filters: [{ name: 'Audio', extensions: [format] }],
   });
   if (!dest) throw new Error('cancelled');
 

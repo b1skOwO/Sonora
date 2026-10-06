@@ -4,15 +4,18 @@ import {useCallback, useEffect, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {toast} from 'sonner';
 import {
+    type AudioCacheFormat,
     clearCache,
     clearImageCache,
     clearLikedCache,
     getCacheDir,
+    getCacheFormat,
     getCacheSize,
     getImageCacheSize,
     getLikedCacheSize,
     restartApp,
     setCacheDir,
+    setCacheFormat,
 } from '../../../lib/cache';
 import {formatBytes} from '../../../lib/formatters';
 import {Database, Download, Loader2, Trash2, X} from '../../../lib/icons';
@@ -20,6 +23,8 @@ import {useCacheLikes} from '../../../lib/likes-cache';
 import {useSettingsStore} from '../../../stores/settings';
 import {Skeleton} from '../../ui/Skeleton';
 import {Card, Divider, RangeSlider} from '../primitives';
+
+const CACHE_FORMATS = ['m4a', 'mp3', 'wav'] as const;
 
 function CacheRow({
   label,
@@ -71,6 +76,8 @@ export function CacheCard() {
   const [clearingLiked, setClearingLiked] = useState(false);
   const [cacheDir, setCacheDirState] = useState<string | null>(null);
   const [changingDir, setChangingDir] = useState(false);
+  const [cacheFormat, setCacheFormatState] = useState<AudioCacheFormat>('m4a');
+  const [changingFormat, setChangingFormat] = useState(false);
 
   const refreshLikedSize = useCallback(() => {
     void getLikedCacheSize().then(setLikedSize);
@@ -93,7 +100,30 @@ export function CacheCard() {
     void getImageCacheSize().then(setImagesSize);
     refreshLikedSize();
     void getCacheDir().then(setCacheDirState);
+    void getCacheFormat().then(setCacheFormatState);
   }, [refreshLikedSize]);
+
+  const handleChangeFormat = useCallback(
+    async (next: AudioCacheFormat) => {
+      if (next === cacheFormat || changingFormat) return;
+      const ok = await ask(t('settings.cacheFormatConfirm'), {
+        title: t('settings.cacheFormat'),
+        kind: 'info',
+      });
+      if (!ok) return;
+      setChangingFormat(true);
+      try {
+        await setCacheFormat(next);
+        setCacheFormatState(next);
+        toast.success(t('settings.cacheFormatChanged'));
+      } catch (e) {
+        toast.error(String(e));
+      } finally {
+        setChangingFormat(false);
+      }
+    },
+    [cacheFormat, changingFormat, t],
+  );
 
   const handleChangeCacheDir = useCallback(async () => {
     try {
@@ -279,6 +309,34 @@ export function CacheCard() {
           />
           <span className="text-[12px] text-white/35">MB</span>
         </div>
+      </div>
+
+      <Divider />
+      <div className="pt-3 space-y-2">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-[13px] text-white/60 font-medium">{t('settings.cacheFormat')}</p>
+            <p className="text-[11px] text-white/30 mt-0.5">{t('settings.cacheFormatDesc')}</p>
+          </div>
+          <div className="flex items-center gap-1 p-1 rounded-xl bg-white/[0.04] border border-white/[0.06] shrink-0">
+            {CACHE_FORMATS.map((fmt) => (
+              <button
+                key={fmt}
+                type="button"
+                onClick={() => void handleChangeFormat(fmt)}
+                disabled={changingFormat}
+                className={`px-3.5 py-1.5 rounded-lg text-[12px] font-semibold transition-all duration-200 cursor-pointer disabled:opacity-40 ${
+                  cacheFormat === fmt
+                    ? 'bg-[var(--color-accent)] text-accent-contrast'
+                    : 'text-white/55 hover:text-white/85 hover:bg-white/[0.06]'
+                }`}
+              >
+                {t(`settings.cacheFormat_${fmt}`)}
+              </button>
+            ))}
+          </div>
+        </div>
+        <p className="text-[11px] text-white/30">{t('settings.cacheFormatNote')}</p>
       </div>
 
       <Divider />

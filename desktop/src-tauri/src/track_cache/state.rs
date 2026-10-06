@@ -17,7 +17,7 @@ use tokio::sync::{Mutex, Notify, OwnedSemaphorePermit, Semaphore};
 use crate::app::diagnostics::log_native;
 use crate::track_cache::direct_download::try_download;
 use crate::track_cache::sc_anon::AnonClient;
-use crate::track_cache::transcode;
+use crate::track_cache::transcode::{self, AudioFormat};
 
 const MIN_AUDIO_SIZE: u64 = 8192;
 const AUDIO_SNIFF_LEN: usize = 16;
@@ -321,6 +321,11 @@ struct TrackCacheMetadata {
     /// Probed length (ms) of the committed clean file.
     #[serde(default)]
     duration_ms: Option<u64>,
+    /// Container/codec of a clean file. Absent on files written before the
+    /// setting existed (m4a, the legacy default). Raw staging files leave it
+    /// `None` — the format is decided when they are forged.
+    #[serde(default)]
+    format: Option<AudioFormat>,
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -347,7 +352,7 @@ impl TrackCacheEntry {
 pub struct CacheInventoryEntry {
     pub urn: String,
     pub bytes: u64,
-    /// "clean" = transcoded m4a in Б, "raw" = staged in А awaiting transcode.
+    /// "clean" = transcoded file in Б (chosen format), "raw" = staged in А awaiting transcode.
     pub stage: &'static str,
     pub liked: bool,
     pub quality: Option<String>,
@@ -372,7 +377,7 @@ pub struct TranscodeStatus {
     pub transcoding: u32,
     /// URNs being forged right now, for per-row UI state.
     pub transcoding_urns: Vec<String>,
-    /// Clean m4a files in Б (audio + liked).
+    /// Clean files in Б (regular + liked), in the chosen output format.
     pub clean: u32,
     pub clean_bytes: u64,
 }
@@ -591,6 +596,8 @@ pub struct TrackCacheState {
     ytdlp_dir: PathBuf,
     /// Where the chosen cache root is persisted (`app_data_dir/audio-cache.json`).
     config_path: PathBuf,
+    /// Clean-cache output format (persisted in the same config file).
+    format: Arc<StdMutex<AudioFormat>>,
 }
 
 pub fn init(
@@ -644,6 +651,8 @@ pub fn init(
         .expect("failed to build anon client");
     let anon = Arc::new(AnonClient::new(anon_client));
 
+    let format = read_cache_format(&config_path);
+
     TrackCacheState {
         audio_dir,
         liked_dir,
@@ -667,7 +676,22 @@ pub fn init(
         ytdlp: Arc::new(Mutex::new(None)),
         ytdlp_dir,
         config_path,
+        format: Arc::new(StdMutex::new(format)),
     }
+}
+
+/// Clean-cache format from `audio-cache.json` (absent / invalid → m4a).
+fn read_cache_format(config_path: &Path) -> AudioFormat {
+    std::fs::read_to_string(config_path)
+        .ok()
+        .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+        .and_then(|value| {
+            value
+                .get("format")
+                .and_then(|f| f.as_str())
+                .and_then(AudioFormat::from_label)
+        })
+        .unwrap_or_default()
 }
 
 fn quality_from_url(url: &str) -> PlaybackQuality {
@@ -836,6 +860,7 @@ async fn write_response_to_cache(
         liked: false,
         expected_duration_ms: None,
         duration_ms: None,
+        format: None,
     };
 
     if let Ok(meta) = tokio::fs::metadata(&final_path).await
@@ -914,6 +939,7 @@ async fn write_bytes_to_cache(
         liked: false,
         expected_duration_ms: None,
         duration_ms: None,
+        format: None,
     };
 
     if let Ok(meta) = tokio::fs::metadata(&final_path).await
@@ -1054,6 +1080,31 @@ impl TrackCacheState {
             .parent()
             .map(Path::to_path_buf)
             .unwrap_or_else(|| self.audio_dir.clone())
+    }
+
+    /// Clean-cache output format chosen in Settings → Cache.
+    pub fn cache_format(&self) -> AudioFormat {
+        self.format.lock().map(|f| *f).unwrap_or_default()
+    }
+
+    /// Persist a new output format. Applies to files forged from now on; clean
+    /// files in another format are re-forged on their next play.
+    pub fn set_cache_format(&self, format: AudioFormat) -> Result<(), String> {
+        {
+            let mut slot = self.format.lock().map_err(|e| e.to_string())?;
+            *slot = format;
+        }
+        let mut value = std::fs::read_to_string(&self.config_path)
+            .ok()
+            .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+            .unwrap_or_else(|| serde_json::json!({}));
+        value["format"] = serde_json::json!(format.label());
+        std::fs::write(&self.config_path, value.to_string())
+            .map_err(|e| format!("persist cache format: {e}"))?;
+        let line = format!("[TrackCache] output format set to {}", format.label());
+        println!("{line}");
+        self.diag("INFO", line);
+        Ok(())
     }
 
     /// Force-refresh the managed yt-dlp binary (used when YouTube changes break
@@ -1241,6 +1292,21 @@ impl TrackCacheState {
             self.remove_cached(urn);
             return None;
         }
+        // Clean files forged in another container are dropped so the next play
+        // re-acquires them in the format chosen in Settings.
+        if let Some(m) = meta.as_ref()
+            && self.is_clean_path(&path)
+            && m.format.unwrap_or(AudioFormat::M4a) != self.cache_format()
+        {
+            let line = format!(
+                "[TrackCache] re-forging {urn} ({} → {})",
+                m.format.unwrap_or(AudioFormat::M4a).label(),
+                self.cache_format().label()
+            );
+            self.diag("INFO", line);
+            self.remove_cached(urn);
+            return None;
+        }
         Some(TrackCacheEntry::from_path_and_meta(&path, meta))
     }
 
@@ -1395,6 +1461,7 @@ impl TrackCacheState {
             liked,
             expected_duration_ms,
             duration_ms: None,
+            format: None,
         });
         meta.liked = liked;
         if expected_duration_ms.is_some() {
@@ -1479,7 +1546,9 @@ impl TrackCacheState {
         }
 
         let final_name = urn_to_filename(urn);
-        let clean_path = transcode::transcode_to_m4a(ffmpeg, &incoming, &dest_dir, &final_name).await?;
+        let format = self.cache_format();
+        let clean_path =
+            transcode::transcode_audio(ffmpeg, &incoming, &dest_dir, &final_name, format).await?;
 
         let probed = transcode::probe_duration_ms(ffmpeg, &clean_path).await;
 
@@ -1517,6 +1586,7 @@ impl TrackCacheState {
             liked,
             expected_duration_ms: accepted_expected,
             duration_ms: probed,
+            format: Some(format),
         };
         write_cache_metadata(&clean_path, &clean_meta).await;
         // Defer dropping the raw А file: the path may have just been handed to the
@@ -1726,6 +1796,7 @@ impl TrackCacheState {
             liked: false,
             expected_duration_ms: None,
             duration_ms: None,
+            format: None,
         };
         write_cache_metadata(&dest, &meta).await;
         Ok(dest)

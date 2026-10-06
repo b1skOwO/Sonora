@@ -24,6 +24,50 @@ use tokio::process::Command;
 /// AAC bitrate for re-encoded output. Matches the storage canonical (256k m4a);
 /// sources that are already AAC are stream-copied and keep their original rate.
 const AAC_BITRATE: &str = "256k";
+/// Peak ceiling applied when re-encoding (not when stream-copying): keeps hot
+/// masters from hard-clipping inside the encoder / at s16 conversion. `level=0`
+/// disables the filter's auto-gain so quiet tracks are left untouched.
+const LIMITER_FILTER: &str = "alimiter=limit=0.98:level=0";
+
+/// Output container/codec of the clean cache ("Б"). Chosen by the user in
+/// Settings → Cache; applies to newly forged files (old ones re-forge on play).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AudioFormat {
+    M4a,
+    Mp3,
+    Wav,
+}
+
+impl Default for AudioFormat {
+    fn default() -> Self {
+        Self::M4a
+    }
+}
+
+impl AudioFormat {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::M4a => "m4a",
+            Self::Mp3 => "mp3",
+            Self::Wav => "wav",
+        }
+    }
+
+    /// File extension (same as the label; kept as a named accessor for clarity).
+    pub fn extension(self) -> &'static str {
+        self.label()
+    }
+
+    pub fn from_label(value: &str) -> Option<Self> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "m4a" | "aac" | "mp4" => Some(Self::M4a),
+            "mp3" => Some(Self::Mp3),
+            "wav" | "wave" => Some(Self::Wav),
+            _ => None,
+        }
+    }
+}
 
 fn ffmpeg_bin_name() -> &'static str {
     if cfg!(windows) {
@@ -117,8 +161,9 @@ fn nonce() -> u128 {
 }
 
 /// A sibling temp path in `dir` so the final `rename` stays on one filesystem.
-fn temp_sibling(dir: &Path, stem: &str) -> PathBuf {
-    dir.join(format!("{stem}.{}.part.m4a", nonce()))
+/// The extension must match the target format — ffmpeg picks its muxer by it.
+fn temp_sibling(dir: &Path, stem: &str, ext: &str) -> PathBuf {
+    dir.join(format!("{stem}.{}.part.{ext}", nonce()))
 }
 
 /// True when the payload is an ISO-BMFF (mp4/m4a) container — `....ftyp` at
@@ -178,20 +223,22 @@ async fn run(mut cmd: Command, what: &str) -> Result<(), String> {
     Err(format!("{what}: ffmpeg exit {}: {tail}", output.status))
 }
 
-/// Transcode (or stream-copy) `input` into a canonical m4a at
-/// `out_dir/final_name`, atomically. Already-AAC payloads are copied (near-free);
-/// everything else is encoded to AAC. The temp render is always cleaned up.
-pub async fn transcode_to_m4a(
+/// Transcode (or stream-copy) `input` into the chosen `format` at
+/// `out_dir/final_name`, atomically. Already-AAC payloads are copied when the
+/// target is m4a (near-free); everything else is re-encoded with a peak
+/// limiter so hot sources can't clip. The temp render is always cleaned up.
+pub async fn transcode_audio(
     ffmpeg: &Path,
     input: &Path,
     out_dir: &Path,
     final_name: &str,
+    format: AudioFormat,
 ) -> Result<PathBuf, String> {
     let final_path = out_dir.join(final_name);
-    let tmp = temp_sibling(out_dir, final_name);
+    let tmp = temp_sibling(out_dir, final_name, format.extension());
 
     let head = sniff_head(input, 16).await;
-    let can_copy = is_mp4_container(&head);
+    let can_copy = format == AudioFormat::M4a && is_mp4_container(&head);
 
     let mut copied = false;
     if can_copy {
@@ -216,15 +263,18 @@ pub async fn transcode_to_m4a(
 
     if !copied {
         let mut cmd = base_command(ffmpeg);
-        cmd.arg("-i").arg(input).args([
-            "-vn",
-            "-c:a",
-            "aac",
-            "-b:a",
-            AAC_BITRATE,
-            "-movflags",
-            "+faststart",
-        ]);
+        cmd.arg("-i").arg(input).args(["-vn", "-af", LIMITER_FILTER]);
+        match format {
+            AudioFormat::M4a => {
+                cmd.args(["-c:a", "aac", "-b:a", AAC_BITRATE, "-movflags", "+faststart"]);
+            }
+            AudioFormat::Mp3 => {
+                cmd.args(["-c:a", "libmp3lame", "-q:a", "0"]);
+            }
+            AudioFormat::Wav => {
+                cmd.args(["-c:a", "pcm_s16le"]);
+            }
+        }
         cmd.arg(&tmp);
         if let Err(e) = run(cmd, "encode").await {
             tokio::fs::remove_file(&tmp).await.ok();
@@ -241,9 +291,9 @@ pub async fn transcode_to_m4a(
     }
 }
 
-/// Write `audio` (an m4a) to `dest`, optionally muxing in `cover` (JPEG/PNG
-/// bytes) as the file's attached picture. Audio is stream-copied — no quality
-/// loss. Atomic: renders to a temp beside `dest`, then renames.
+/// Write `audio` (a clean cached file) to `dest`, optionally muxing in `cover`
+/// (JPEG/PNG bytes) as the file's attached picture. Audio is stream-copied — no
+/// quality loss. Atomic: renders to a temp beside `dest`, then renames.
 pub async fn export_with_cover(
     ffmpeg: &Path,
     audio: &Path,
@@ -255,7 +305,15 @@ pub async fn export_with_cover(
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("export");
-    let tmp = temp_sibling(dest_dir, stem);
+    let dest_ext = dest
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("m4a")
+        .to_ascii_lowercase();
+    let tmp = temp_sibling(dest_dir, stem, &dest_ext);
+
+    // WAV carries no attached picture — never mux the cover into it.
+    let cover = if dest_ext == "wav" { None } else { cover };
 
     // The cover is staged next to the temp so ffmpeg can read it as a 2nd input.
     let cover_tmp = match cover {
@@ -360,7 +418,7 @@ fn parse_duration_ms(stderr: &str) -> Option<u64> {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_mp4_container, parse_duration_ms};
+    use super::{AudioFormat, is_mp4_container, parse_duration_ms};
 
     #[test]
     fn detects_mp4_container() {
@@ -377,5 +435,14 @@ mod tests {
         assert_eq!(parse_duration_ms("Duration: 01:00:00.00,"), Some(3_600_000));
         assert_eq!(parse_duration_ms("Duration: N/A, bitrate: N/A"), None);
         assert_eq!(parse_duration_ms("no duration here"), None);
+    }
+
+    #[test]
+    fn parses_audio_format_labels() {
+        assert_eq!(AudioFormat::from_label("m4a"), Some(AudioFormat::M4a));
+        assert_eq!(AudioFormat::from_label("AAC"), Some(AudioFormat::M4a));
+        assert_eq!(AudioFormat::from_label("MP3"), Some(AudioFormat::Mp3));
+        assert_eq!(AudioFormat::from_label(" wav "), Some(AudioFormat::Wav));
+        assert_eq!(AudioFormat::from_label("flac"), None);
     }
 }

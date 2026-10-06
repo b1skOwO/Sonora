@@ -246,6 +246,8 @@ pub fn run() {
             track_cache::track_get_cache_info,
             track_cache::track_get_cache_dir,
             track_cache::track_set_cache_dir,
+            track_cache::track_get_cache_format,
+            track_cache::track_set_cache_format,
             track_cache::yt_ensure_cached,
             track_cache::yt_dlp_update,
             track_cache::track_preload,

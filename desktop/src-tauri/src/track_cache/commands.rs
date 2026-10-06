@@ -4,6 +4,7 @@ use crate::track_cache::state::{
     CacheInventoryEntry, CacheRequest, LikeCacheEntry, TrackCacheEntry, TrackCacheState,
     TranscodeStatus,
 };
+use crate::track_cache::transcode::AudioFormat;
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -299,4 +300,23 @@ pub async fn track_set_cache_dir(
 #[tauri::command]
 pub async fn yt_dlp_update(state: State<'_, TrackCacheState>) -> Result<bool, String> {
     Ok(state.update_ytdlp().await.is_some())
+}
+
+/// Current clean-cache output format ("m4a" | "mp3" | "wav").
+#[tauri::command]
+pub fn track_get_cache_format(state: State<'_, TrackCacheState>) -> String {
+    state.cache_format().label().to_string()
+}
+
+/// Persist the clean-cache output format. Applies to newly forged files; clean
+/// files in another format are re-forged on their next play.
+#[tauri::command]
+pub fn track_set_cache_format(
+    format: String,
+    state: State<'_, TrackCacheState>,
+) -> Result<String, String> {
+    let parsed =
+        AudioFormat::from_label(&format).ok_or_else(|| format!("unknown audio format: {format}"))?;
+    state.set_cache_format(parsed)?;
+    Ok(parsed.label().to_string())
 }
