@@ -63,6 +63,7 @@ import { useSettingsStore } from '../../stores/settings';
 import { ArtistNameLinks } from '../music/ArtistNameLinks';
 import { EqualizerPanel } from '../music/EqualizerPanel';
 import { UploadKindDot } from '../music/UploadKindDot';
+import { ArtworkImg } from '../ui/ArtworkImg';
 
 /* ── Track loading progress (SC → SCD download) ──────────────── */
 
@@ -1087,7 +1088,16 @@ const PillTrackBody = React.memo(function PillTrackBody({
   return (
     <div className="npb-meta">
       <div className="npb-art" onClick={() => openLyricsPanel({ rightPanelOpen: false })}>
-        {artworkSmall ? <img src={artworkSmall} alt="" /> : <div className="npb-artfb" />}
+        {artworkSmall ? (
+          <ArtworkImg
+            key={artworkSmall}
+            src={artworkSmall}
+            fallback={track.artwork_url}
+            placeholder={<div className="npb-artfb" />}
+          />
+        ) : (
+          <div className="npb-artfb" />
+        )}
         {/* spinning vinyl ring + live "playing" equaliser — animated only while playing */}
         <span className="npb-ring" />
         <span className="npb-eq">

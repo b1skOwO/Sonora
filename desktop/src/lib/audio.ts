@@ -22,7 +22,6 @@ import {
 import { trackedInvoke as invoke } from './diagnostics';
 import { isUrnDisliked } from './dislikes';
 import { recordEvent } from './events';
-import { art } from './formatters';
 import { rememberTracks } from './offline-index';
 import { canUsePublicFallback, fetchPublicTrack } from './public-sc';
 import { getUrnCluster, recordClusterFeedback } from './recsFeedback';
@@ -730,11 +729,10 @@ useSettingsStore.subscribe((state, prev) => {
 /* ── Native Media Controls (souvlaki: MPRIS/SMTC) ───────────── */
 
 function updateMetadata(track: Track, durationSecs?: number) {
-  // YouTube thumbnails are not SoundCloud assets — hand the raw URL to the OS
-  // media controls instead of routing it through the SC image proxy.
-  const coverUrl = isYoutubeUrn(track.urn)
-    ? track.artwork_url ?? undefined
-    : art(track.artwork_url, 't500x500') || undefined;
+  // The OS media UI (SMTC/MPRIS) fetches the cover itself and cannot resolve
+  // the in-app proxy shards (`scproxy-N.localhost` — no DNS entry outside the
+  // webview), so hand it the raw CDN URL instead of the proxied one.
+  const coverUrl = track.artwork_url?.replace('-large', '-t500x500') ?? undefined;
   const display = getArtistDisplay(track);
   const title = getDisplayTitle(track);
   invoke('audio_set_metadata', {

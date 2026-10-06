@@ -18,6 +18,7 @@ import {
 import {useCallback, useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import i18n from '../i18n';
 import {formatTime} from '../lib/formatters';
+import {ArtworkImg} from '../components/ui/ArtworkImg';
 import {getNp, getPosition, patchNp, sendCmd, subscribeNp, subscribePosition} from './state';
 
 const t = (key: string) => i18n.t(key);
@@ -160,26 +161,6 @@ function VolumeControl({volume}: { volume: number }) {
 
 /* ── MiniPlayer ─────────────────────────────────────────────────── */
 
-/** Artwork with a raw-URL retry and a broken-image fallback. This webview has
- *  no global scproxy retry, and the failure stage must reset per track —
- *  otherwise one bad image sticks for every following track. Call with
- *  `key={src}` so a new track starts over at the proxied URL. */
-function Artwork({ src, fallback }: { src: string; fallback?: string | null }) {
-    // 0 = proxied src, 1 = raw fallback, 2 = placeholder
-    const [stage, setStage] = useState(0);
-    if (stage === 2) return <div className="npb-artfb" />;
-    const active = stage === 1 && fallback ? fallback : src;
-    return (
-        <img
-            src={active}
-            alt=""
-            onError={() =>
-                setStage((s) => (s === 0 && fallback && fallback !== src ? 1 : 2))
-            }
-        />
-    );
-}
-
 export function MiniPlayer() {
     const np = useSyncExternalStore(subscribeNp, getNp);
     const pulse = useShowPulse();
@@ -210,7 +191,12 @@ export function MiniPlayer() {
                             onClick={() => sendCmd('show')}
                         >
                             {np.artworkUrl ? (
-                                <Artwork key={np.artworkUrl} src={np.artworkUrl} fallback={np.artworkRaw}/>
+                                <ArtworkImg
+                                    key={np.artworkUrl}
+                                    src={np.artworkUrl}
+                                    fallback={np.artworkRaw}
+                                    placeholder={<div className="npb-artfb"/>}
+                                />
                             ) : (
                                 <div className="npb-artfb"/>
                             )}
