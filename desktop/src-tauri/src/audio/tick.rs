@@ -61,6 +61,10 @@ pub fn start_tick_emitter(app: &AppHandle) {
                 // guard so previews fade in/out even when no main track is loaded.
                 process_preview_fade(&state);
 
+                // DJ decks run independently of the main player (loops, volume
+                // sync with the app volume, position broadcast).
+                super::dj::process_decks(&handle, &state);
+
                 if !state.has_track.load(Ordering::Relaxed) {
                     last_pos_ms = 0;
                     last_progress_at = std::time::Instant::now();

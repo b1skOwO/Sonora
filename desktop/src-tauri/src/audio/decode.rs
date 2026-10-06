@@ -29,7 +29,7 @@ pub fn is_ogg_opus(bytes: &[u8]) -> bool {
             .any(|w| w == b"OpusHead")
 }
 
-struct OpusSource<R: std::io::Read + std::io::Seek> {
+pub(crate) struct OpusSource<R: std::io::Read + std::io::Seek> {
     reader: ogg::reading::PacketReader<R>,
     decoder: audiopus::coder::Decoder,
     channels: ChannelCount,
@@ -41,7 +41,7 @@ struct OpusSource<R: std::io::Read + std::io::Seek> {
 }
 
 impl OpusSource<Cursor<Vec<u8>>> {
-    fn new(data: Vec<u8>) -> Result<Self, String> {
+    pub(crate) fn new(data: Vec<u8>) -> Result<Self, String> {
         Self::from_reader(Cursor::new(data))
     }
 }

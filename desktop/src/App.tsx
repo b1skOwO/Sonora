@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { useShallow } from 'zustand/shallow';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { DjPanel } from './components/dj/DjPanel';
 import { HostStatusBanner } from './components/host-status/HostStatusBanner';
 import { HostStatusModal } from './components/host-status/HostStatusModal';
 import { AppShell } from './components/layout/AppShell';
@@ -200,6 +201,7 @@ export default function App() {
       />
       <SessionRecoveryModal />
       <YMImportFloatingStatus />
+      <DjPanel />
       <BrowserRouter>
         {/* Внутри Router ради navigate('/offline'); видны и над Login (он тоже в Router). */}
         <HostStatusModal />

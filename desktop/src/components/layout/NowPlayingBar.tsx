@@ -21,6 +21,7 @@ import { art, formatTime } from '../../lib/formatters';
 import { invalidateAllLikesCache, useTrack } from '../../lib/hooks';
 import {
   audioLines16,
+  Disc3,
   Download,
   Heart,
   listMusic16,
@@ -45,6 +46,7 @@ import { usePerfMode } from '../../lib/perf';
 import { getTrackDisplay, useArtistDisplay, useArtistLinkItems, useDisplayTitle } from '../../lib/track-display';
 import { isYoutubeUrn } from '../../lib/youtube';
 import { useLyricsStore } from '../../stores/lyrics';
+import { useDjStore } from '../../stores/dj';
 import {
   AB_MIN_GAP,
   getEffectivePitchSemitones,
@@ -437,6 +439,28 @@ export const DownloadBtn = React.memo(() => {
       className="w-9 h-9 rounded-full flex items-center justify-center text-white/40 hover:text-white/70 hover:bg-white/[0.04] transition-all duration-150 cursor-pointer disabled:opacity-30"
     >
       {loading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+    </button>
+  );
+});
+
+/* ── DJ button ───────────────────────────────────────────────── */
+
+export const DjBtn = React.memo(() => {
+  const { t } = useTranslation();
+  const open = useDjStore((s) => s.open);
+  const openPanel = useDjStore((s) => s.openPanel);
+
+  return (
+    <button
+      type="button"
+      onClick={openPanel}
+      title={t('dj.title')}
+      aria-label={t('dj.title')}
+      className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-150 cursor-pointer ${
+        open ? 'text-accent' : 'text-white/40 hover:text-white/70 hover:bg-white/[0.04]'
+      }`}
+    >
+      <Disc3 size={16} />
     </button>
   );
 });
@@ -1208,6 +1232,7 @@ export const NowPlayingBar = React.memo(
                 <EqBtn />
                 <LyricsBtn />
                 <DownloadBtn />
+                <DjBtn />
                 <QueueBtn onClick={onQueueToggle} active={queueOpen} />
                 <ControlVolumeBtn size="sm" />
                 <div className="npb-vol-slider flex items-center gap-2 pl-1">

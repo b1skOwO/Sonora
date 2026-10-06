@@ -81,6 +81,8 @@ pub struct AudioState {
     pub ab_loop: Mutex<Option<(f64, f64)>>,
     pub analyser_buffer: Arc<AnalyserBuffer>,
     pub preview: Mutex<PreviewState>,
+    /// Two-deck DJ mixer state (see `audio::dj`).
+    pub dj: Arc<crate::audio::dj::DjState>,
 }
 
 pub fn init() -> AudioState {
@@ -210,5 +212,6 @@ pub fn init() -> AudioState {
             stop_at_zero: false,
             r#gen: 0,
         }),
+        dj: Arc::new(crate::audio::dj::DjState::new()),
     }
 }
