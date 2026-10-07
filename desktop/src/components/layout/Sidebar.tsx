@@ -20,6 +20,8 @@ import {
 import { usePerfMode } from '../../lib/perf';
 import { useAppMode } from '../../stores/app-status';
 import { useAuthStore } from '../../stores/auth';
+import { isLocalPlaylistUrn } from '../../stores/local-playlists';
+import { useServiceStore } from '../../stores/service';
 import { useSettingsStore } from '../../stores/settings';
 import { Avatar } from '../ui/Avatar';
 
@@ -140,6 +142,12 @@ export const Sidebar = React.memo(() => {
     })),
   );
   const perf = usePerfMode();
+  const service = useServiceStore((s) => s.service);
+  // Pinned playlists follow the service tab: SoundCloud pins in SoundCloud
+  // mode, imported (YouTube/Spotify) pins in YouTube mode.
+  const visiblePins = pinnedPlaylists.filter((p) =>
+    service === 'youtube' ? isLocalPlaylistUrn(p.urn) : !isLocalPlaylistUrn(p.urn),
+  );
 
   const toggleLanguage = () => {
     void changeAppLanguage(i18n.language === 'ru' ? 'en' : 'ru');
@@ -197,7 +205,7 @@ export const Sidebar = React.memo(() => {
           title={collapsed ? t('library.history') : undefined}
         />
 
-        {pinnedPlaylists.map((playlist) => {
+        {visiblePins.map((playlist) => {
           const artwork = art(playlist.artworkUrl, 'small');
           const to = `/playlist/${encodeURIComponent(playlist.urn)}`;
           const isActive = isRouteActive(pathname, to);
