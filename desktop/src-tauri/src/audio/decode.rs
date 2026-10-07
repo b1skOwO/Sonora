@@ -191,7 +191,7 @@ fn normalization_cache_file(cache_dir: &Path, cache_key: &str) -> PathBuf {
     cache_dir.join(format!("{hash}.gain"))
 }
 
-/// Peak + gated RMS of the analysis window 窶・the numbers the loudness and
+/// Peak + gated RMS of the analysis window 遯ｶ繝ｻthe numbers the loudness and
 /// safety gains are derived from.
 #[derive(Clone, Copy, Debug)]
 pub struct LoudnessAnalysis {
@@ -306,7 +306,7 @@ pub fn loudness_gain(analysis: LoudnessAnalysis, peak: f64) -> f32 {
 
 /// Always-on peak safety: attenuation-only gain that keeps decoded samples
 /// (which overshoot full scale by up to several dB in lossy sources) from hard
-/// clipping at the output. Applied regardless of the normalization setting 窶・
+/// clipping at the output. Applied regardless of the normalization setting 遯ｶ繝ｻ
 /// it is a static gain, so dynamics are untouched.
 pub fn peak_safety_gain(peak: f64) -> f32 {
     (NORMALIZATION_SAFETY_PEAK / peak.max(1e-6)).min(1.0) as f32
@@ -349,7 +349,7 @@ where
     match NonZero::new(output_sample_rate) {
         Some(rate) if rate != source.sample_rate() => {
             eprintln!(
-                "[audio] resampling {} Hz 竊・{} Hz",
+                "[audio] resampling {} Hz 遶翫・{} Hz",
                 source.sample_rate(),
                 rate
             );
@@ -359,7 +359,7 @@ where
     }
 }
 
-/// Wrap `source` into the shared DSP chain (gain 竊・EQ 竊・analyser 竊・volume) and
+/// Wrap `source` into the shared DSP chain (gain 遶翫・EQ 遶翫・analyser 遶翫・volume) and
 /// append it to the player. With a `volume_handle` the player's own volume stays
 /// at 1.0 and the chain applies the live user volume. The chain is resampled to
 /// the device rate at the very end, so EQ/analyser keep running at the source
@@ -457,3 +457,38 @@ pub fn create_player_from_bytes(
     Ok((player, duration))
 }
 
+
+
+#[cfg(test)]
+mod tests {
+    use super::{loudness_gain, peak_safety_gain, LoudnessAnalysis};
+
+    fn analysis(peak: f64, rms: f64) -> LoudnessAnalysis {
+        LoudnessAnalysis { peak, rms }
+    }
+
+    #[test]
+    fn safety_is_attenuation_only_with_headroom() {
+        // Hot master: capped so the peak lands at the -2 dB safety ceiling,
+        // leaving room for resampler overshoot and true-peak excursion.
+        let hot = peak_safety_gain(3.0);
+        assert!((hot - (0.79 / 3.0) as f32).abs() < 1e-6, "got {hot}");
+        // Material already under the ceiling: untouched.
+        assert_eq!(peak_safety_gain(0.79), 1.0);
+        assert_eq!(peak_safety_gain(0.5), 1.0);
+    }
+
+    #[test]
+    fn loudness_targets_rms_but_respects_the_peak() {
+        // Right on the RMS target with headroom to spare: unity.
+        assert_eq!(loudness_gain(analysis(0.5, 0.14), 0.5), 1.0);
+        // Loud master: the -8 dB attenuation floor binds, not the RMS target.
+        let floored = loudness_gain(analysis(2.0, 0.5), 2.0);
+        let floor = 10f64.powf(-8.0 / 20.0) as f32;
+        assert!((floored - floor).abs() < 1e-6, "got {floored}");
+        // RMS target above unity is still capped by the peak ceiling.
+        let capped = loudness_gain(analysis(2.0, 0.07), 2.0);
+        let peak_cap = (0.95 / 2.0) as f32;
+        assert!((capped - peak_cap).abs() < 1e-4, "got {capped}");
+    }
+}

@@ -15,10 +15,16 @@ pub const NORMALIZATION_TARGET_PEAK: f64 = 0.95;
 pub const NORMALIZATION_MAX_BOOST_DB: f64 = 9.0;
 pub const NORMALIZATION_MAX_ATTENUATION_DB: f64 = -8.0;
 /// Peak ceiling of the always-on playback safety gain. Lossy sources routinely
-/// decode above full scale (measured up to +6 dB on SoundCloud streams) and
+/// decode above full scale (measured up to +9.7 dB on SoundCloud streams) and
 /// anything over 1.0 hard-clips at the output — this attenuation-only gain
 /// keeps transients intact without touching dynamics.
-pub const NORMALIZATION_SAFETY_PEAK: f64 = 0.95;
+///
+/// The target sits at -2 dB, not just under full scale, because the ceiling
+/// must survive what comes *after* the gain: the sinc resampler reconstructs
+/// inter-sample peaks (measured +1.2 dB over the sample peak on flat-topped
+/// snare transients) and DACs clip true peaks with no margin of their own.
+/// EBU R128 recommends the same -2 dBTP floor for crushed masters.
+pub const NORMALIZATION_SAFETY_PEAK: f64 = 0.79;
 pub const TICK_INTERVAL_MS: u64 = 100;
 
 pub type ChannelCount = NonZero<u16>;
