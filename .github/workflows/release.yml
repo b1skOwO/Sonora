@@ -1,0 +1,73 @@
+name: Release (Windows)
+
+# Automated installer builds: push a version tag (`git tag v8.4.14 &&
+# git push origin v8.4.14`) for a published GitHub Release with the NSIS
+# setup, or run manually from the Actions tab (artifacts only, no release).
+# Bump the version in desktop/package.json, desktop/src-tauri/tauri.conf.json
+# and desktop/src-tauri/Cargo.toml before tagging.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build installer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: desktop/pnpm-lock.yaml
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+          key: sonora-windows
+
+      - name: Install frontend dependencies
+        working-directory: desktop
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: desktop
+          releaseName: 'Sonora ${{ github.ref_name }}'
+          releaseBody: 'Automated Windows build.'
+          releaseDraft: false
+          prerelease: false
+          args: --bundles nsis
+
+      - name: Collect portable exe
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "desktop/src-tauri/target/release/bundle/portable"
+          Copy-Item "desktop/src-tauri/target/release/soundcloud-desktop.exe" "desktop/src-tauri/target/release/bundle/portable/Sonora-portable.exe"
+
+      - name: Upload portable exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sonora-portable-${{ github.ref_name }}-${{ github.sha }}
+          path: desktop/src-tauri/target/release/bundle/portable/Sonora-portable.exe
