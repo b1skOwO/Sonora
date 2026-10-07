@@ -46,7 +46,7 @@ import {
 import { optimisticToggleLike } from '../../lib/likes';
 import { usePerfMode } from '../../lib/perf';
 import { getTrackDisplay, useArtistDisplay, useArtistLinkItems, useDisplayTitle } from '../../lib/track-display';
-import { isYoutubeUrn } from '../../lib/youtube';
+import { isYoutubeUrn, stableYoutubeThumbnail, youtubeVideoId } from '../../lib/youtube';
 import { useLyricsStore } from '../../stores/lyrics';
 import { useDjStore } from '../../stores/dj';
 import {
@@ -1162,7 +1162,9 @@ const PillTrackBody = React.memo(function PillTrackBody({
   const artistDisplay = useArtistDisplay(track);
   const displayTitle = useDisplayTitle(track);
   const artistLinks = useArtistLinkItems(track);
-  const artworkSmall = art(track.artwork_url, 't200x200');
+  const videoId = youtubeVideoId(track.urn);
+  const stableArt = videoId ? stableYoutubeThumbnail(track.artwork_url, videoId) : track.artwork_url;
+  const artworkSmall = art(stableArt, 't200x200');
   const hasArtistLink = artistLinks.some((it) => it.target);
 
   return (

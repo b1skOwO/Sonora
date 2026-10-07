@@ -7,7 +7,7 @@
 import { listen } from '@tauri-apps/api/event';
 import { create } from 'zustand';
 import { trackedInvoke as invoke } from '../lib/diagnostics';
-import { YOUTUBE_TRACK_PREFIX } from '../lib/youtube';
+import { stableYoutubeThumbnail, YOUTUBE_TRACK_PREFIX } from '../lib/youtube';
 import { type LocalPlaylist, useLocalPlaylistsStore } from './local-playlists';
 import type { Track } from './player';
 
@@ -65,7 +65,7 @@ function matchToTrack(match: SpotifyImportMatch): Track {
     urn: `${YOUTUBE_TRACK_PREFIX}${match.video_id}`,
     title: match.title,
     duration: Math.round(durationSecs * 1000),
-    artwork_url: match.thumbnail ?? `https://i.ytimg.com/vi/${match.video_id}/hqdefault.jpg`,
+    artwork_url: stableYoutubeThumbnail(match.thumbnail, match.video_id),
     permalink_url: `https://www.youtube.com/watch?v=${match.video_id}`,
     user: {
       id: 0,

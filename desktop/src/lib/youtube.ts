@@ -63,7 +63,7 @@ export function ytEntryToTrack(entry: YtEntry, fallbackUploader?: string | null)
     urn: `${YOUTUBE_TRACK_PREFIX}${entry.id}`,
     title: entry.title,
     duration: Math.round((entry.durationSecs ?? 0) * 1000),
-    artwork_url: entry.thumbnail ?? `https://i.ytimg.com/vi/${entry.id}/hqdefault.jpg`,
+    artwork_url: stableYoutubeThumbnail(entry.thumbnail, entry.id),
     permalink_url: `https://www.youtube.com/watch?v=${entry.id}`,
     user: {
       id: 0,
@@ -72,4 +72,27 @@ export function ytEntryToTrack(entry: YtEntry, fallbackUploader?: string | null)
       avatar_url: '',
     },
   };
+}
+
+/** Strip volatile CDN params (`sqp`/`rs` session tokens) from YouTube
+ *  thumbnails — the bare `hq720.jpg` is permanent and cache-friendly, while
+ *  tokens can 403 when a persisted URL is reused across sessions. Falls back
+ *  to the eternal `hqdefault.jpg` when there is no thumbnail. */
+export function stableYoutubeThumbnail(
+  url: string | null | undefined,
+  videoId: string,
+): string {
+  if (url) {
+    try {
+      const parsed = new URL(url);
+      if (parsed.hostname.endsWith('.ytimg.com') || parsed.hostname.endsWith('.ggpht.com')) {
+        parsed.search = '';
+        return parsed.toString();
+      }
+      return url;
+    } catch {
+      return url;
+    }
+  }
+  return `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 }

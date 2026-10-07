@@ -9,7 +9,7 @@ import { invalidateAllLikesCache } from './hooks';
 import { isUrnLiked, optimisticToggleLike } from './likes';
 import { queryClient } from './query-client';
 import { getArtistDisplay, getDisplayTitle } from './track-display';
-import { isYoutubeUrn } from './youtube';
+import { isYoutubeUrn, stableYoutubeThumbnail, youtubeVideoId } from './youtube';
 
 /* ── Tray-popover bridge ─────────────────────────────────────────
    The tray-popover is a separate webview with no player state. This window stays
@@ -56,13 +56,18 @@ function buildNp(): TrayNp {
       abLoop: null,
     };
   }
+  // Persisted YouTube entries can carry session-bound thumbnail params
+  // (`sqp`/`rs`); normalize to the permanent token-free form so every
+  // webview fetches the identical, cache-friendly URL.
+  const videoId = youtubeVideoId(tr.urn);
+  const stableArt = videoId ? stableYoutubeThumbnail(tr.artwork_url, videoId) : tr.artwork_url;
   return {
     hasTrack: true,
     title: getDisplayTitle(tr),
     artist: getArtistDisplay(tr).primary || tr.user?.username || '',
-    artworkUrl: art(tr.artwork_url, 't200x200'),
-    artworkRaw: tr.artwork_url ?? null,
-    artworkLarge: art(tr.artwork_url, 't500x500'),
+    artworkUrl: art(stableArt, 't200x200'),
+    artworkRaw: stableArt ?? null,
+    artworkLarge: art(stableArt, 't500x500'),
     isPlaying: s.isPlaying,
     volume: trackVolume(s, tr),
     liked: isUrnLiked(tr.urn) || !!tr.user_favorite,
