@@ -327,6 +327,40 @@ select,
   animation: dialogContentOut 0.15s var(--ease-apple) forwards;
 }
 
+/* ── Sonner toasts (top-right notifications) ─────────────────
+ * sonner drives mount/remove itself through transform/opacity transitions;
+ * these keyframes layer app-owned motion on the independent `translate` and
+ * `scale` properties so both compose instead of fighting. Exit stays shorter
+ * than sonner's own removal timing so it always completes. Functional motion
+ * (like dialog transitions) — left on in every perf mode. */
+@keyframes snr-toast-in {
+  from {
+    translate: 28px -10px;
+    scale: 0.96;
+  }
+  to {
+    translate: 0 0;
+    scale: 1;
+  }
+}
+@keyframes snr-toast-out {
+  from {
+    translate: 0 0;
+    scale: 1;
+  }
+  to {
+    translate: 28px 0;
+    scale: 0.96;
+  }
+}
+
+[data-sonner-toast][data-mounted="true"]:not([data-removed="true"]) {
+  animation: snr-toast-in 0.42s var(--ease-apple) both;
+}
+[data-sonner-toast][data-removed="true"] {
+  animation: snr-toast-out 0.26s ease-in both;
+}
+
 /* ── Custom modal shell (components/ui/Modal.tsx) — JS-toggled transitions ──
  * data-state is flipped in JS (open ⇄ closed); plain CSS transitions do the
  * animation. No Radix, no @keyframes — works reliably under WebKitGTK. */
