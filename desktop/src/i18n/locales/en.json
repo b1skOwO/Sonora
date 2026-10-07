@@ -249,6 +249,7 @@
     "download": "Download",
     "downloaded": "Saved",
     "loadError": "Failed to load track",
+    "stuckSkipping": "Paused — only disliked tracks ahead",
     "dislike": "Don't recommend",
     "removeDislike": "Remove dislike",
     "play": "Play",

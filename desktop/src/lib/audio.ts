@@ -50,6 +50,13 @@ let loadGen = 0;
 let lastEndedUrn: string | null = null;
 /** Seek requested while nothing is loaded — applied right after the reload. */
 let pendingSeek: number | null = null;
+/** Disliked-autoskip chain guard (see the subscriber below). */
+let skipGen = 0;
+let consecutiveSkips = 0;
+/** Hops past this many consecutive disliked tracks with no real load in
+ *  between mean the queue can't advance (e.g. repeat-all over an all-
+ *  disliked stretch) — pause instead of spinning forever. */
+const SKIP_CHAIN_CAP = 100;
 const listeners = new Set<() => void>();
 const API_PREVIEW_DURATION_MS = 30_000;
 
@@ -333,6 +340,9 @@ async function loadTrack(track: Track) {
   const gen = ++loadGen;
   const isNewTrack = currentUrn !== track.urn;
   if (isNewTrack) pendingSeek = null;
+  // A real load is forward progress — reset the autoskip chain guard.
+  skipGen = 0;
+  consecutiveSkips = 0;
   stopTrack();
   currentUrn = track.urn;
   const urn = track.urn;
@@ -650,7 +660,26 @@ usePlayerStore.subscribe((state, prev) => {
         hasTrack = false;
         usePlayerStore.getState().setPlaybackTransport(null, null);
         notify();
-        usePlayerStore.getState().next();
+        // Deferred hop: calling next() synchronously here would nest store
+        // notifications (set → notify → set → …) without bound on hostile
+        // queues. A microtask breaks the chain into separate commits, the
+        // generation drops superseded hops, and the cap stops a hopeless
+        // queue (repeat-all over disliked tracks) instead of spinning forever.
+        consecutiveSkips += 1;
+        if (consecutiveSkips > SKIP_CHAIN_CAP) {
+          consecutiveSkips = 0;
+          usePlayerStore.getState().pause();
+          toast(i18n.t('track.stuckSkipping'));
+          return;
+        }
+        const g = ++skipGen;
+        queueMicrotask(() => {
+          if (g !== skipGen) return;
+          const s = usePlayerStore.getState();
+          if (!s.isPlaying) return;
+          if (s.currentTrack && isUrnDisliked(s.currentTrack.urn)) s.next();
+          else consecutiveSkips = 0;
+        });
         return;
       }
       updateMetadata(state.currentTrack);

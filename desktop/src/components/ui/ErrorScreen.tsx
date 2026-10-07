@@ -5,10 +5,13 @@ import { AlertCircle, Home, RefreshCw } from '../../lib/icons';
  *  with retry / reload / home actions and a foldaway technical detail. */
 export function ErrorScreen({
   error,
+  details,
   onRetry,
   fullscreen = false,
 }: {
   error?: Error | null;
+  /** Extra technical detail (e.g. the React component stack). Selectable. */
+  details?: string | null;
   onRetry?: () => void;
   fullscreen?: boolean;
 }) {
@@ -102,8 +105,9 @@ export function ErrorScreen({
                 <span className="text-[var(--color-accent)]">▸</span>{' '}
                 {t('errors.details', 'Details')}
               </summary>
-              <pre className="mt-2 max-h-40 overflow-auto rounded-xl border border-white/[0.06] bg-black/40 p-3 text-[11px] leading-relaxed text-red-300/80 whitespace-pre-wrap break-words">
+              <pre className="selectable mt-2 max-h-40 overflow-auto rounded-xl border border-white/[0.06] bg-black/40 p-3 text-[11px] leading-relaxed text-red-300/80 whitespace-pre-wrap break-words">
                 {message}
+                {details ? `\n\n${details}` : ''}
               </pre>
             </details>
           )}

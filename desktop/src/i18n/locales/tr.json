@@ -207,6 +207,7 @@
     "download": "Indir",
     "downloaded": "Kaydedildi",
     "loadError": "Parca yuklenemedi",
+    "stuckSkipping": "Duraklatildi — ileride sadece begenilmeyen parcalar var",
     "dislike": "Onerme",
     "removeDislike": "Begenmemeyi kaldir",
     "play": "Calistir",
