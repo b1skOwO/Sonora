@@ -6,7 +6,7 @@
 //! `fetch_playlist` (fast, `--flat-playlist`) and the track cache uses
 //! `download_audio` to materialise a playable m4a.
 
-use std::net::IpAddr;
+use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
@@ -146,11 +146,28 @@ fn is_youtube_target(url: &str) -> bool {
     lower.contains("youtube.com") || lower.contains("youtu.be") || lower.starts_with("ytsearch")
 }
 
+/// Route for yt-dlp traffic: direct, or through the local bypass proxy when
+/// the system DNS is hijacked (fake IPs) but direct routing still works.
+enum YtRoute {
+    Direct,
+    Proxy(SocketAddr),
+}
+
+fn apply_route(cmd: &mut Command, route: &YtRoute) {
+    if let YtRoute::Proxy(addr) = route {
+        // `socks5h` = the proxy resolves hostnames: yt-dlp must never touch
+        // the poisoned local resolver.
+        cmd.arg("--proxy").arg(format!("socks5h://{addr}"));
+    }
+}
+
 /// Quick reachability probe before spawning yt-dlp. Catches the common failure
 /// mode where a VPN/proxy client leaves a fake-IP DNS entry behind (198.18/15)
 /// while its tunnel is down — yt-dlp would otherwise spend 1–2 minutes retrying
-/// every player client before failing. Returns a user-facing error on failure.
-async fn preflight_youtube() -> Result<(), String> {
+/// every player client before failing. A hijack no longer fails: with split
+/// tunneling the route itself is fine, so yt-dlp is sent through the loopback
+/// bypass proxy (DoH resolution + direct connections) instead.
+async fn preflight_youtube() -> Result<YtRoute, String> {
     let addrs: Vec<std::net::SocketAddr> = tokio::net::lookup_host(("www.youtube.com", 443))
         .await
         .map_err(|e| format!("DNS lookup for www.youtube.com failed: {e}"))?
@@ -159,16 +176,11 @@ async fn preflight_youtube() -> Result<(), String> {
         return Err("DNS lookup for www.youtube.com returned no addresses".into());
     }
 
-    // Proxy/VPN fake-IP space (Clash/WireSock/mihomo-style): a live DNS hijack
-    // with a dead tunnel — fail instantly with an actionable message.
-    if let Some(ip) = addrs.iter().find_map(|addr| match addr.ip() {
-        IpAddr::V4(v4) if v4.octets()[0] == 198 && (v4.octets()[1] & 0xfe) == 18 => Some(v4),
-        _ => None,
-    }) {
-        return Err(format!(
-            "www.youtube.com resolves to {ip} — a VPN/proxy fake IP (DNS hijack). \
-             Turn the VPN off or restart it, then run `ipconfig /flushdns`."
-        ));
+    if addrs
+        .iter()
+        .any(|addr| crate::network::socks::is_fake_ip(&addr.ip()))
+    {
+        return hijacked_route().await;
     }
 
     let target = addrs
@@ -178,7 +190,7 @@ async fn preflight_youtube() -> Result<(), String> {
         .unwrap_or(addrs[0]);
     match tokio::time::timeout(Duration::from_secs(6), tokio::net::TcpStream::connect(target)).await
     {
-        Ok(Ok(_)) => Ok(()),
+        Ok(Ok(_)) => Ok(YtRoute::Direct),
         Ok(Err(e)) => Err(format!(
             "cannot reach www.youtube.com:443 ({e}) — check your VPN / proxy / DNS"
         )),
@@ -188,11 +200,48 @@ async fn preflight_youtube() -> Result<(), String> {
     }
 }
 
+/// System DNS answers with VPN fake IPs, but split tunneling still routes us
+/// directly: resolve the real addresses out-of-band (DoH), verify one is
+/// reachable, and send yt-dlp through the loopback bypass proxy.
+async fn hijacked_route() -> Result<YtRoute, String> {
+    let real = crate::network::socks::resolve_clean("www.youtube.com")
+        .await
+        .map_err(|e| {
+            format!(
+                "YouTube DNS is hijacked and fallback resolution failed ({e}) — \
+                 check your VPN / proxy / DNS"
+            )
+        })?;
+    let target = real
+        .iter()
+        .find(|ip| ip.is_ipv4())
+        .copied()
+        .unwrap_or(real[0]);
+    match tokio::time::timeout(
+        Duration::from_secs(6),
+        tokio::net::TcpStream::connect((target, 443)),
+    )
+    .await
+    {
+        Ok(Ok(_)) => {}
+        _ => {
+            return Err(format!(
+                "{target}:443 is unreachable — check your connection"
+            ));
+        }
+    }
+    let proxy = crate::network::socks::ensure_local_proxy().await?;
+    eprintln!("[yt-dlp] DNS hijack detected, routing through bypass proxy {proxy}");
+    Ok(YtRoute::Proxy(proxy))
+}
+
 /// Fetch playlist (or single-video) metadata without downloading media.
 pub async fn fetch_playlist(bin: &Path, url: &str) -> Result<YtPlaylist, String> {
-    if is_youtube_target(url) {
-        preflight_youtube().await?;
-    }
+    let route = if is_youtube_target(url) {
+        preflight_youtube().await?
+    } else {
+        YtRoute::Direct
+    };
     let mut cmd = Command::new(bin);
     cmd.args([
         "--ignore-config",
@@ -212,6 +261,7 @@ pub async fn fetch_playlist(bin: &Path, url: &str) -> Result<YtPlaylist, String>
     .stdout(Stdio::piped())
     .stderr(Stdio::piped())
     .kill_on_drop(true);
+    apply_route(&mut cmd, &route);
     apply_no_window(&mut cmd);
 
     let output = tokio::time::timeout(Duration::from_secs(FETCH_TIMEOUT_SECS), cmd.output())
@@ -322,9 +372,11 @@ pub async fn download_audio<F: Fn(f64)>(
     dest: &Path,
     on_progress: F,
 ) -> Result<(), String> {
-    if is_youtube_target(url) {
-        preflight_youtube().await?;
-    }
+    let route = if is_youtube_target(url) {
+        preflight_youtube().await?
+    } else {
+        YtRoute::Direct
+    };
     let dir = dest.parent().ok_or("download destination has no parent")?;
     let stem = dest
         .file_name()
@@ -362,6 +414,7 @@ pub async fn download_audio<F: Fn(f64)>(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
+    apply_route(&mut cmd, &route);
     apply_no_window(&mut cmd);
 
     let mut child = cmd
@@ -477,6 +530,20 @@ mod tests {
         assert!(is_youtube_target("https://youtu.be/x"));
         assert!(is_youtube_target("https://music.youtube.com/playlist?list=x"));
         assert!(!is_youtube_target("https://soundcloud.com/x"));
+    }
+
+    /// Live E2E: on a machine with hijacked DNS this exercises preflight →
+    /// DoH → bypass proxy → yt-dlp end to end. Needs YTDLP_BIN=<yt-dlp path>.
+    /// Run with `cargo test --lib ytdlp::tests::live_bypass_e2e -- --ignored --nocapture`.
+    #[tokio::test]
+    #[ignore = "live network"]
+    async fn live_bypass_e2e() {
+        let bin = std::path::PathBuf::from(std::env::var("YTDLP_BIN").expect("set YTDLP_BIN"));
+        let pl = super::fetch_playlist(&bin, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+            .await
+            .expect("fetch through bypass");
+        assert_eq!(pl.entries.len(), 1);
+        println!("fetched: {} [{}]", pl.entries[0].title, pl.entries[0].id);
     }
 }
 
