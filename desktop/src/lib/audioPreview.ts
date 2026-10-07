@@ -1,5 +1,5 @@
 import {useSyncExternalStore} from 'react';
-import {usePlayerStore} from '../stores/player';
+import {trackVolume, usePlayerStore} from '../stores/player';
 import {ensureTrackCached} from './cache';
 import {trackedInvoke as invoke} from './diagnostics';
 import {isYoutubeUrn} from './youtube';
@@ -64,7 +64,8 @@ export function startHoverPreview(urn: string): void {
             const info = await ensureTrackCached(urn);
             // Superseded by a newer hover, or no longer allowed.
             if (gen !== startGen || pendingUrn !== urn || !info?.path || !canPreview(urn)) return;
-            const volume = (usePlayerStore.getState().volume / 100) * PREVIEW_VOLUME_FACTOR;
+            const st = usePlayerStore.getState();
+            const volume = (trackVolume(st, { urn }) / 100) * PREVIEW_VOLUME_FACTOR;
             await invoke('audio_preview_play', {path: info.path, volume, gen});
             if (gen !== startGen) {
                 invoke('audio_preview_stop', {fadeMs: 0, gen}).catch(() => {

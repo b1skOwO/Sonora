@@ -17,11 +17,13 @@ import {
     WALL_KEYFRAMES,
 } from '../components/search/utils';
 import {useTabHidden, Wall} from '../components/search/Wall';
+import {YoutubeSearchPane} from '../components/search/YoutubeSearchPane';
 import {stopHoverPreview, wirePreviewGuards} from '../lib/audioPreview';
 import type { Track } from '../stores/player';
 import { useSearchHistoryStore } from '../stores/searchHistory';
 import { useSearchPrefsStore } from '../stores/searchPrefs';
 import {useSearchQueryStore} from '../stores/searchQuery';
+import {useServiceStore} from '../stores/service';
 
 /* The Search page IS the wall — a living mosaic of covers that breathes the vibe
  * of what's on it. The query comes from the global header field (shared store),
@@ -40,6 +42,7 @@ export function Search() {
   const source = useSearchPrefsStore((s) => s.source);
   const setSource = useSearchPrefsStore((s) => s.setSource);
     const addQuery = useSearchHistoryStore((s) => s.addQuery);
+    const service = useServiceStore((s) => s.service);
 
     const isUrl = isSoundCloudUrl(q);
     const query = isUrl ? '' : debounced;
@@ -61,10 +64,12 @@ export function Search() {
 
   useEffect(() => {
       const trimmed = debounced.trim();
-      if (trimmed.length >= 2 && !isSoundCloudUrl(trimmed)) addQuery(trimmed);
-  }, [debounced, addQuery]);
+      if (service !== 'youtube' && trimmed.length >= 2 && !isSoundCloudUrl(trimmed))
+        addQuery(trimmed);
+  }, [debounced, addQuery, service]);
 
-    const wall = useSearchWall(query, mode, source, dive);
+    // YouTube mode doesn't use the SoundCloud wall — keep the hook fed idle.
+    const wall = useSearchWall(service === 'youtube' ? '' : query, mode, source, dive);
 
     // Play queue is read lazily at play time (see useTrackPlay/CoverTile): a fresh
     // array each append would defeat every tile's memo. Keep a ref + stable thunk.
@@ -161,6 +166,8 @@ export function Search() {
           <div className="relative pt-5" style={{isolation: 'isolate'}}>
               {isUrl ? (
                   <ResolveCard url={q} onDone={() => setQ('')}/>
+              ) : service === 'youtube' ? (
+                  <YoutubeSearchPane/>
               ) : (
                   <>
                       {hasQuery && !dive && (

@@ -63,7 +63,8 @@
     "next": "Next",
     "openApp": "Open SoundCloud",
     "notPlaying": "Not playing",
-    "volume": "Volume"
+    "volume": "Volume",
+    "volumes": "SoundCloud / YouTube volumes"
   },
   "auth": {
     "signIn": "Sign in with SoundCloud",
@@ -119,6 +120,9 @@
     "artists": "Artists",
     "albums": "Albums",
     "noResults": "No results found",
+    "youtubeTitle": "YouTube search",
+    "youtubeHint": "Type in the header field, then search here",
+    "youtubeEmpty": "Search YouTube to find tracks to play",
     "noResultsDbHint": "Nothing matched in the local SCD library. Try switching to SoundCloud.",
     "tryScHint": "Searching in SCD library. Switch to SoundCloud to broaden the search.",
     "hint": "Search for artists, bands, tracks, podcasts",
@@ -389,6 +393,7 @@
     "likedPlaylists": "Liked Playlists",
     "yourPlaylists": "Your Playlists",
     "importedPlaylists": "Imported",
+    "noLocalPlaylists": "No imported playlists yet — import one from YouTube or Spotify in Settings",
     "localLikes": "Local",
     "noLocalLikes": "No local likes yet",
     "history": "History",
@@ -596,6 +601,14 @@
     "forgeLogQueued_many": "{{count}} files queued",
     "fileCount_few": "{{count}} files",
     "fileCount_many": "{{count}} files"
+  },
+  "service": {
+    "soundcloud": "SoundCloud",
+    "youtube": "YouTube",
+    "switchToYoutube": "Switch to YouTube",
+    "switchToSoundcloud": "Switch to SoundCloud",
+    "youtubeMode": "YouTube mode",
+    "soundcloudMode": "SoundCloud mode"
   },
   "settings": {
     "title": "Settings",

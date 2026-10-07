@@ -1,6 +1,6 @@
 import { emit, listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { usePlayerStore } from '../stores/player';
+import { trackVolume, usePlayerStore } from '../stores/player';
 import { api } from './api';
 import { getDuration, handlePrev, seek } from './audio';
 import { isUrnDisliked, toggleDislike } from './dislikes';
@@ -47,7 +47,7 @@ function buildNp(): TrayNp {
       artworkRaw: null,
       artworkLarge: null,
       isPlaying: false,
-      volume: s.volume,
+      volume: trackVolume(s, null),
       liked: false,
       disliked: false,
       shuffle: s.shuffle,
@@ -64,7 +64,7 @@ function buildNp(): TrayNp {
     artworkRaw: tr.artwork_url ?? null,
     artworkLarge: art(tr.artwork_url, 't500x500'),
     isPlaying: s.isPlaying,
-    volume: s.volume,
+    volume: trackVolume(s, tr),
     liked: isUrnLiked(tr.urn) || !!tr.user_favorite,
     disliked: isUrnDisliked(tr.urn),
     shuffle: s.shuffle,
@@ -179,6 +179,9 @@ listen<{ action: string; value?: number }>('tray:cmd', (event) => {
       break;
     case 'volume':
       if (typeof value === 'number') store.setVolume(value);
+      break;
+    case 'toggle_mute':
+      store.toggleMute();
       break;
     case 'like':
       void toggleLikeCurrent();

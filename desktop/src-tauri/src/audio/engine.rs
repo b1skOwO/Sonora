@@ -36,7 +36,7 @@ pub fn suppress_stall_temporarily(state: &AudioState) {
         .store(now_ms() + STALL_SUPPRESS_MS, Ordering::Relaxed);
 }
 
-fn volume_to_rodio(v: f64) -> f32 {
+pub(crate) fn volume_to_rodio(v: f64) -> f32 {
     (v / 100.0).clamp(0.0, 2.0) as f32
 }
 

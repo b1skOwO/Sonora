@@ -36,7 +36,8 @@ export type TrayCmd =
     | 'dislike'
     | 'show'
     | 'seek'
-    | 'volume';
+    | 'volume'
+    | 'toggle_mute';
 
 const EMPTY: TrayNp = {
     hasTrack: false,

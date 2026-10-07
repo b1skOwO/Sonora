@@ -128,6 +128,10 @@ pub struct DjState {
     pub automix_run: Mutex<Option<AutomixRun>>,
     /// Auto-mix crossfade length in ms.
     pub automix_fade_ms: AtomicU64,
+    /// Deck master gain (rodio scale 0..2). Follows the selected service's
+    /// volume — decks play mixed content, so a single master can't be per
+    /// track; the frontend pushes it whenever the service or volumes change.
+    pub master: AtomicU32,
 }
 
 impl DjState {
@@ -139,6 +143,7 @@ impl DjState {
             automix: AtomicBool::new(false),
             automix_run: Mutex::new(None),
             automix_fade_ms: AtomicU64::new(8_000),
+            master: AtomicU32::new(0.5f32.to_bits()),
         }
     }
 }
@@ -578,10 +583,10 @@ fn estimate_bpm(envelope: &[f64], envelope_rate: f64) -> Option<f64> {
     Some(60.0 * envelope_rate / best_lag as f64)
 }
 
-/// Apply `deck volume × crossfader × app volume` to every loaded deck.
+/// Apply `deck volume × crossfader × service master` to every loaded deck.
 fn apply_volumes(state: &AudioState) {
     let x = f32::from_bits(state.dj.crossfade.load(Ordering::Relaxed)).clamp(0.0, 1.0);
-    let master = *state.volume.lock().unwrap();
+    let master = f32::from_bits(state.dj.master.load(Ordering::Relaxed));
     let factor_a = (x * std::f32::consts::FRAC_PI_2).cos();
     let factor_b = (x * std::f32::consts::FRAC_PI_2).sin();
     let decks = state.dj.decks.lock().unwrap();
@@ -909,6 +914,19 @@ pub fn dj_set_volume(deck: u8, volume: f64, state: State<'_, AudioState>) -> Res
         let mut decks = state.dj.decks.lock().map_err(|e| e.to_string())?;
         decks[index].volume = (volume as f32).clamp(0.0, 2.0);
     }
+    apply_volumes(&state);
+    Ok(())
+}
+
+/// Deck master gain (percent scale, like `audio_set_volume`). Follows the
+/// selected service's volume — the frontend pushes it whenever the service
+/// or either volume changes.
+#[tauri::command]
+pub fn dj_set_master_volume(volume: f64, state: State<'_, AudioState>) -> Result<(), String> {
+    state.dj.master.store(
+        crate::audio::engine::volume_to_rodio(volume).to_bits(),
+        Ordering::Relaxed,
+    );
     apply_volumes(&state);
     Ok(())
 }

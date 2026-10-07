@@ -2,7 +2,8 @@ import { listen } from '@tauri-apps/api/event';
 import { toast } from 'sonner';
 import i18n from '../i18n';
 import type { Track } from '../stores/player';
-import { usePlayerStore } from '../stores/player';
+import { serviceOfUrn, trackVolume, usePlayerStore } from '../stores/player';
+import { useServiceStore } from '../stores/service';
 import { useSettingsStore } from '../stores/settings';
 import {
   api,
@@ -360,8 +361,10 @@ async function loadTrack(track: Track) {
   invoke('audio_set_eq', { enabled: eqEnabled, gains: eqGains }).catch(console.error);
   invoke('audio_set_normalization', { enabled: normalizeVolume }).catch(console.error);
 
-  // Sync volume + playback rate (pitch is folded into the speed value sent to Rust)
-  invoke('audio_set_volume', { volume: usePlayerStore.getState().volume }).catch(console.error);
+  // Sync volume (for the loaded track's service) + playback rate
+  invoke('audio_set_volume', { volume: trackVolume(usePlayerStore.getState(), track) }).catch(
+    console.error,
+  );
   invoke('audio_set_playback_rate', { rate: getEffectivePlaybackRate() }).catch(console.error);
 
   try {
@@ -676,8 +679,21 @@ usePlayerStore.subscribe((state, prev) => {
     updatePlaybackState(state.isPlaying);
   }
 
-  if (state.volume !== prev.volume) {
-    invoke('audio_set_volume', { volume: state.volume }).catch(console.error);
+  // Per-service volume: only push when the *changed* field drives the current
+  // track (editing the idle service must not touch the live gain).
+  const svc = state.currentTrack ? serviceOfUrn(state.currentTrack.urn) : null;
+  if (
+    (svc === 'youtube' && state.youtubeVolume !== prev.youtubeVolume) ||
+    (svc !== 'youtube' && state.volume !== prev.volume)
+  ) {
+    invoke('audio_set_volume', { volume: trackVolume(state, state.currentTrack) }).catch(
+      console.error,
+    );
+  }
+
+  // DJ decks play mixed content — their master follows the service tab.
+  if (state.volume !== prev.volume || state.youtubeVolume !== prev.youtubeVolume) {
+    syncDjMasterVolume();
   }
 
   if (
@@ -697,6 +713,18 @@ usePlayerStore.subscribe((state, prev) => {
       b: active ? ab.b : null,
     }).catch(console.error);
   }
+});
+
+/** Push the service tab's volume as the DJ decks' master gain. */
+export function syncDjMasterVolume(): void {
+  const st = usePlayerStore.getState();
+  const service = useServiceStore.getState().service;
+  const volume = service === 'youtube' ? st.youtubeVolume : st.volume;
+  invoke('dj_set_master_volume', { volume }).catch(() => {});
+}
+
+useServiceStore.subscribe((state, prev) => {
+  if (state.service !== prev.service) syncDjMasterVolume();
 });
 
 /** Combine playback rate and (manual) pitch into a single Rust-side speed value.

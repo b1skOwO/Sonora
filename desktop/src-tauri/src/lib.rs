@@ -229,6 +229,7 @@ pub fn run() {
             audio::dj_set_flanger,
             audio::dj_set_crossfade,
             audio::dj_set_automix,
+            audio::dj_set_master_volume,
             audio::dj_set_active,
             audio::save_track_to_path,
             import::ym_import_start,

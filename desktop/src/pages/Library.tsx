@@ -15,6 +15,7 @@ import {likedTracksCount} from '../lib/likes';
 import {armLikesContinuation} from '../lib/queue-continuation';
 import {useAuthStore} from '../stores/auth';
 import {localPlaylistToCard, useLocalPlaylistsStore} from '../stores/local-playlists';
+import {useServiceStore} from '../stores/service';
 
 /** Library "Hub" — a living home base. Your identity up top, then the reason to
  *  come back (fresh drops from who you follow), then a way back into what you
@@ -31,6 +32,7 @@ export const Library = React.memo(() => {
   const { playlists: likedPlaylists } = useMyLikedPlaylists();
   const { users: followings } = useMyFollowings();
   const localPlaylists = useLocalPlaylistsStore((s) => s.playlists);
+  const service = useServiceStore((s) => s.service);
 
   const playlistPreview = useMemo(() => {
     const base = genre ? playlists.filter((p) => p.genre?.trim() === genre) : playlists;
@@ -47,6 +49,32 @@ export const Library = React.memo(() => {
   }, [likedTracks, genre]);
 
   if (!user) return null;
+
+  // YouTube mode: the collection is the imported playlists only —
+  // SoundCloud shelves stay in SoundCloud mode.
+  if (service === 'youtube') {
+    return (
+      <LibraryFrame sound={sound}>
+        <div className="space-y-9">
+          <CollectionRail
+            icon={<Youtube size={16} />}
+            title={t('library.importedPlaylists')}
+            count={localPlaylists.length}
+            to="/library/playlists"
+          >
+            {localPlaylists.map((p) => (
+              <div key={p.id} className="w-[160px] shrink-0">
+                <PlaylistCard playlist={localPlaylistToCard(p)} />
+              </div>
+            ))}
+          </CollectionRail>
+          {localPlaylists.length === 0 && (
+            <p className="text-[13px] text-white/35">{t('library.noLocalPlaylists')}</p>
+          )}
+        </div>
+      </LibraryFrame>
+    );
+  }
 
   return (
     <LibraryFrame sound={sound}>

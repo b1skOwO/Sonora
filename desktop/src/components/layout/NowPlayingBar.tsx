@@ -21,6 +21,7 @@ import { art, formatTime } from '../../lib/formatters';
 import { invalidateAllLikesCache, useTrack } from '../../lib/hooks';
 import {
   audioLines16,
+  Cloud,
   Disc3,
   Download,
   Heart,
@@ -40,6 +41,7 @@ import {
   volume1Icon16,
   volume2Icon16,
   volumeXIcon16,
+  Youtube,
 } from '../../lib/icons';
 import { optimisticToggleLike } from '../../lib/likes';
 import { usePerfMode } from '../../lib/perf';
@@ -56,9 +58,12 @@ import {
   PLAYBACK_RATE_MAX,
   PLAYBACK_RATE_MIN,
   PLAYBACK_RATE_STEP,
+  serviceOfUrn,
   type Track,
+  useCurrentServiceVolume,
   usePlayerStore,
 } from '../../stores/player';
+import { useServiceStore } from '../../stores/service';
 import { useSettingsStore } from '../../stores/settings';
 import { ArtistNameLinks } from '../music/ArtistNameLinks';
 import { EqualizerPanel } from '../music/EqualizerPanel';
@@ -329,9 +334,8 @@ export const ProgressSlider = React.memo(() => {
 /* ── Volume Slider ───────────────────────────────────────────── */
 
 export const VolumeSlider = React.memo(({ className = '' }: { className?: string }) => {
-  const { volume, setVolume } = usePlayerStore(
-    useShallow((s) => ({ volume: s.volume, setVolume: s.setVolume })),
-  );
+  const volume = useCurrentServiceVolume();
+  const setVolume = usePlayerStore((s) => s.setVolume);
   const isOver100 = volume > 100;
 
   return (
@@ -379,18 +383,13 @@ export const VolumeSlider = React.memo(({ className = '' }: { className?: string
 /* ── Volume button ───────────────────────────────────────────── */
 
 export const ControlVolumeBtn = React.memo(({ size = 'default' }: { size?: 'default' | 'sm' }) => {
-  const { volume, volumeBeforeMute, setVolume } = usePlayerStore(
-    useShallow((s) => ({
-      volume: s.volume,
-      volumeBeforeMute: s.volumeBeforeMute,
-      setVolume: s.setVolume,
-    })),
-  );
+  const volume = useCurrentServiceVolume();
+  const toggleMute = usePlayerStore((s) => s.toggleMute);
   const s = size === 'sm' ? 'w-9 h-9' : 'w-10 h-10';
   return (
     <button
       type="button"
-      onClick={() => setVolume(volume > 0 ? 0 : volumeBeforeMute)}
+      onClick={toggleMute}
       className={`${s} rounded-full flex items-center justify-center transition-all duration-150 ease-[var(--ease-apple)] cursor-pointer hover:bg-white/[0.04] ${
         volume === 0 ? 'text-accent' : 'text-white/40 hover:text-white/70'
       }`}
@@ -470,7 +469,7 @@ export const DjBtn = React.memo(() => {
 
 export const VolumeLabel = React.memo(() => {
   const { t } = useTranslation();
-  const volume = usePlayerStore((s) => s.volume);
+  const volume = useCurrentServiceVolume();
   const setVolume = usePlayerStore((s) => s.setVolume);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -527,6 +526,87 @@ export const VolumeLabel = React.memo(() => {
     >
       {volume}%
     </button>
+  );
+});
+
+/* ── Per-service volumes (SoundCloud / YouTube sliders) ────────── */
+
+const ServiceVolumeRow = React.memo(function ServiceVolumeRow({
+  service,
+}: {
+  service: 'soundcloud' | 'youtube';
+}) {
+  const { t } = useTranslation();
+  const volume = usePlayerStore((s) =>
+    service === 'youtube' ? s.youtubeVolume : s.volume,
+  );
+  const setServiceVolume = usePlayerStore((s) => s.setServiceVolume);
+  const Icon = service === 'youtube' ? Youtube : Cloud;
+
+  return (
+    <div className="flex items-center gap-2.5">
+      <span className="w-6 flex items-center justify-center text-white/45 shrink-0">
+        <Icon size={15} />
+      </span>
+      <span className="w-[74px] shrink-0 text-[11.5px] font-medium text-white/65 truncate">
+        {t(service === 'youtube' ? 'service.youtube' : 'service.soundcloud')}
+      </span>
+      <div className="relative flex-1">
+        <Slider.Root
+          className="relative flex items-center h-5 w-full cursor-pointer group select-none touch-none"
+          value={[volume]}
+          max={200}
+          step={1}
+          onValueChange={([v]) => setServiceVolume(service, v)}
+        >
+          <Slider.Track className="relative h-[3px] grow rounded-full bg-white/[0.08]">
+            <Slider.Range className="absolute h-full rounded-full bg-white/60" />
+          </Slider.Track>
+          <Slider.Thumb className="block w-2.5 h-2.5 rounded-full bg-white outline-none" />
+        </Slider.Root>
+      </div>
+      <span className="w-[38px] shrink-0 text-[11px] tabular-nums text-white/45 text-right">
+        {volume}%
+      </span>
+    </div>
+  );
+});
+
+export const VolumeServiceBadge = React.memo(() => {
+  const { t } = useTranslation();
+  const track = usePlayerStore((s) => s.currentTrack);
+  const service = useServiceStore((s) => s.service);
+  const active = track ? serviceOfUrn(track.urn) : service;
+
+  return (
+    <Popover.Root>
+      <Popover.Trigger asChild>
+        <button
+          type="button"
+          title={t('player.volumes')}
+          aria-label={t('player.volumes')}
+          className="h-[18px] px-1.5 rounded-md text-[9px] font-bold uppercase tracking-[0.08em] text-white/40 hover:text-white/75 bg-white/[0.05] hover:bg-white/[0.09] transition-all cursor-pointer"
+        >
+          {active === 'youtube' ? 'YT' : 'SC'}
+        </button>
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content
+          side="top"
+          align="end"
+          sideOffset={10}
+          className="z-[90] w-[264px] rounded-2xl p-3.5 space-y-2.5 outline-none"
+          style={{
+            background: 'rgba(22,22,26,0.96)',
+            border: '0.5px solid rgba(255,255,255,0.1)',
+            boxShadow: '0 16px 48px rgba(0,0,0,0.55)',
+          }}
+        >
+          <ServiceVolumeRow service="soundcloud" />
+          <ServiceVolumeRow service="youtube" />
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 });
 
@@ -1248,6 +1328,7 @@ export const NowPlayingBar = React.memo(
                 <div className="npb-vol-slider flex items-center gap-2 pl-1">
                   <VolumeSlider className="w-[72px]" />
                   <VolumeLabel />
+                  <VolumeServiceBadge />
                 </div>
               </div>
             </div>

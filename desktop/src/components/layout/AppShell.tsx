@@ -10,7 +10,7 @@ import {usePerfMode} from '../../lib/perf';
 import {isMac} from '../../lib/platform';
 import {toggleWindowFullscreen} from '../../lib/window';
 import {useLyricsStore} from '../../stores/lyrics';
-import {usePlayerStore} from '../../stores/player';
+import {trackVolume, usePlayerStore} from '../../stores/player';
 import {useSettingsStore} from '../../stores/settings';
 import {NowPlayingBar} from './NowPlayingBar';
 import {Sidebar} from './Sidebar';
@@ -380,12 +380,12 @@ export const AppShell = React.memo(() => {
 
           const direction = code === 'ArrowUp' ? 1 : -1;
           const step = getVolumeStep(repeatCount);
-          player.setVolume(usePlayerStore.getState().volume + direction * step);
+          const st = usePlayerStore.getState();
+          player.setVolume(trackVolume(st, st.currentTrack) + direction * step);
           break;
         }
         case 'KeyM': {
-          const { volume, volumeBeforeMute } = usePlayerStore.getState();
-          player.setVolume(volume > 0 ? 0 : volumeBeforeMute);
+          player.toggleMute();
           break;
         }
         case 'KeyN':

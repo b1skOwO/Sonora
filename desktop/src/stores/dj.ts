@@ -6,6 +6,7 @@
 import { listen } from '@tauri-apps/api/event';
 import { toast } from 'sonner';
 import { create } from 'zustand';
+import { syncDjMasterVolume } from '../lib/audio';
 import { ensureTrackCached } from '../lib/cache';
 import { trackedInvoke as invoke } from '../lib/diagnostics';
 import type { Track } from './player';
@@ -137,6 +138,8 @@ export const useDjStore = create<DjStoreState>((set, get) => ({
     void invoke('dj_set_active', { active: true }).catch(() => {});
     // Rust starts at crossfade 0 (deck A); push the UI's center position.
     void invoke('dj_set_crossfade', { value: get().crossfade }).catch(() => {});
+    // Deck master follows the service tab.
+    syncDjMasterVolume();
   },
 
   closePanel: () => {

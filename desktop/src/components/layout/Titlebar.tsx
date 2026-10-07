@@ -2,9 +2,11 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import appIcon from '../../assets/app-icon.png';
-import { ChevronLeft, ChevronRight, Fullscreen, Home, Minus, Square, X } from '../../lib/icons';
+import { ChevronLeft, ChevronRight, Cloud, Fullscreen, Home, Minus, Square, X, Youtube } from '../../lib/icons';
 import { toggleWindowFullscreen } from '../../lib/window';
+import { useServiceStore } from '../../stores/service';
 import { useSettingsStore } from '../../stores/settings';
 import { GlobalSearch } from './GlobalSearch';
 
@@ -86,7 +88,18 @@ const WinButton = ({
 export const Titlebar = React.memo(() => {
   const { t } = useTranslation();
   const collapsed = useSettingsStore((s) => s.sidebarCollapsed);
+  const service = useServiceStore((s) => s.service);
+  const toggleService = useServiceStore((s) => s.toggleService);
   const win = getCurrentWindow();
+
+  const handleServiceToggle = () => {
+    toggleService();
+    const next = useServiceStore.getState().service;
+    toast.success(
+      next === 'youtube' ? t('service.youtubeMode') : t('service.soundcloudMode'),
+    );
+  };
+  const ServiceGlyph = service === 'youtube' ? Youtube : Cloud;
 
   return (
     <div
@@ -106,12 +119,23 @@ export const Titlebar = React.memo(() => {
         }}
       />
 
-      {/* LEFT: logo (image) + collapsible wordmark + persistent nav */}
+      {/* LEFT: service switch (logo + wordmark flips SoundCloud ⇄ YouTube) + persistent nav */}
       <div className="flex items-center gap-3 shrink-0" data-tauri-drag-region>
-        <div className="flex items-center" data-tauri-drag-region>
+        <button
+          type="button"
+          onClick={handleServiceToggle}
+          title={
+            service === 'soundcloud' ? t('service.switchToYoutube') : t('service.switchToSoundcloud')
+          }
+          aria-label={
+            service === 'soundcloud' ? t('service.switchToYoutube') : t('service.switchToSoundcloud')
+          }
+          data-tauri-drag-region
+          className="flex items-center rounded-[10px] cursor-pointer transition-all duration-200 hover:bg-white/[0.06] active:scale-[0.97]"
+        >
           <img
             src={appIcon}
-            alt="SoundCloud"
+            alt=""
             draggable={false}
             data-tauri-drag-region
             className="w-8 h-8 rounded-[10px] shrink-0"
@@ -132,9 +156,12 @@ export const Titlebar = React.memo(() => {
                 'max-width 420ms cubic-bezier(0.2,0.8,0.2,1), opacity 280ms ease, padding-left 420ms cubic-bezier(0.2,0.8,0.2,1)',
             }}
           >
-            SoundCloud
+            {service === 'soundcloud' ? 'SoundCloud' : 'YouTube'}
           </span>
-        </div>
+          <span data-tauri-drag-region className="flex items-center pr-1.5 pl-1 text-white/40">
+            <ServiceGlyph size={14} />
+          </span>
+        </button>
         <NavButtons />
       </div>
 

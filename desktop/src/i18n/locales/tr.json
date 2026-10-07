@@ -53,7 +53,8 @@
     "abLoopSetB": "En iyi bolumu dongule: bitis (B)",
     "abLoopClear": "A-B dongusunu temizle",
     "notPlaying": "Calmiyor",
-    "volume": "Ses"
+    "volume": "Ses",
+    "volumes": "SoundCloud / YouTube sesi"
   },
   "auth": {
     "signIn": "SoundCloud ile giris yap",
@@ -84,6 +85,9 @@
     "artists": "Sanatcilar",
     "albums": "Albumler",
     "noResults": "Sonuc bulunamadi",
+    "youtubeTitle": "YouTube arama",
+    "youtubeHint": "Ustteki alana yaz, sonra burada ara",
+    "youtubeEmpty": "Calmak icin YouTube'da parca ara",
     "noResultsDbHint": "Yerel SCD veritabaninda eslesme yok. SoundCloud'a gecmeyi dene.",
     "tryScHint": "SCD veritabaninda araniyor. Daha genis aramak icin SoundCloud'a gec.",
     "caption": "Kesfet",
@@ -298,6 +302,7 @@
     "likedPlaylists": "Begenilen Calma Listeleri",
     "yourPlaylists": "Calma Listeleriniz",
     "importedPlaylists": "Ice aktarilanlar",
+    "noLocalPlaylists": "Henuz ice aktarilmis liste yok — Ayarlar'dan YouTube veya Spotify'dan ice aktar",
     "localLikes": "Yerel",
     "noLocalLikes": "Henuz yerel begeni yok",
     "history": "Gecmis",
@@ -490,6 +495,14 @@
     "actDownload": "Cihaza indir",
     "actSave": "Dosyaya kaydet",
     "removeCached": "Onbellekten kaldir"
+  },
+  "service": {
+    "soundcloud": "SoundCloud",
+    "youtube": "YouTube",
+    "switchToYoutube": "YouTube'a gec",
+    "switchToSoundcloud": "SoundCloud'a gec",
+    "youtubeMode": "YouTube modu",
+    "soundcloudMode": "SoundCloud modu"
   },
   "settings": {
     "title": "Ayarlar",

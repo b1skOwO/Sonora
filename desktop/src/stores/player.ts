@@ -1,6 +1,9 @@
 import {create} from 'zustand';
 import {persist} from 'zustand/middleware';
 import {createThrottledJsonStorage} from '../lib/tauri-storage';
+import {isYoutubeUrn} from '../lib/youtube';
+import type {Service} from './service';
+import {useServiceStore} from './service';
 
 const PERSISTED_QUEUE_BEHIND = 30;
 const PERSISTED_QUEUE_WINDOW = 300;
@@ -182,6 +185,33 @@ export function shuffleArray<T>(arr: T[]): void {
   }
 }
 
+/** Which content service a track belongs to (drives per-service volume). */
+export function serviceOfUrn(urn: string | null | undefined): Service {
+  return isYoutubeUrn(urn) ? 'youtube' : 'soundcloud';
+}
+
+/** Stored volume (0-200) for a service. */
+export function serviceVolume(state: { volume: number; youtubeVolume: number }, service: Service): number {
+  return service === 'youtube' ? state.youtubeVolume : state.volume;
+}
+
+/** Volume for the service the given track belongs to. */
+export function trackVolume(
+  state: { volume: number; youtubeVolume: number },
+  track: { urn: string } | null,
+): number {
+  return serviceVolume(state, track ? serviceOfUrn(track.urn) : useServiceStore.getState().service);
+}
+
+/** Live volume (0-200) of the current track's service (service tab fallback). */
+export function useCurrentServiceVolume(): number {
+  const track = usePlayerStore((s) => s.currentTrack);
+  const service = useServiceStore((s) => s.service);
+  const volume = usePlayerStore((s) => s.volume);
+  const youtubeVolume = usePlayerStore((s) => s.youtubeVolume);
+  return (track ? serviceOfUrn(track.urn) : service) === 'youtube' ? youtubeVolume : volume;
+}
+
 interface PlayerState {
   currentTrack: Track | null;
   queue: Track[];
@@ -190,6 +220,9 @@ interface PlayerState {
   isPlaying: boolean;
   volume: number;
   volumeBeforeMute: number;
+  /** YouTube service volume (0-200) + its mute memory. SoundCloud uses `volume`. */
+  youtubeVolume: number;
+  youtubeVolumeBeforeMute: number;
   shuffle: boolean;
   repeat: RepeatMode;
     /** A-B segment loop for the current track, or null when disabled. */
@@ -205,6 +238,10 @@ interface PlayerState {
   next: () => void;
   prev: () => void;
   setVolume: (v: number) => void;
+  /** Set one service's volume directly (used by the per-service volume UI). */
+  setServiceVolume: (service: Service, v: number) => void;
+  /** Mute/unmute the current track's service (falls back to the service tab). */
+  toggleMute: () => void;
   playbackRate: number;
   setPlaybackRate: (rate: number) => void;
   resetPlaybackRate: () => void;
@@ -241,6 +278,8 @@ export const usePlayerStore = create<PlayerState>()(
       isPlaying: false,
       volume: 50,
       volumeBeforeMute: 50,
+      youtubeVolume: 50,
+      youtubeVolumeBeforeMute: 50,
       shuffle: false,
       repeat: 'off',
         abLoop: null,
@@ -346,13 +385,46 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       setVolume: (v) => {
-        const clamped = Math.round(Math.max(0, Math.min(200, v)));
-        const prev = get().volume;
-        set({
-          volume: clamped,
-          ...(clamped === 0 && prev > 0 ? { volumeBeforeMute: prev } : {}),
-        });
+        const s = get();
+        const svc = s.currentTrack
+          ? serviceOfUrn(s.currentTrack.urn)
+          : useServiceStore.getState().service;
+        get().setServiceVolume(svc, v);
       },
+
+      setServiceVolume: (service, v) => {
+        const clamped = Math.round(Math.max(0, Math.min(200, v)));
+        if (service === 'youtube') {
+          const prev = get().youtubeVolume;
+          set({
+            youtubeVolume: clamped,
+            ...(clamped === 0 && prev > 0 ? { youtubeVolumeBeforeMute: prev } : {}),
+          });
+        } else {
+          const prev = get().volume;
+          set({
+            volume: clamped,
+            ...(clamped === 0 && prev > 0 ? { volumeBeforeMute: prev } : {}),
+          });
+        }
+      },
+
+      toggleMute: () => {
+        const s = get();
+        const svc = s.currentTrack
+          ? serviceOfUrn(s.currentTrack.urn)
+          : useServiceStore.getState().service;
+        if (svc === 'youtube') {
+          const v = s.youtubeVolume;
+          if (v > 0) set({ youtubeVolume: 0, youtubeVolumeBeforeMute: v });
+          else set({ youtubeVolume: s.youtubeVolumeBeforeMute });
+        } else {
+          const v = s.volume;
+          if (v > 0) set({ volume: 0, volumeBeforeMute: v });
+          else set({ volume: s.volumeBeforeMute });
+        }
+      },
+
 
       setPlaybackRate: (rate) => set({ playbackRate: clampPlaybackRate(rate) }),
       resetPlaybackRate: () => set({ playbackRate: PLAYBACK_RATE_DEFAULT }),
@@ -544,6 +616,8 @@ export const usePlayerStore = create<PlayerState>()(
         return {
           volume: state.volume,
           volumeBeforeMute: state.volumeBeforeMute,
+          youtubeVolume: state.youtubeVolume,
+          youtubeVolumeBeforeMute: state.youtubeVolumeBeforeMute,
           currentTrack: state.currentTrack,
           queue: state.queue.slice(start, start + PERSISTED_QUEUE_WINDOW),
           queueIndex: state.queueIndex < 0 ? state.queueIndex : state.queueIndex - start,
