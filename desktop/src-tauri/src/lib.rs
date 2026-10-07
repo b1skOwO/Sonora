@@ -144,6 +144,7 @@ pub fn run() {
             rt_handle.spawn(async move {
                 recovery_state.init_ffmpeg(ffmpeg_dir).await;
                 recovery_state.recover_incoming().await;
+                recovery_state.backfill_crest().await;
             });
 
             let audio_state = audio::init();

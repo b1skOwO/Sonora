@@ -394,6 +394,14 @@ pub async fn export_with_cover(
 /// ffmpeg fails or prints no peak. `astats` reports through the log system, so
 /// this one cannot use the quiet `base_command`.
 pub async fn probe_peak_db(ffmpeg: &Path, path: &Path) -> Option<f64> {
+    probe_levels(ffmpeg, path).await.map(|(peak, _)| peak)
+}
+
+/// Whole-file (peak, RMS) level in dBFS via a single `astats` pass. The RMS
+/// next to the peak gives the crest factor, which tells a legitimately loud
+/// master (low crest) apart from a spiky bad transcode (hot needles over a
+/// much quieter body) — see `is_spiky_transcode` in `track_cache::state`.
+pub async fn probe_levels(ffmpeg: &Path, path: &Path) -> Option<(f64, f64)> {
     let mut cmd = Command::new(ffmpeg);
     cmd.args(["-nostdin", "-hide_banner", "-loglevel", "info", "-i"])
         .arg(path)
@@ -408,19 +416,25 @@ pub async fn probe_peak_db(ffmpeg: &Path, path: &Path) -> Option<f64> {
     }
     let output = cmd.output().await.ok()?;
     let stderr = String::from_utf8_lossy(&output.stderr);
-    parse_peak_db(&stderr)
+    Some((parse_peak_db(&stderr)?, parse_rms_db(&stderr)?))
 }
 
 /// Last `Peak level dB:` line of astats output — the overall section.
 fn parse_peak_db(stderr: &str) -> Option<f64> {
+    parse_astats_level(stderr, "Peak level dB:")
+}
+
+/// Last `RMS level dB:` line of astats output — the overall section.
+fn parse_rms_db(stderr: &str) -> Option<f64> {
+    parse_astats_level(stderr, "RMS level dB:")
+}
+
+fn parse_astats_level(stderr: &str, label: &str) -> Option<f64> {
     stderr
         .lines()
         .filter_map(|line| {
-            let idx = line.find("Peak level dB:")?;
-            line[idx + "Peak level dB:".len()..]
-                .trim()
-                .parse::<f64>()
-                .ok()
+            let idx = line.find(label)?;
+            line[idx + label.len()..].trim().parse::<f64>().ok()
         })
         .last()
 }
@@ -465,7 +479,7 @@ fn parse_duration_ms(stderr: &str) -> Option<u64> {
 
 #[cfg(test)]
 mod tests {
-    use super::{AudioFormat, is_mp4_container, parse_duration_ms, parse_peak_db};
+    use super::{AudioFormat, is_mp4_container, parse_duration_ms, parse_peak_db, parse_rms_db};
 
     #[test]
     fn detects_mp4_container() {
@@ -497,9 +511,13 @@ mod tests {
     fn parses_astats_peak() {
         let s = "[Parsed_astats_0 @ 0x1] Channel: 1\n\
                  [Parsed_astats_0 @ 0x1] Peak level dB: 5.000629\n\
+                 [Parsed_astats_0 @ 0x1] RMS level dB: -6.694951\n\
                  [Parsed_astats_0 @ 0x1] Overall\n\
-                 [Parsed_astats_0 @ 0x1] Peak level dB: 6.603768\n";
+                 [Parsed_astats_0 @ 0x1] Peak level dB: 6.603768\n\
+                 [Parsed_astats_0 @ 0x1] RMS level dB: -6.687798\n";
         assert_eq!(parse_peak_db(s), Some(6.603768));
+        assert_eq!(parse_rms_db(s), Some(-6.687798));
         assert_eq!(parse_peak_db("no stats here"), None);
+        assert_eq!(parse_rms_db("no stats here"), None);
     }
 }

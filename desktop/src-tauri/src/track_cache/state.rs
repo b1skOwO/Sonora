@@ -156,6 +156,15 @@ fn meta_duration_ok(meta: Option<&TrackCacheMetadata>) -> bool {
     }
 }
 
+/// A storage-mirror file is a spiky bad transcode when its peaks tower over its
+/// body: hot needles (snare overshoots) over a much quieter mix, which reads
+/// as crushed/broken next to the dense official transcode of the same track.
+/// Legitimately loud masters peak hot too, but their body is loud as well
+/// (low crest) — the crest gate keeps them.
+fn is_spiky_transcode(peak_db: f64, crest_db: f64) -> bool {
+    peak_db > 3.0 && crest_db > 5.0
+}
+
 fn cache_metadata_path(path: &Path) -> PathBuf {
     PathBuf::from(format!("{}{}", path.display(), CACHE_METADATA_EXT))
 }
@@ -331,6 +340,12 @@ struct TrackCacheMetadata {
     /// the playback peak safety so hot tracks can't hard-clip at the output.
     #[serde(default)]
     peak_db: Option<f64>,
+    /// Crest factor in dB (peak minus RMS), measured alongside the peak. Next
+    /// to the peak it identifies spiky bad transcodes: hot needles over a much
+    /// quieter body (high peak AND high crest) as opposed to legitimately loud
+    /// masters (high peak, low crest) — see `is_spiky_transcode`.
+    #[serde(default)]
+    crest_db: Option<f64>,
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -603,6 +618,9 @@ pub struct TrackCacheState {
     config_path: PathBuf,
     /// Clean-cache output format (persisted in the same config file).
     format: Arc<StdMutex<AudioFormat>>,
+    /// URNs whose storage-mirror bytes measured spiky (this session): the
+    /// storage branches are skipped for them so the official bytes win.
+    spiky_storage: Arc<StdMutex<HashSet<String>>>,
 }
 
 pub fn init(
@@ -682,6 +700,7 @@ pub fn init(
         ytdlp_dir,
         config_path,
         format: Arc::new(StdMutex::new(format)),
+        spiky_storage: Arc::new(StdMutex::new(HashSet::new())),
     }
 }
 
@@ -867,6 +886,7 @@ async fn write_response_to_cache(
         duration_ms: None,
         format: None,
         peak_db: None,
+        crest_db: None,
     };
 
     if let Ok(meta) = tokio::fs::metadata(&final_path).await
@@ -947,6 +967,7 @@ async fn write_bytes_to_cache(
         duration_ms: None,
         format: None,
         peak_db: None,
+        crest_db: None,
     };
 
     if let Ok(meta) = tokio::fs::metadata(&final_path).await
@@ -1299,6 +1320,24 @@ impl TrackCacheState {
             self.remove_cached(urn);
             return None;
         }
+        // A clean storage-mirror file that measured spiky is worse than no
+        // file at all: drop it so the next request re-fetches the official
+        // stream (same bytes the web player gets) instead of the broken echo.
+        if let Some(m) = meta.as_ref()
+            && self.is_clean_path(&path)
+            && matches!(m.source, Some(DownloadSource::Storage))
+            && let (Some(peak), Some(crest)) = (m.peak_db, m.crest_db)
+            && is_spiky_transcode(peak, crest)
+        {
+            let line = format!(
+                "[TrackCache] dropping spiky storage cache for {urn} (peak {peak:.1} dB, crest {crest:.1} dB)"
+            );
+            eprintln!("{line}");
+            self.diag("WARN", line);
+            self.mark_storage_spiky(urn);
+            self.remove_cached(urn);
+            return None;
+        }
         // Clean files forged in another container are dropped so the next play
         // re-acquires them in the format chosen in Settings.
         if let Some(m) = meta.as_ref()
@@ -1339,6 +1378,47 @@ impl TrackCacheState {
         if let Ok(mut map) = self.storage_cooldowns.lock() {
             map.remove(host);
         }
+    }
+
+    /// Whether this URN's storage-mirror bytes already measured spiky: skip
+    /// the storage branches so the official stream wins on retry.
+    fn storage_poisoned(&self, urn: &str) -> bool {
+        self.spiky_storage
+            .lock()
+            .map(|s| s.contains(urn))
+            .unwrap_or(false)
+    }
+
+    fn mark_storage_spiky(&self, urn: &str) {
+        if let Ok(mut set) = self.spiky_storage.lock() {
+            set.insert(urn.to_string());
+        }
+    }
+
+    /// Validate freshly downloaded storage-mirror bytes: spiky files are
+    /// deleted and reported so the caller falls through to the official
+    /// stream. Returns true when the file is usable. Unmeasurable files
+    /// (no ffmpeg yet) are kept — the hit-path check judges them later.
+    async fn check_storage_levels(&self, urn: &str, path: &Path) -> bool {
+        let Some(ffmpeg) = self.ffmpeg() else {
+            return true;
+        };
+        let Some((peak, rms)) = transcode::probe_levels(&ffmpeg, path).await else {
+            return true;
+        };
+        if !is_spiky_transcode(peak, peak - rms) {
+            return true;
+        }
+        let line = format!(
+            "[TrackCache] {urn} storage bytes are spiky (peak {peak:.1} dB, crest {:.1} dB) — falling through to official",
+            peak - rms
+        );
+        eprintln!("{line}");
+        self.diag("WARN", line);
+        self.mark_storage_spiky(urn);
+        tokio::fs::remove_file(path).await.ok();
+        tokio::fs::remove_file(cache_metadata_path(path)).await.ok();
+        false
     }
 
     pub async fn ensure_cached(&self, req: CacheRequest<'_>) -> Result<TrackCacheEntry, String> {
@@ -1470,17 +1550,20 @@ impl TrackCacheState {
             duration_ms: None,
             format: None,
             peak_db: None,
+            crest_db: None,
         });
         meta.liked = liked;
         if expected_duration_ms.is_some() {
             meta.expected_duration_ms = expected_duration_ms;
         }
-        // Measure the whole-file peak once, off the download path: the playback
-        // peak safety needs it so hot lossy sources can't hard-clip.
+        // Measure the whole-file levels once, off the download path: the peak
+        // feeds the playback peak safety, and peak+crest together identify
+        // spiky storage mirrors for the official-stream fallback.
         if let Some(ffmpeg) = self.ffmpeg()
-            && let Some(peak_db) = transcode::probe_peak_db(&ffmpeg, incoming_path).await
+            && let Some((peak_db, rms_db)) = transcode::probe_levels(&ffmpeg, incoming_path).await
         {
             meta.peak_db = Some(peak_db);
+            meta.crest_db = Some(peak_db - rms_db);
         }
         write_cache_metadata(incoming_path, &meta).await;
     }
@@ -1575,8 +1658,13 @@ impl TrackCacheState {
 
         let probed = transcode::probe_duration_ms(ffmpeg, &clean_path).await;
         // The clean file may be peak-attenuated by the re-encode — record its
-        // own peak so the playback safety targets the file actually played.
-        let clean_peak_db = transcode::probe_peak_db(ffmpeg, &clean_path).await;
+        // own levels so the playback safety (and the spiky check) target the
+        // file actually played.
+        let (clean_peak_db, clean_crest_db) =
+            match transcode::probe_levels(ffmpeg, &clean_path).await {
+                Some((peak, rms)) => (Some(peak), Some(peak - rms)),
+                None => (None, None),
+            };
 
         // The transcode faithfully reproduces the source, so a too-short result
         // means the *download* was cut off — discard so the next play retries.
@@ -1614,6 +1702,7 @@ impl TrackCacheState {
             duration_ms: probed,
             format: Some(format),
             peak_db: clean_peak_db,
+            crest_db: clean_crest_db,
         };
         write_cache_metadata(&clean_path, &clean_meta).await;
         // Defer dropping the raw А file: the path may have just been handed to the
@@ -1662,6 +1751,53 @@ impl TrackCacheState {
     fn clear_truncated(&self, urn: &str) {
         if let Ok(mut map) = self.truncated_retries.lock() {
             map.remove(urn);
+        }
+    }
+
+    /// One-time backfill: stamp peak+crest on clean files whose metadata
+    /// predates level measurement, so the spiky-storage check can judge them.
+    /// Runs in the background after ffmpeg is ready; capped per startup.
+    pub async fn backfill_crest(&self) {
+        let Some(ffmpeg) = self.ffmpeg() else {
+            return;
+        };
+        let mut pending: Vec<PathBuf> = Vec::new();
+        for dir in [&self.audio_dir, &self.liked_dir] {
+            let Ok(entries) = std::fs::read_dir(dir) else {
+                continue;
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if !is_audio_cache_file(&path) {
+                    continue;
+                }
+                let needs = read_cache_metadata(&path)
+                    .map(|m| m.peak_db.is_none() || m.crest_db.is_none())
+                    .unwrap_or(false);
+                if needs {
+                    pending.push(path);
+                }
+                if pending.len() >= 200 {
+                    break;
+                }
+            }
+            if pending.len() >= 200 {
+                break;
+            }
+        }
+        if pending.is_empty() {
+            return;
+        }
+        let line = format!("[TrackCache] backfilling levels for {} file(s)", pending.len());
+        println!("{line}");
+        self.diag("INFO", line);
+        for path in pending {
+            if let Some((peak, rms)) = transcode::probe_levels(&ffmpeg, &path).await
+                && let Some(mut meta) = read_cache_metadata(&path) {
+                    meta.peak_db = Some(peak);
+                    meta.crest_db = Some(peak - rms);
+                    write_cache_metadata(&path, &meta).await;
+                }
         }
     }
 
@@ -1825,6 +1961,7 @@ impl TrackCacheState {
             duration_ms: None,
             format: None,
             peak_db: None,
+            crest_db: None,
         };
         write_cache_metadata(&dest, &meta).await;
         Ok(dest)
@@ -1866,7 +2003,11 @@ impl TrackCacheState {
         //    ПРОПУСКАЕМ на проксируемом тире: 307 ведёт на s3 (его НЕ проксируем),
         //    у забаненного он тоже мёртв — бросок туда лишь жрёт connect-таймаут.
         //    На relay/воркер идём сразу к storage-stream (шаг 3).
+        //    Spiky-poisoned URNs skip storage entirely (official bytes win).
         for storage_url in &sorted {
+            if self.storage_poisoned(urn) {
+                break;
+            }
             let Some(host) = host_of(storage_url) else {
                 continue;
             };
@@ -1892,6 +2033,9 @@ impl TrackCacheState {
                     .await
                     {
                         Ok(result) => {
+                            if !self.check_storage_levels(urn, &result.path).await {
+                                break;
+                            }
                             let kb = std::fs::metadata(&result.path)
                                 .map(|m| m.len() / 1024)
                                 .unwrap_or(0);
@@ -1977,7 +2121,11 @@ impl TrackCacheState {
         // storage-URL разворачивается в тиры edge: прямой хост → relay →
         // CF-воркеры (X-Target). Транспортный провал тира ротатит на следующий,
         // ответ самого storage (200/404/5xx) — уже результат.
+        // Spiky-poisoned URNs skip storage entirely (official bytes win).
         for storage_url in &sorted {
+            if self.storage_poisoned(urn) {
+                break;
+            }
             let Some(host) = host_of(storage_url) else {
                 continue;
             };
@@ -2024,6 +2172,9 @@ impl TrackCacheState {
                     .await
                     {
                         Ok(result) => {
+                            if !self.check_storage_levels(urn, &result.path).await {
+                                break;
+                            }
                             let kb = std::fs::metadata(&result.path)
                                 .map(|m| m.len() / 1024)
                                 .unwrap_or(0);
@@ -2688,5 +2839,25 @@ impl TrackCacheState {
             "[TrackCache] evicted {removed} files, freed {} MB",
             (before - total) / (1024 * 1024)
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_spiky_transcode;
+
+    #[test]
+    fn flags_spiky_storage_mirrors_but_keeps_dense_masters() {
+        // Real measurements from the +9 dB storage mirrors (spiky needles over
+        // a much quieter body) vs the official transcodes of the same track.
+        assert!(is_spiky_transcode(9.50, 6.66));
+        assert!(is_spiky_transcode(9.68, 6.51));
+        assert!(!is_spiky_transcode(6.54, 3.02)); // official aac_160k HLS
+        assert!(!is_spiky_transcode(8.11, 3.53)); // official mp3 progressive
+        // Loud-but-sane and dynamic material never trips either gate.
+        assert!(!is_spiky_transcode(1.5, 4.5));
+        assert!(!is_spiky_transcode(0.5, 14.0));
+        assert!(!is_spiky_transcode(-0.5, 2.0));
+        assert!(!is_spiky_transcode(2.9, 8.0));
     }
 }
