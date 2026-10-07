@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { NavLink } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/shallow';
 import { changeAppLanguage } from '../../i18n';
 import { art } from '../../lib/formatters';
@@ -76,6 +76,11 @@ function IconBox({ children }: { children: React.ReactNode }) {
   return <span className="w-10 shrink-0 flex items-center justify-center">{children}</span>;
 }
 
+function isRouteActive(pathname: string, to: string): boolean {
+  const path = to.split('?')[0];
+  return pathname === path || pathname.startsWith(`${path}/`);
+}
+
 function NavItem({
   to,
   icon: Icon,
@@ -91,20 +96,25 @@ function NavItem({
   title?: string;
   alert?: boolean;
 }) {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const isActive = isRouteActive(pathname, to);
+  // Buttons + imperative navigate instead of NavLink: anchor clicks can be
+  // swallowed (defaultPrevented upstream) while imperative navigation always
+  // lands — same visuals, same keyboard operability.
   return (
-    <NavLink
-      to={to}
+    <button
+      type="button"
+      onClick={() => navigate(to)}
       title={title}
-      className={({ isActive }) =>
-        `${ROW} ${
-          isActive
-            ? ''
-            : alert
-              ? 'text-white/85 bg-accent/[0.08] ring-1 ring-accent/20 hover:text-white'
-              : 'text-white/45 hover:text-white/80 hover:bg-white/[0.05]'
-        }`
-      }
-      style={({ isActive }) => (isActive ? ACTIVE : undefined)}
+      className={`${ROW} cursor-pointer text-left ${
+        isActive
+          ? ''
+          : alert
+            ? 'text-white/85 bg-accent/[0.08] ring-1 ring-accent/20 hover:text-white'
+            : 'text-white/45 hover:text-white/80 hover:bg-white/[0.06]'
+      }`}
+      style={isActive ? ACTIVE : undefined}
     >
       <IconBox>
         <Icon size={18} strokeWidth={1.9} />
@@ -112,12 +122,14 @@ function NavItem({
       <Label collapsed={collapsed} className="text-[13px] font-medium pr-3">
         {label}
       </Label>
-    </NavLink>
+    </button>
   );
 }
 
 export const Sidebar = React.memo(() => {
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
   const user = useAuthStore((s) => s.user);
   const appMode = useAppMode();
   const { collapsed, pinnedPlaylists, toggleSidebar } = useSettingsStore(
@@ -187,17 +199,18 @@ export const Sidebar = React.memo(() => {
 
         {pinnedPlaylists.map((playlist) => {
           const artwork = art(playlist.artworkUrl, 'small');
+          const to = `/playlist/${encodeURIComponent(playlist.urn)}`;
+          const isActive = isRouteActive(pathname, to);
           return (
-            <NavLink
+            <button
               key={playlist.urn}
-              to={`/playlist/${encodeURIComponent(playlist.urn)}`}
+              type="button"
+              onClick={() => navigate(to)}
               title={collapsed ? playlist.title : undefined}
-              className={({ isActive }) =>
-                `${ROW} ${
-                  isActive ? '' : 'text-white/45 hover:text-white/80 hover:bg-white/[0.05]'
-                }`
-              }
-              style={({ isActive }) => (isActive ? ACTIVE : undefined)}
+              className={`${ROW} cursor-pointer text-left ${
+                isActive ? '' : 'text-white/45 hover:text-white/80 hover:bg-white/[0.05]'
+              }`}
+              style={isActive ? ACTIVE : undefined}
             >
               <IconBox>
                 {artwork ? (
@@ -215,7 +228,7 @@ export const Sidebar = React.memo(() => {
               <Label collapsed={collapsed} className="text-[12.5px] font-medium pr-3">
                 {playlist.title}
               </Label>
-            </NavLink>
+            </button>
           );
         })}
       </div>
@@ -264,25 +277,31 @@ export const Sidebar = React.memo(() => {
         />
       </div>
 
-      {user && (
-        <div className="px-2 pb-3">
-          <NavLink
-            to={`/user/${encodeURIComponent(user.urn)}`}
-            title={collapsed ? user.username : undefined}
-            className={({ isActive }) => `${ROW} ${isActive ? '' : 'hover:bg-white/[0.05]'}`}
-            style={({ isActive }) => (isActive ? ACTIVE : undefined)}
-          >
-            <span className="w-10 shrink-0 flex items-center justify-center">
-              <Avatar src={user.avatar_url} alt={user.username} size={26} />
-            </span>
-            <Label collapsed={collapsed} className="flex items-center gap-1.5 pr-3">
-              <span className="text-[12.5px] text-white/55 truncate font-medium">
-                {user.username}
-              </span>
-            </Label>
-          </NavLink>
-        </div>
-      )}
+      {user &&
+        (() => {
+          const to = `/user/${encodeURIComponent(user.urn)}`;
+          const isActive = isRouteActive(pathname, to);
+          return (
+            <div className="px-2 pb-3">
+              <button
+                type="button"
+                onClick={() => navigate(to)}
+                title={collapsed ? user.username : undefined}
+                className={`${ROW} cursor-pointer text-left ${isActive ? '' : 'hover:bg-white/[0.05]'}`}
+                style={isActive ? ACTIVE : undefined}
+              >
+                <span className="w-10 shrink-0 flex items-center justify-center">
+                  <Avatar src={user.avatar_url} alt={user.username} size={26} />
+                </span>
+                <Label collapsed={collapsed} className="flex items-center gap-1.5 pr-3">
+                  <span className="text-[12.5px] text-white/55 truncate font-medium">
+                    {user.username}
+                  </span>
+                </Label>
+              </button>
+            </div>
+          );
+        })()}
     </aside>
   );
 });
