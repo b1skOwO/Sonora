@@ -20,6 +20,9 @@ import { type StartupPage, useSettingsStore } from './stores/settings';
 import { useYmImportStore } from './stores/ym-import';
 
 const Home = lazy(() => import('./pages/Home').then((module) => ({ default: module.Home })));
+const ImportPage = lazy(() =>
+  import('./pages/ImportPage').then((module) => ({ default: module.ImportPage })),
+);
 const Library = lazy(() =>
   import('./pages/Library').then((module) => ({ default: module.Library })),
 );
@@ -275,6 +278,14 @@ export default function App() {
                   element={
                     <RouteLoader>
                       <LibraryCollection />
+                    </RouteLoader>
+                  }
+                />
+                <Route
+                  path="import"
+                  element={
+                    <RouteLoader>
+                      <ImportPage />
                     </RouteLoader>
                   }
                 />

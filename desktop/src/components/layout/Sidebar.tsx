@@ -14,6 +14,7 @@ import {
   ListMusic,
   PanelLeftClose,
   PanelLeftOpen,
+  Plus,
   Search,
   Settings,
 } from '../../lib/icons';
@@ -38,6 +39,7 @@ const navItems: { to: string; icon: IconCmp; label: string }[] = [
   { to: '/search', icon: Search, label: 'nav.search' },
   { to: '/discover', icon: Compass, label: 'nav.discover' },
   { to: '/library', icon: Library, label: 'nav.library' },
+  { to: '/import', icon: Plus, label: 'nav.import' },
   { to: '/offline', icon: Download, label: 'nav.offline' },
 ];
 
