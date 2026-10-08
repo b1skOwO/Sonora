@@ -32,7 +32,6 @@ import {
   pauseBlack20,
   playBlack20,
   repeat1Icon16,
-  repeatAbIcon16,
   repeatIcon16,
   shuffleIcon16,
   skipBack20,
@@ -843,38 +842,6 @@ const RepeatBtn = React.memo(() => {
   );
 });
 
-const AbLoopBtn = React.memo(() => {
-  const { t } = useTranslation();
-  const abLoop = usePlayerStore((s) => s.abLoop);
-  const cycleAbPoint = usePlayerStore((s) => s.cycleAbPoint);
-  const awaitingB = abLoop != null && abLoop.b == null;
-  const title = !abLoop
-    ? t('player.abLoopSetA')
-    : abLoop.b == null
-      ? t('player.abLoopSetB')
-      : t('player.abLoopClear');
-
-  const active = abLoop != null;
-  return (
-    <button
-      type="button"
-      title={title}
-      aria-label={title}
-      onClick={() => cycleAbPoint(getCurrentTime())}
-      className={`relative w-[30px] h-[30px] rounded-full flex items-center justify-center transition-all duration-200 ease-[var(--ease-apple)] cursor-pointer active:scale-90 ${
-        active
-          ? 'text-accent bg-accent/15'
-          : 'text-white/55 hover:text-white hover:bg-white/[0.08] hover:-translate-y-px'
-      }`}
-    >
-      {repeatAbIcon16}
-      {awaitingB && (
-        <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
-      )}
-    </button>
-  );
-});
-
 const PrevBtn = React.memo(() => (
   <button type="button" onClick={handlePrev} className={btnClass(false, 'default')}>
     {skipBack20}
@@ -1335,7 +1302,6 @@ export const NowPlayingBar = React.memo(
                 <PlayPauseBtn />
                 <NextBtn />
                 <RepeatBtn />
-                <AbLoopBtn />
               </div>
 
               <div className="npb-sep" />
