@@ -26,6 +26,7 @@ import {
   Download,
   Heart,
   listMusic16,
+  ListPlus,
   Loader2,
   MicVocal,
   pauseBlack20,
@@ -66,6 +67,7 @@ import {
 import { useServiceStore } from '../../stores/service';
 import { useSettingsStore } from '../../stores/settings';
 import { ArtistNameLinks } from '../music/ArtistNameLinks';
+import { AddToPlaylistDialog } from '../music/AddToPlaylistDialog';
 import { EqualizerPanel } from '../music/EqualizerPanel';
 import { UploadKindDot } from '../music/UploadKindDot';
 import { ArtworkImg } from '../ui/ArtworkImg';
@@ -443,8 +445,27 @@ export const DownloadBtn = React.memo(() => {
   );
 });
 
-/* ── DJ button ───────────────────────────────────────────────── */
+/* ── Add to playlist button ──────────────────────────────────── */
 
+export const AddToPlaylistBtn = React.memo(() => {
+  const { t } = useTranslation();
+  const track = usePlayerStore((s) => s.currentTrack);
+  if (!track) return null;
+  return (
+    <AddToPlaylistDialog trackUrns={[track.urn]} tracks={[track]}>
+      <button
+        type="button"
+        title={t('playlist.addToPlaylist')}
+        aria-label={t('playlist.addToPlaylist')}
+        className="w-9 h-9 rounded-full flex items-center justify-center text-white/40 hover:text-white/70 hover:bg-white/[0.04] transition-all duration-150 cursor-pointer"
+      >
+        <ListPlus size={16} />
+      </button>
+    </AddToPlaylistDialog>
+  );
+});
+
+/* ── DJ button ───────────────────────────────────────────────── */
 export const DjBtn = React.memo(() => {
   const { t } = useTranslation();
   const open = useDjStore((s) => s.open);
@@ -1324,6 +1345,7 @@ export const NowPlayingBar = React.memo(
                 <EqBtn />
                 <LyricsBtn />
                 <DownloadBtn />
+                <AddToPlaylistBtn />
                 <DjBtn />
                 <QueueBtn onClick={onQueueToggle} active={queueOpen} />
                 <ControlVolumeBtn size="sm" />

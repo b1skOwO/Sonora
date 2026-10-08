@@ -11,6 +11,9 @@ import {
 } from '../../lib/hooks';
 import {Globe, ListMusic, ListPlus, Loader2, Lock, Plus, X} from '../../lib/icons';
 import {playlistCoverUrl} from '../../lib/playlist-cover';
+import {isYoutubeUrn} from '../../lib/youtube';
+import {localPlaylistToCard, useLocalPlaylistsStore} from '../../stores/local-playlists';
+import type {Track} from '../../stores/player';
 import {
   Modal,
   ModalClose,
@@ -22,6 +25,8 @@ import {
 
 interface AddToPlaylistDialogProps {
   trackUrns: string[];
+  /** Full track objects — required to append YouTube tracks to local playlists. */
+  tracks?: Track[];
   children: React.ReactNode;
 }
 
@@ -147,17 +152,28 @@ const CreatePlaylistForm = React.memo(function CreatePlaylistForm({
 
 export const AddToPlaylistDialog = React.memo(function AddToPlaylistDialog({
   trackUrns,
+  tracks,
   children,
 }: AddToPlaylistDialogProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const { playlists, isLoading } = useMyPlaylists();
+  const localPlaylists = useLocalPlaylistsStore((s) => s.playlists);
   const addToPlaylist = useAddToPlaylist();
   const [playlistTrackMap, setPlaylistTrackMap] = useState<Record<string, string[]>>({});
   const [loadingPlaylistUrns, setLoadingPlaylistUrns] = useState<Record<string, boolean>>({});
   const normalizedTrackUrns = useMemo(() => [...new Set(trackUrns)], [trackUrns]);
   const requestedPlaylistUrnsRef = useRef<Set<string>>(new Set());
+
+  // YouTube tracks can't go to backend playlists — they land in local imports.
+  const isLocalMode =
+    normalizedTrackUrns.length > 0 && normalizedTrackUrns.every((urn) => isYoutubeUrn(urn));
+  const trackByUrn = useMemo(() => {
+    const map = new Map<string, Track>();
+    for (const track of tracks ?? []) map.set(track.urn, track);
+    return map;
+  }, [tracks]);
 
   useEffect(() => {
     if (!open || playlists.length === 0) return;
@@ -239,9 +255,10 @@ export const AddToPlaylistDialog = React.memo(function AddToPlaylistDialog({
   const handleSelect = async (playlist: Playlist) => {
     // existingUrns — только для UX-хинта «уже в плейлисте»; в мутацию идут
     // `{add}`-дельты, backend дедупит, полный список не реконструируем.
+    // YouTube URN'ы в backend-дельты не шлём — бэкенд их не резолвит.
     const existingUrns = playlistTrackMap[playlist.urn] ?? playlist.tracks?.map((t) => t.urn) ?? [];
     const existingSet = new Set(existingUrns);
-    const newUrns = trackUrns.filter((u) => !existingSet.has(u));
+    const newUrns = trackUrns.filter((u) => !existingSet.has(u) && !isYoutubeUrn(u));
 
     if (newUrns.length === 0) {
       toast.info(t('playlist.alreadyInPlaylist'));
@@ -259,6 +276,44 @@ export const AddToPlaylistDialog = React.memo(function AddToPlaylistDialog({
       },
     );
   };
+
+  const handleSelectLocal = useCallback(
+    (playlistId: string) => {
+      const store = useLocalPlaylistsStore.getState();
+      const playlist = store.playlists.find((p) => p.id === playlistId);
+      if (!playlist) return;
+      const present = new Set(playlist.tracks.map((tr) => tr.urn));
+      const added = normalizedTrackUrns
+        .map((urn) => trackByUrn.get(urn))
+        .filter((tr): tr is Track => !!tr && !present.has(tr.urn));
+      if (added.length === 0) {
+        toast.info(t('playlist.alreadyInPlaylist'));
+        setOpen(false);
+        return;
+      }
+      store.upsert({
+        ...playlist,
+        artworkUrl: playlist.artworkUrl ?? added[0]?.artwork_url ?? null,
+        tracks: [...playlist.tracks, ...added],
+      });
+      toast.success(t('playlist.addedToPlaylist'));
+      setOpen(false);
+    },
+    [normalizedTrackUrns, trackByUrn, t],
+  );
+
+  const localMembership = useMemo(() => {
+    const entries = new Map<string, { containsAll: boolean; containsSome: boolean }>();
+    for (const playlist of localPlaylists) {
+      const existingSet = new Set(playlist.tracks.map((tr) => tr.urn));
+      const matchedCount = normalizedTrackUrns.filter((urn) => existingSet.has(urn)).length;
+      entries.set(playlist.id, {
+        containsAll: normalizedTrackUrns.length > 0 && matchedCount === normalizedTrackUrns.length,
+        containsSome: matchedCount > 0 && matchedCount < normalizedTrackUrns.length,
+      });
+    }
+    return entries;
+  }, [localPlaylists, normalizedTrackUrns]);
 
   const handleOpenChange = (v: boolean) => {
     setOpen(v);
@@ -284,8 +339,10 @@ export const AddToPlaylistDialog = React.memo(function AddToPlaylistDialog({
             </ModalClose>
           </div>
 
-          {/* New playlist button / form */}
-          {showCreate ? (
+          {/* New playlist button / form (SoundCloud playlists only —
+              YouTube tracks can't go to backend playlists) */}
+          {!isLocalMode &&
+            (showCreate ? (
               <CreatePlaylistForm
                   trackUrns={trackUrns}
                   onCreated={() => {
@@ -293,7 +350,7 @@ export const AddToPlaylistDialog = React.memo(function AddToPlaylistDialog({
                     setOpen(false);
                   }}
               />
-          ) : (
+            ) : (
               <div className="px-3 pb-2">
                 <button
                     type="button"
@@ -309,14 +366,33 @@ export const AddToPlaylistDialog = React.memo(function AddToPlaylistDialog({
               </span>
                 </button>
               </div>
-          )}
+            ))}
 
           {/* Divider */}
-          <div className="h-px bg-white/[0.04] mx-5"/>
+          {!isLocalMode && <div className="h-px bg-white/[0.04] mx-5"/>}
 
           {/* Playlist list */}
           <div className="px-3 py-2 pb-4 overflow-y-auto flex-1 min-h-0">
-            {isLoading ? (
+            {isLocalMode ? (
+              localPlaylists.length === 0 ? (
+                <div className="py-10 text-center text-[13px] text-white/25">
+                  {t('playlist.noPlaylists')}
+                </div>
+              ) : (
+                <div className="space-y-0.5">
+                  {localPlaylists.map((p) => (
+                    <PlaylistOption
+                      key={p.id}
+                      playlist={localPlaylistToCard(p)}
+                      onSelect={() => handleSelectLocal(p.id)}
+                      loading={addToPlaylist.isPending}
+                      containsAll={localMembership.get(p.id)?.containsAll ?? false}
+                      containsSome={localMembership.get(p.id)?.containsSome ?? false}
+                    />
+                  ))}
+                </div>
+              )
+            ) : isLoading ? (
                 <div className="flex justify-center py-10">
                   <Loader2 size={20} className="animate-spin text-white/20"/>
                 </div>
