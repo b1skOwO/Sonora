@@ -42,7 +42,7 @@ export const SequenceList = React.memo(function SequenceList({
   tracks,
   isOwner,
   onDragEnd,
-  onRemove,
+  onRemove = () => {},
   onPlay,
   sentinelRef,
   hasNextPage,
@@ -51,7 +51,8 @@ export const SequenceList = React.memo(function SequenceList({
   tracks: Track[];
   isOwner: boolean;
   onDragEnd: (e: DragEndEvent) => void;
-  onRemove: (urn: string) => void;
+  /** Absent = no remove button (e.g. someone else's SoundCloud playlist). */
+  onRemove?: (urn: string) => void;
   /** Армит continuation-источник после старта НОВОГО трека (стабильный ref). */
   onPlay?: () => void;
   sentinelRef: React.Ref<HTMLDivElement>;
@@ -137,7 +138,7 @@ export const SequenceList = React.memo(function SequenceList({
           className="space-y-0.5"
           getItemKey={(tr) => tr.urn}
           renderItem={(track, i) => (
-            <SequenceRow track={track} index={i} queue={tracks} onPlay={onPlay} />
+            <SequenceRow track={track} index={i} queue={tracks} onPlay={onPlay} onRemove={onRemove} />
           )}
         />
       )}

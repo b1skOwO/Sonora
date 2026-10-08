@@ -229,19 +229,23 @@ export function SequenceRowOverlay({
   );
 }
 
-/** Read-only row (non-owner). */
+/** Read-only row (non-owner). Pass `onRemove` to also allow removals (e.g. the
+ *  owner of a local import, where the list itself owns no backend). */
 export const SequenceRow = React.memo(
   function SequenceRow({
     track,
     index,
     queue,
     onPlay,
+    onRemove,
   }: {
     track: Track;
     index: number;
     queue: Track[];
     onPlay?: () => void;
+    onRemove?: (urn: string) => void;
   }) {
+    const { t } = useTranslation();
     const { isThis, isThisPlaying, togglePlay } = useTrackPlay(track, queue, onPlay);
     return (
       <div className={`${ROW_BASE} ${activeCls(isThis)}`}>
@@ -252,6 +256,16 @@ export const SequenceRow = React.memo(
           isThisPlaying={isThisPlaying}
           togglePlay={togglePlay}
         />
+        {onRemove && (
+          <button
+            type="button"
+            onClick={() => onRemove(track.urn)}
+            className="opacity-0 group-hover:opacity-100 w-7 h-7 rounded-lg flex items-center justify-center text-white/20 hover:text-red-400 hover:bg-red-400/10 transition-all duration-200 shrink-0"
+            title={t('playlist.removeTrack')}
+          >
+            <Trash2 size={13} />
+          </button>
+        )}
       </div>
     );
   },

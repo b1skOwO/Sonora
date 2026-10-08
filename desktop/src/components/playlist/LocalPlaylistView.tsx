@@ -1,6 +1,8 @@
+import type { DragEndEvent } from '@dnd-kit/core';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { proxiedAssetUrl } from '../../lib/asset-url';
 import {
   ChevronLeft,
@@ -11,8 +13,8 @@ import {
   Spotify,
   Youtube,
 } from '../../lib/icons';
-import { localPlaylistSourceLabel, type LocalPlaylist } from '../../stores/local-playlists';
-import { usePlayerStore } from '../../stores/player';
+import { localPlaylistSourceLabel, useLocalPlaylistsStore, type LocalPlaylist } from '../../stores/local-playlists';
+import { usePlayerStore, type Track } from '../../stores/player';
 import { AddTracksDialog } from './AddTracksDialog';
 import { SequenceList } from './SequenceList';
 
@@ -50,6 +52,37 @@ export const LocalPlaylistView = React.memo(function LocalPlaylistView({
     if (!st.shuffle) usePlayerStore.setState({ shuffle: true });
     st.play(tracks[Math.floor(Math.random() * tracks.length)], tracks);
   }, [tracks]);
+
+  const updateTracks = useCallback(
+    (next: Track[]) => {
+      if (!playlist) return;
+      useLocalPlaylistsStore.getState().upsert({ ...playlist, tracks: next });
+    },
+    [playlist],
+  );
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+      const oldIndex = tracks.findIndex((tr) => tr.urn === active.id);
+      const newIndex = tracks.findIndex((tr) => tr.urn === over.id);
+      if (oldIndex === -1 || newIndex === -1) return;
+      const next = [...tracks];
+      const [moved] = next.splice(oldIndex, 1);
+      next.splice(newIndex, 0, moved);
+      updateTracks(next);
+    },
+    [tracks, updateTracks],
+  );
+
+  const handleRemoveTrack = useCallback(
+    (trackUrn: string) => {
+      updateTracks(tracks.filter((tr) => tr.urn !== trackUrn));
+      toast.success(t('playlist.trackRemoved'));
+    },
+    [tracks, updateTracks, t],
+  );
 
   if (!playlist) {
     return (
@@ -140,9 +173,9 @@ export const LocalPlaylistView = React.memo(function LocalPlaylistView({
 
         <SequenceList
           tracks={tracks}
-          isOwner={false}
-          onDragEnd={() => {}}
-          onRemove={() => {}}
+          isOwner
+          onDragEnd={handleDragEnd}
+          onRemove={handleRemoveTrack}
           sentinelRef={sentinelRef}
           hasNextPage={false}
           isFetchingNextPage={false}
