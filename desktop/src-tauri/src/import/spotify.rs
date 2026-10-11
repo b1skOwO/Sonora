@@ -5,6 +5,7 @@
 //! (`ytsearch`) and the best candidate is matched by title / artist / duration.
 //! Matched videos are YouTube-backed tracks, downloaded on demand by yt-dlp.
 
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -21,7 +22,16 @@ static CANCEL_FLAG: std::sync::LazyLock<Arc<AtomicBool>> =
 
 /// The embed page exposes at most 100 entries.
 const MAX_TRACKS: usize = 100;
-const SEARCH_RESULTS: usize = 3;
+/// Candidates per track search — a bigger pool so the artist's own channel can
+/// beat a random re-upload that ranks higher.
+const SEARCH_RESULTS: usize = 6;
+/// Candidates when discovering an artist's channel by name.
+const ARTIST_SEARCH_RESULTS: usize = 10;
+/// How many distinct artists are resolved to channels per import run (each
+/// lookup costs one extra yt-dlp search).
+const MAX_ARTIST_LOOKUPS: usize = 5;
+/// Score bonus for a candidate uploaded by the artist's own channel.
+const OFFICIAL_CHANNEL_BONUS: f64 = 0.35;
 const SEARCH_DELAY_MS: u64 = 250;
 const MATCH_THRESHOLD: f64 = 0.4;
 /// Abort the import when this many searches fail in a row (YouTube unreachable).
@@ -178,7 +188,73 @@ fn normalize(text: &str) -> String {
     out.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-fn score_match(track: &SpotifyTrack, candidate: &YtEntry) -> f64 {
+/// Split a Spotify `subtitle` ("Artist A, Artist B") into artist names.
+fn split_artists(artists: &str) -> Vec<String> {
+    artists
+        .split([',', '&'])
+        .map(|part| part.trim().to_string())
+        .filter(|part| !part.is_empty())
+        .collect()
+}
+
+/// Resolve an artist name to their YouTube channel: search the name and take
+/// the uploader that best looks like the artist. Exact/containing names win
+/// (which also catches the auto-generated "Artist - Topic" feeds); otherwise a
+/// channel that dominates the results (≥3 hits) is accepted — that is usually
+/// the artist's own channel even when its name is romanised differently.
+async fn resolve_artist_channel(ytdlp: &Path, artist: &str) -> Option<String> {
+    let wanted = normalize(artist);
+    if wanted.is_empty() {
+        return None;
+    }
+    let entries = crate::ytdlp::search_tracks(ytdlp, artist, ARTIST_SEARCH_RESULTS)
+        .await
+        .ok()?;
+
+    // uploader -> (rank, hits); rank 2 = exact name, 1 = contains, 0 = other.
+    let mut candidates: HashMap<String, (u8, usize)> = HashMap::new();
+    for entry in &entries {
+        let Some(uploader) = entry.uploader.as_deref() else {
+            continue;
+        };
+        let norm = normalize(uploader);
+        if norm.is_empty() {
+            continue;
+        }
+        let rank = if norm == wanted {
+            2
+        } else if norm.contains(&wanted) || wanted.contains(&norm) {
+            1
+        } else {
+            0
+        };
+        let slot = candidates.entry(uploader.to_string()).or_insert((rank, 0));
+        slot.0 = slot.0.max(rank);
+        slot.1 += 1;
+    }
+
+    candidates
+        .into_iter()
+        .filter(|(_, (rank, hits))| *rank > 0 || *hits >= 3)
+        .max_by_key(|(_, (rank, hits))| (*rank, *hits))
+        .map(|(name, _)| name)
+}
+
+/// Does a candidate's uploader look like the given channel/artist name?
+fn uploader_matches(hint: &str, uploader: Option<&str>) -> bool {
+    let Some(uploader) = uploader else {
+        return false;
+    };
+    let hint_norm = normalize(hint);
+    let uploader_norm = normalize(uploader);
+    !hint_norm.is_empty()
+        && !uploader_norm.is_empty()
+        && (uploader_norm == hint_norm
+            || uploader_norm.contains(&hint_norm)
+            || hint_norm.contains(&uploader_norm))
+}
+
+fn score_match(track: &SpotifyTrack, candidate: &YtEntry, channel_hint: Option<&str>) -> f64 {
     let sp_title = normalize(&track.title);
     let cand_title = normalize(&candidate.title);
     if sp_title.is_empty() || cand_title.is_empty() {
@@ -220,10 +296,20 @@ fn score_match(track: &SpotifyTrack, candidate: &YtEntry) -> f64 {
         }
     }
 
+    // The artist's own channel wins over look-alike re-uploads even when the
+    // latter rank higher or carry a cleaner title.
+    if channel_hint.is_some_and(|hint| uploader_matches(hint, candidate.uploader.as_deref())) {
+        score += OFFICIAL_CHANNEL_BONUS;
+    }
+
     score
 }
 
-async fn search_best(ytdlp: &Path, track: &SpotifyTrack) -> Result<Option<YtEntry>, String> {
+async fn search_best(
+    ytdlp: &Path,
+    track: &SpotifyTrack,
+    channel_hint: Option<&str>,
+) -> Result<Option<YtEntry>, String> {
     let query = if track.artists.trim().is_empty() {
         track.title.clone()
     } else {
@@ -231,12 +317,14 @@ async fn search_best(ytdlp: &Path, track: &SpotifyTrack) -> Result<Option<YtEntr
     };
     let entries = crate::ytdlp::search_tracks(ytdlp, &query, SEARCH_RESULTS).await?;
     let best = entries.iter().max_by(|a, b| {
-        score_match(track, a)
-            .partial_cmp(&score_match(track, b))
+        score_match(track, a, channel_hint)
+            .partial_cmp(&score_match(track, b, channel_hint))
             .unwrap_or(std::cmp::Ordering::Equal)
     });
     match best {
-        Some(entry) if score_match(track, entry) >= MATCH_THRESHOLD => Ok(Some(entry.clone())),
+        Some(entry) if score_match(track, entry, channel_hint) >= MATCH_THRESHOLD => {
+            Ok(Some(entry.clone()))
+        }
         _ => Ok(None),
     }
 }
@@ -267,6 +355,9 @@ pub async fn spotify_import_start(
     let mut matched = 0usize;
     let mut not_found = 0usize;
     let mut consecutive_errors = 0u32;
+    // artist (normalized) -> their channel, resolved lazily and bounded so a
+    // long playlist doesn't pay a lookup per track.
+    let mut channel_cache: HashMap<String, Option<String>> = HashMap::new();
 
     for (index, track) in playlist.tracks.iter().enumerate() {
         if CANCEL_FLAG.load(Ordering::Relaxed) {
@@ -289,10 +380,50 @@ pub async fn spotify_import_start(
             },
         );
 
-        match search_best(&ytdlp, track).await {
+        let artists = split_artists(&track.artists);
+        for artist in &artists {
+            if CANCEL_FLAG.load(Ordering::Relaxed) || channel_cache.len() >= MAX_ARTIST_LOOKUPS {
+                break;
+            }
+            let key = normalize(artist);
+            if key.is_empty() || channel_cache.contains_key(&key) {
+                continue;
+            }
+            let found = resolve_artist_channel(&ytdlp, artist).await;
+            crate::app::diagnostics::log_native(
+                &app,
+                "INFO",
+                format!(
+                    "[Spotify] channel for '{artist}' -> {}",
+                    found.as_deref().unwrap_or("<not found>")
+                ),
+            );
+            channel_cache.insert(key, found);
+            tokio::time::sleep(Duration::from_millis(SEARCH_DELAY_MS)).await;
+        }
+        let channel_hint = artists
+            .iter()
+            .filter_map(|artist| channel_cache.get(&normalize(artist)).cloned().flatten())
+            .next();
+
+        match search_best(&ytdlp, track, channel_hint.as_deref()).await {
             Ok(Some(entry)) => {
                 consecutive_errors = 0;
                 matched += 1;
+                let on_artist_channel = channel_hint
+                    .as_deref()
+                    .is_some_and(|hint| uploader_matches(hint, entry.uploader.as_deref()));
+                crate::app::diagnostics::log_native(
+                    &app,
+                    "INFO",
+                    format!(
+                        "[Spotify] match '{}' -> '{}' [{}]{}",
+                        track.title,
+                        entry.title,
+                        entry.uploader.as_deref().unwrap_or("-"),
+                        if on_artist_channel { " (artist channel)" } else { "" }
+                    ),
+                );
                 let _ = app.emit(
                     "spotify_import:match",
                     SpotifyImportMatch {
@@ -344,7 +475,65 @@ pub fn spotify_import_stop() {
 
 #[cfg(test)]
 mod tests {
-    use super::{extract_playlist_id, fetch_playlist, search_best};
+    use super::{
+        extract_playlist_id, fetch_playlist, score_match, search_best, split_artists,
+        uploader_matches, SpotifyTrack, OFFICIAL_CHANNEL_BONUS,
+    };
+    use crate::ytdlp::YtEntry;
+
+    fn entry(id: &str, title: &str, uploader: &str, secs: Option<f64>) -> YtEntry {
+        YtEntry {
+            id: id.to_string(),
+            title: title.to_string(),
+            uploader: Some(uploader.to_string()),
+            duration_secs: secs,
+            thumbnail: None,
+        }
+    }
+
+    fn track(title: &str, artists: &str, secs: f64) -> SpotifyTrack {
+        SpotifyTrack {
+            title: title.to_string(),
+            artists: artists.to_string(),
+            duration_ms: (secs * 1000.0) as u64,
+        }
+    }
+
+    #[test]
+    fn artist_channel_wins_with_the_hint() {
+        // The official channel here has a name that does NOT contain the artist
+        // (the hint was resolved separately) — only the hint can pick it.
+        let sp = track("Song", "Composer", 200.0);
+        let reupload = entry("re", "Song", "Random Uploads", Some(200.0));
+        let official = entry("off", "Song", "Totally Different Channel", Some(200.0));
+
+        let without = score_match(&sp, &reupload, None) >= score_match(&sp, &official, None);
+        assert!(without, "without a hint the re-upload matches on title");
+
+        assert!(
+            score_match(&sp, &official, Some("Totally Different Channel"))
+                > score_match(&sp, &reupload, Some("Totally Different Channel")),
+            "the hint must flip the winner to the artist's channel"
+        );
+        assert!(
+            score_match(&sp, &official, Some("Totally Different Channel"))
+                >= score_match(&sp, &official, None) + OFFICIAL_CHANNEL_BONUS - 1e-9
+        );
+    }
+
+    #[test]
+    fn topic_channels_count_as_the_artist() {
+        assert!(uploader_matches("Artist", Some("Artist - Topic")));
+        assert!(uploader_matches("HATSUBOSHI GAKUEN", Some("HATSUBOSHI GAKUEN - Topic")));
+        assert!(!uploader_matches("Artist", Some("Random Uploads")));
+        assert!(!uploader_matches("", Some("Artist")));
+    }
+
+    #[test]
+    fn splits_artist_lists() {
+        assert_eq!(split_artists("A, B & C"), vec!["A", "B", "C"]);
+        assert_eq!(split_artists("  "), Vec::<String>::new());
+    }
 
     #[test]
     fn extracts_playlist_ids() {
@@ -381,7 +570,7 @@ mod tests {
             let dir = std::env::temp_dir().join("sonora-ytdlp-smoke");
             let bin = crate::ytdlp::acquire(&dir).await.expect("yt-dlp");
             for track in playlist.tracks.iter().take(3) {
-                let best = search_best(&bin, track).await.expect("search");
+                let best = search_best(&bin, track, None).await.expect("search");
                 match best {
                     Some(entry) => println!(
                         "MATCH  {:>40} — {:<30} => {} [{}] {:?}s",
