@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
-import { Cloud, Database, Globe, Headphones, Link, Sparkles, User } from '../../lib/icons';
-import { CallProxySection } from './CallProxySection';
+import { Database, Globe, Headphones, Link, Sparkles, User } from '../../lib/icons';
 import { AccountCard } from './cards/AccountCard';
 import { AudioDeviceCard } from './cards/AudioDeviceCard';
 import { CacheCard } from './cards/CacheCard';
@@ -10,7 +9,6 @@ import { EqualizerCard } from './cards/EqualizerCard';
 import { ImportCard } from './cards/ImportCard';
 import { LanguageCard } from './cards/LanguageCard';
 import { MemoryCard } from './cards/MemoryCard';
-import { NetworkCard } from './cards/NetworkCard';
 import { PlaybackCard } from './cards/PlaybackCard';
 import { SoundForgeCard } from './cards/SoundForgeCard';
 import { StartupCard } from './cards/StartupCard';
@@ -21,7 +19,6 @@ export type SettingsCategoryId =
   | 'general'
   | 'appearance'
   | 'audio'
-  | 'network'
   | 'integrations'
   | 'storage'
   | 'account';
@@ -68,17 +65,6 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
         <PlaybackCard />
         <AudioDeviceCard />
         <EqualizerCard />
-      </>
-    ),
-  },
-  {
-    id: 'network',
-    labelKey: 'settings.catNetwork',
-    icon: <Cloud size={17} />,
-    Body: () => (
-      <>
-        <NetworkCard />
-        <CallProxySection />
       </>
     ),
   },
