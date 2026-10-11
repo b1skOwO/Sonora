@@ -1,19 +1,20 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {useTranslation} from 'react-i18next';
-import {toast} from 'sonner';
-import {api} from '../../lib/api';
-import {fc} from '../../lib/formatters';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
+import { api } from '../../lib/api';
+import { fc } from '../../lib/formatters';
 import {
   type Playlist,
   useAddToPlaylist,
   useCreatePlaylist,
   useMyPlaylists,
 } from '../../lib/hooks';
-import {Globe, ListMusic, ListPlus, Loader2, Lock, Plus, X} from '../../lib/icons';
-import {playlistCoverUrl} from '../../lib/playlist-cover';
-import {isYoutubeUrn} from '../../lib/youtube';
-import {localPlaylistToCard, useLocalPlaylistsStore} from '../../stores/local-playlists';
-import type {Track} from '../../stores/player';
+import { Globe, ListMusic, ListPlus, Loader2, Lock, Plus, X } from '../../lib/icons';
+import { getOfflineTracksByUrns } from '../../lib/offline-index';
+import { playlistCoverUrl } from '../../lib/playlist-cover';
+import { isYoutubeUrn } from '../../lib/youtube';
+import { localPlaylistToCard, useLocalPlaylistsStore } from '../../stores/local-playlists';
+import { type Track, usePlayerStore } from '../../stores/player';
 import {
   Modal,
   ModalClose,
@@ -28,6 +29,12 @@ interface AddToPlaylistDialogProps {
   /** Full track objects — required to append YouTube tracks to local playlists. */
   tracks?: Track[];
   children: React.ReactNode;
+}
+
+function formatError(error: unknown): string {
+  const raw =
+    typeof error === 'string' ? error : error instanceof Error ? error.message : String(error);
+  return raw.replace(/^Error invoking remote method '[^']+':\s*/i, '').trim();
 }
 
 const PlaylistOption = React.memo(function PlaylistOption({
@@ -164,7 +171,6 @@ export const AddToPlaylistDialog = React.memo(function AddToPlaylistDialog({
   const [playlistTrackMap, setPlaylistTrackMap] = useState<Record<string, string[]>>({});
   const [loadingPlaylistUrns, setLoadingPlaylistUrns] = useState<Record<string, boolean>>({});
   const normalizedTrackUrns = useMemo(() => [...new Set(trackUrns)], [trackUrns]);
-  const requestedPlaylistUrnsRef = useRef<Set<string>>(new Set());
 
   // YouTube tracks can't go to backend playlists — they land in local imports.
   const isLocalMode =
@@ -175,65 +181,33 @@ export const AddToPlaylistDialog = React.memo(function AddToPlaylistDialog({
     return map;
   }, [tracks]);
 
-  useEffect(() => {
-    if (!open || playlists.length === 0) return;
+  // Membership ("already in this playlist") is resolved lazily per playlist on
+  // select — never fanned out for every playlist on open. The bulk fetch used
+  // to stall the dialog for seconds on slow backends and left every row
+  // disabled (untappable) while loading.
 
-    let cancelled = false;
-
-    const loadMembership = async () => {
-      const pending: string[] = [];
-      const nextMap: Record<string, string[]> = {};
-
-      for (const playlist of playlists) {
-        const embeddedUrns = playlist.tracks?.map((t) => t.urn) ?? [];
-        if (embeddedUrns.length > 0 || playlist.track_count === 0) {
-          nextMap[playlist.urn] = embeddedUrns;
-          continue;
-        }
-        if (requestedPlaylistUrnsRef.current.has(playlist.urn)) continue;
-        requestedPlaylistUrnsRef.current.add(playlist.urn);
-        pending.push(playlist.urn);
-      }
-
-      if (Object.keys(nextMap).length > 0) {
-        setPlaylistTrackMap((prev) => ({ ...prev, ...nextMap }));
-      }
-
-      if (pending.length === 0) return;
-
-      setLoadingPlaylistUrns((prev) => {
-        const next = { ...prev };
-        for (const urn of pending) next[urn] = true;
-        return next;
-      });
-
-      await Promise.all(
-        pending.map(async (playlistUrn) => {
-          try {
-            const res = await api<{ collection: { urn: string }[] }>(
-              `/playlists/${encodeURIComponent(playlistUrn)}/tracks?limit=200`,
-            );
-            if (cancelled) return;
-            setPlaylistTrackMap((prev) => ({
-              ...prev,
-              [playlistUrn]: res.collection.map((t) => t.urn),
-            }));
-          } catch {
-            if (cancelled) return;
-            setPlaylistTrackMap((prev) => ({ ...prev, [playlistUrn]: [] }));
-          } finally {
-            if (!cancelled) setLoadingPlaylistUrns((prev) => ({...prev, [playlistUrn]: false}));
-          }
-        }),
+  /** Track URNs of one backend playlist: embedded data, a cached fetch, or one
+   *  fetch now. `null` when even the fetch failed — the backend dedupes `{add}`
+   *  deltas, so an unknown membership still adds safely. */
+  const ensurePlaylistUrns = async (playlist: Playlist): Promise<string[] | null> => {
+    const embedded = playlist.tracks?.map((t) => t.urn) ?? [];
+    if (embedded.length > 0 || playlist.track_count === 0) return embedded;
+    const cached = playlistTrackMap[playlist.urn];
+    if (cached) return cached;
+    setLoadingPlaylistUrns((prev) => ({ ...prev, [playlist.urn]: true }));
+    try {
+      const res = await api<{ collection: { urn: string }[] }>(
+        `/playlists/${encodeURIComponent(playlist.urn)}/tracks?limit=200`,
       );
-    };
-
-    void loadMembership();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [open, playlists]);
+      const urns = res.collection.map((t) => t.urn);
+      setPlaylistTrackMap((prev) => ({ ...prev, [playlist.urn]: urns }));
+      return urns;
+    } catch {
+      return null;
+    } finally {
+      setLoadingPlaylistUrns((prev) => ({ ...prev, [playlist.urn]: false }));
+    }
+  };
 
   const playlistMembership = useMemo(() => {
     const entries = new Map<string, { containsAll: boolean; containsSome: boolean }>();
@@ -253,38 +227,65 @@ export const AddToPlaylistDialog = React.memo(function AddToPlaylistDialog({
   }, [playlists, playlistTrackMap, normalizedTrackUrns]);
 
   const handleSelect = async (playlist: Playlist) => {
-    // existingUrns — только для UX-хинта «уже в плейлисте»; в мутацию идут
-    // `{add}`-дельты, backend дедупит, полный список не реконструируем.
+    // `{add}`-deltas; the backend dedupes, so an unknown membership (failed
+    // fetch) still adds safely instead of claiming "already in".
     // YouTube URN'ы в backend-дельты не шлём — бэкенд их не резолвит.
-    const existingUrns = playlistTrackMap[playlist.urn] ?? playlist.tracks?.map((t) => t.urn) ?? [];
-    const existingSet = new Set(existingUrns);
-    const newUrns = trackUrns.filter((u) => !existingSet.has(u) && !isYoutubeUrn(u));
+    const existing = await ensurePlaylistUrns(playlist);
+    const existingSet = existing ? new Set(existing) : null;
+    const newUrns = trackUrns.filter((u) => !existingSet?.has(u) && !isYoutubeUrn(u));
 
-    if (newUrns.length === 0) {
+    if (existingSet && newUrns.length === 0) {
       toast.info(t('playlist.alreadyInPlaylist'));
       setOpen(false);
       return;
     }
 
     addToPlaylist.mutate(
-        {playlistUrn: playlist.urn, trackUrns: newUrns},
+      { playlistUrn: playlist.urn, trackUrns: newUrns },
       {
         onSuccess: () => {
+          if (existing) {
+            setPlaylistTrackMap((prev) => ({
+              ...prev,
+              [playlist.urn]: [...existing, ...newUrns],
+            }));
+          }
           toast.success(t('playlist.addedToPlaylist'));
           setOpen(false);
         },
+        onError: (error) => toast.error(formatError(error)),
       },
     );
   };
 
   const handleSelectLocal = useCallback(
-    (playlistId: string) => {
+    async (playlistId: string) => {
       const store = useLocalPlaylistsStore.getState();
       const playlist = store.playlists.find((p) => p.id === playlistId);
       if (!playlist) return;
       const present = new Set(playlist.tracks.map((tr) => tr.urn));
+      // Callers don't always pass full Track objects — resolve the missing
+      // ones from the player queue, then the offline track index.
+      const resolved = new Map(trackByUrn);
+      const missing = normalizedTrackUrns.filter((urn) => !present.has(urn) && !resolved.has(urn));
+      if (missing.length > 0) {
+        const queue = usePlayerStore.getState().queue;
+        for (const track of queue) {
+          if (!resolved.has(track.urn)) resolved.set(track.urn, track);
+        }
+        const stillMissing = missing.filter((urn) => !resolved.has(urn));
+        if (stillMissing.length > 0) {
+          try {
+            for (const track of await getOfflineTracksByUrns(stillMissing)) {
+              resolved.set(track.urn, track);
+            }
+          } catch {
+            // Unresolvable tracks are skipped below.
+          }
+        }
+      }
       const added = normalizedTrackUrns
-        .map((urn) => trackByUrn.get(urn))
+        .map((urn) => resolved.get(urn))
         .filter((tr): tr is Track => !!tr && !present.has(tr.urn));
       if (added.length === 0) {
         toast.info(t('playlist.alreadyInPlaylist'));
@@ -321,101 +322,99 @@ export const AddToPlaylistDialog = React.memo(function AddToPlaylistDialog({
   };
 
   return (
-      <Modal open={open} onOpenChange={handleOpenChange}>
-        <ModalTrigger asChild>{children}</ModalTrigger>
-        <ModalContent size="sm" showClose={false} zClass="z-[90]">
-          {/* Header */}
-          <div className="flex items-center justify-between px-5 pt-5 pb-3">
-            <ModalTitle className="text-[15px] font-bold text-white/90 flex items-center gap-2">
-              <ListPlus size={18}/>
-              {t('playlist.addToPlaylist')}
-            </ModalTitle>
-            <ModalDescription className="sr-only">
-              Choose a playlist for the selected track.
-            </ModalDescription>
-            <ModalClose
-                className="w-7 h-7 rounded-lg flex items-center justify-center text-white/30 hover:text-white/70 hover:bg-white/[0.08] transition-all">
-              <X size={14}/>
-            </ModalClose>
-          </div>
+    <Modal open={open} onOpenChange={handleOpenChange}>
+      <ModalTrigger asChild>{children}</ModalTrigger>
+      <ModalContent size="sm" showClose={false} zClass="z-[90]">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 pt-5 pb-3">
+          <ModalTitle className="text-[15px] font-bold text-white/90 flex items-center gap-2">
+            <ListPlus size={18} />
+            {t('playlist.addToPlaylist')}
+          </ModalTitle>
+          <ModalDescription className="sr-only">
+            Choose a playlist for the selected track.
+          </ModalDescription>
+          <ModalClose className="w-7 h-7 rounded-lg flex items-center justify-center text-white/30 hover:text-white/70 hover:bg-white/[0.08] transition-all">
+            <X size={14} />
+          </ModalClose>
+        </div>
 
-          {/* New playlist button / form (SoundCloud playlists only —
+        {/* New playlist button / form (SoundCloud playlists only —
               YouTube tracks can't go to backend playlists) */}
-          {!isLocalMode &&
-            (showCreate ? (
-              <CreatePlaylistForm
-                  trackUrns={trackUrns}
-                  onCreated={() => {
-                    setShowCreate(false);
-                    setOpen(false);
-                  }}
-              />
-            ) : (
-              <div className="px-3 pb-2">
-                <button
-                    type="button"
-                    onClick={() => setShowCreate(true)}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.06] transition-all duration-200 text-left"
-                >
-                  <div
-                      className="w-10 h-10 rounded-lg flex items-center justify-center bg-accent/10 ring-1 ring-accent/20">
-                    <Plus size={18} className="text-accent"/>
-                  </div>
-                  <span className="text-[13px] font-medium text-accent">
-                {t('playlist.newPlaylist')}
-              </span>
-                </button>
+        {!isLocalMode &&
+          (showCreate ? (
+            <CreatePlaylistForm
+              trackUrns={trackUrns}
+              onCreated={() => {
+                setShowCreate(false);
+                setOpen(false);
+              }}
+            />
+          ) : (
+            <div className="px-3 pb-2">
+              <button
+                type="button"
+                onClick={() => setShowCreate(true)}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.06] transition-all duration-200 text-left"
+              >
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-accent/10 ring-1 ring-accent/20">
+                  <Plus size={18} className="text-accent" />
+                </div>
+                <span className="text-[13px] font-medium text-accent">
+                  {t('playlist.newPlaylist')}
+                </span>
+              </button>
+            </div>
+          ))}
+
+        {/* Divider */}
+        {!isLocalMode && <div className="h-px bg-white/[0.04] mx-5" />}
+
+        {/* Playlist list */}
+        <div className="px-3 py-2 pb-4 overflow-y-auto flex-1 min-h-0">
+          {isLocalMode ? (
+            localPlaylists.length === 0 ? (
+              <div className="py-10 text-center text-[13px] text-white/25">
+                {t('playlist.noPlaylists')}
               </div>
-            ))}
-
-          {/* Divider */}
-          {!isLocalMode && <div className="h-px bg-white/[0.04] mx-5"/>}
-
-          {/* Playlist list */}
-          <div className="px-3 py-2 pb-4 overflow-y-auto flex-1 min-h-0">
-            {isLocalMode ? (
-              localPlaylists.length === 0 ? (
-                <div className="py-10 text-center text-[13px] text-white/25">
-                  {t('playlist.noPlaylists')}
-                </div>
-              ) : (
-                <div className="space-y-0.5">
-                  {localPlaylists.map((p) => (
-                    <PlaylistOption
-                      key={p.id}
-                      playlist={localPlaylistToCard(p)}
-                      onSelect={() => handleSelectLocal(p.id)}
-                      loading={addToPlaylist.isPending}
-                      containsAll={localMembership.get(p.id)?.containsAll ?? false}
-                      containsSome={localMembership.get(p.id)?.containsSome ?? false}
-                    />
-                  ))}
-                </div>
-              )
-            ) : isLoading ? (
-                <div className="flex justify-center py-10">
-                  <Loader2 size={20} className="animate-spin text-white/20"/>
-                </div>
-            ) : playlists.length === 0 ? (
-                <div className="py-10 text-center text-[13px] text-white/25">
-                  {t('playlist.noPlaylists')}
-                </div>
             ) : (
-                <div className="space-y-0.5">
-                  {playlists.map((p) => (
-                      <PlaylistOption
-                          key={p.urn}
-                          playlist={p}
-                          onSelect={handleSelect}
-                          loading={addToPlaylist.isPending || !!loadingPlaylistUrns[p.urn]}
-                          containsAll={playlistMembership.get(p.urn)?.containsAll ?? false}
-                          containsSome={playlistMembership.get(p.urn)?.containsSome ?? false}
-                      />
-                  ))}
-                </div>
-            )}
-          </div>
-        </ModalContent>
-      </Modal>
+              <div className="space-y-0.5">
+                {localPlaylists.map((p) => (
+                  <PlaylistOption
+                    key={p.id}
+                    playlist={localPlaylistToCard(p)}
+                    onSelect={() => handleSelectLocal(p.id)}
+                    loading={addToPlaylist.isPending}
+                    containsAll={localMembership.get(p.id)?.containsAll ?? false}
+                    containsSome={localMembership.get(p.id)?.containsSome ?? false}
+                  />
+                ))}
+              </div>
+            )
+          ) : isLoading ? (
+            <div className="flex justify-center py-10">
+              <Loader2 size={20} className="animate-spin text-white/20" />
+            </div>
+          ) : playlists.length === 0 ? (
+            <div className="py-10 text-center text-[13px] text-white/25">
+              {t('playlist.noPlaylists')}
+            </div>
+          ) : (
+            <div className="space-y-0.5">
+              {playlists.map((p) => (
+                <PlaylistOption
+                  key={p.urn}
+                  playlist={p}
+                  onSelect={handleSelect}
+                  loading={addToPlaylist.isPending || !!loadingPlaylistUrns[p.urn]}
+                  containsAll={playlistMembership.get(p.urn)?.containsAll ?? false}
+                  containsSome={playlistMembership.get(p.urn)?.containsSome ?? false}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </ModalContent>
+    </Modal>
   );
 });

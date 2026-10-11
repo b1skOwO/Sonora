@@ -141,7 +141,7 @@ function ThemedTrackRowImpl({ track, index, queue, aura }: ThemedTrackRowProps) 
 
       <div className="flex items-center gap-0.5 shrink-0">
         <LikeButton track={track} />
-        <AddToPlaylistDialog trackUrns={[track.urn]}>
+        <AddToPlaylistDialog trackUrns={[track.urn]} tracks={[track]}>
           <button
             type="button"
             className="cursor-pointer w-8 h-8 rounded-lg flex items-center justify-center text-white/30 hover:text-white/80 hover:bg-white/[0.06] opacity-0 group-hover:opacity-100 transition-all"

@@ -94,7 +94,7 @@ export const LibraryTrackRow = React.memo(
 
         <LikeButton track={track} />
 
-        <AddToPlaylistDialog trackUrns={[track.urn]}>
+        <AddToPlaylistDialog trackUrns={[track.urn]} tracks={[track]}>
           <button
             type="button"
             className="opacity-0 group-hover:opacity-100 w-8 h-8 rounded-lg flex items-center justify-center text-white/30 hover:text-white/80 hover:bg-white/[0.08] transition-all duration-200 shrink-0"
