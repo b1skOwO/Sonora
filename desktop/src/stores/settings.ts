@@ -299,6 +299,8 @@ export const useSettingsStore = create<SettingsState>()(
         lyricsVisualizer: s.lyricsVisualizer,
         artistWaveCollapsed: s.artistWaveCollapsed,
         wallhavenApiKey: s.wallhavenApiKey,
+        memorySaver: s.memorySaver,
+        disableGpu: s.disableGpu,
       }),
     },
   ),
