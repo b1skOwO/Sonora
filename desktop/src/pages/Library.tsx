@@ -14,7 +14,7 @@ import { Bookmark, Heart, ListMusic, Users, Youtube } from '../lib/icons';
 import { likedTracksCount } from '../lib/likes';
 import { armLikesContinuation } from '../lib/queue-continuation';
 import { useAuthStore } from '../stores/auth';
-import { useLocalLikesStore } from '../stores/local-likes';
+import { useUnifiedLikes } from '../stores/local-likes';
 import { localPlaylistToCard, useLocalPlaylistsStore } from '../stores/local-playlists';
 import { useServiceStore } from '../stores/service';
 
@@ -33,7 +33,7 @@ export const Library = React.memo(() => {
   const { playlists: likedPlaylists } = useMyLikedPlaylists();
   const { users: followings } = useMyFollowings();
   const localPlaylists = useLocalPlaylistsStore((s) => s.playlists);
-  const localLikes = useLocalLikesStore((s) => s.tracks);
+  const unifiedLikes = useUnifiedLikes();
   const service = useServiceStore((s) => s.service);
 
   const playlistPreview = useMemo(() => {
@@ -49,7 +49,7 @@ export const Library = React.memo(() => {
     const base = genre ? likedTracks.filter((tr) => tr.genre?.trim() === genre) : likedTracks;
     return base.slice(0, 12);
   }, [likedTracks, genre]);
-  const localLikesPreview = useMemo(() => localLikes.slice(0, 12), [localLikes]);
+  const localLikesPreview = useMemo(() => unifiedLikes.slice(0, 12), [unifiedLikes]);
 
   if (!user) return null;
 
@@ -63,12 +63,12 @@ export const Library = React.memo(() => {
             <CollectionRail
               icon={<Heart size={16} />}
               title={t('library.localLikes')}
-              count={localLikes.length}
+              count={unifiedLikes.length}
               to="/library/local-likes"
             >
               {localLikesPreview.map((tr) => (
                 <div key={tr.urn} className="w-[150px] shrink-0">
-                  <TrackCard track={tr} queue={localLikes} />
+                  <TrackCard track={tr} queue={unifiedLikes} />
                 </div>
               ))}
             </CollectionRail>
@@ -187,12 +187,12 @@ export const Library = React.memo(() => {
           <CollectionRail
             icon={<Heart size={16} />}
             title={t('library.localLikes')}
-            count={localLikes.length}
+            count={unifiedLikes.length}
             to="/library/local-likes"
           >
             {localLikesPreview.map((tr) => (
               <div key={tr.urn} className="w-[150px] shrink-0">
-                <TrackCard track={tr} queue={localLikes} />
+                <TrackCard track={tr} queue={unifiedLikes} />
               </div>
             ))}
           </CollectionRail>

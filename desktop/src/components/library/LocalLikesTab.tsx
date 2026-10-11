@@ -1,14 +1,15 @@
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useLocalLikesStore } from '../../stores/local-likes';
+import { useUnifiedLikes } from '../../stores/local-likes';
 import { VirtualList } from '../ui/VirtualList';
 import { LibraryTrackRow } from './LibraryTrackRow';
 
-/** The local-likes playlist: backend-independent hearts (mostly YouTube),
- *  playable as one queue. Filterable, virtualized, no fetching. */
+/** The unified likes playlist: local hearts (mostly YouTube) + backend
+ *  SoundCloud likes, deduped. Playable as one queue. Filterable,
+ *  virtualized, no extra fetching beyond the shared likes query. */
 export const LocalLikesTab = React.memo(function LocalLikesTab({ filter }: { filter: string }) {
   const { t } = useTranslation();
-  const tracks = useLocalLikesStore((s) => s.tracks);
+  const tracks = useUnifiedLikes();
 
   const filtered = useMemo(() => {
     if (!filter) return tracks;
