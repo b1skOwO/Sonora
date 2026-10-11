@@ -241,6 +241,12 @@ select,
   border-radius: 8px;
 }
 
+/* The global search field draws its own focus ring on the container — the
+ * input itself must not paint a second one inside it. */
+#global-search-input:focus-visible {
+  outline: none;
+}
+
 /* ── Feed animations ──────────────────────────────────────── */
 @keyframes fadeInUp {
   from {
