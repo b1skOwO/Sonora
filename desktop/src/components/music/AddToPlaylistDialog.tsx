@@ -64,7 +64,13 @@ const PlaylistOption = React.memo(function PlaylistOption({
     >
       <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 ring-1 ring-white/[0.06] bg-white/[0.03]">
         {cover ? (
-          <img src={cover} alt="" className="w-full h-full object-cover" />
+          <img
+            src={cover}
+            alt=""
+            className="w-full h-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <ListMusic size={14} className="text-white/20" />

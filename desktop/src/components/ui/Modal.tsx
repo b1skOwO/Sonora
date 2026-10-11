@@ -13,6 +13,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from '../../lib/icons';
+import { usePerfMode } from '../../lib/perf';
 
 /** Custom modal — no Radix. Radix Dialog's data-state CSS animations don't fire
  *  under this Tauri/WebKitGTK build, so the shell is a plain portal whose open/
@@ -171,6 +172,10 @@ export function ModalContent({
   const { open, setOpen, titleId } = useCtx();
   const { mounted, state } = usePresence(open, 200);
   const cardRef = useRef<HTMLDivElement>(null);
+  const perf = usePerfMode();
+  // Fullscreen backdrop blur recomposites on every repaint behind the dialog —
+  // on CPU rendering (disable-gpu) that tanks FPS. Light mode gets a flat dim.
+  const overlayBlur = perf.mode === 'light' ? '' : 'backdrop-blur-sm';
 
   // esc to close + body scroll lock while mounted
   useEffect(() => {
@@ -200,7 +205,7 @@ export function ModalContent({
     <>
       {/* biome-ignore lint/a11y/useKeyWithClickEvents: esc handled globally above */}
       <div
-        className={`modal-overlay fixed inset-0 ${zClass} bg-black/60 backdrop-blur-sm`}
+        className={`modal-overlay fixed inset-0 ${zClass} bg-black/60 ${overlayBlur}`}
         data-state={state}
         onClick={() => setOpen(false)}
       />
