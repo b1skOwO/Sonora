@@ -5,8 +5,9 @@ import { trackedInvoke as invoke } from '../../lib/diagnostics';
 import { formatTime } from '../../lib/formatters';
 import { ListPlus, Loader2, Play, Search, Youtube } from '../../lib/icons';
 import { type YtEntry, ytEntryToTrack } from '../../lib/youtube';
-import { usePlayerStore, type Track } from '../../stores/player';
+import { type Track, usePlayerStore } from '../../stores/player';
 import { useSearchQueryStore } from '../../stores/searchQuery';
+import { AddToPlaylistDialog } from '../music/AddToPlaylistDialog';
 
 function formatError(error: unknown): string {
   const raw =
@@ -25,6 +26,7 @@ const YtRow = React.memo(function YtRow({
   artwork: string | null;
   durationSec: number;
 }) {
+  const { t } = useTranslation();
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
   const isCurrent = currentTrack?.urn === track.urn;
@@ -74,14 +76,16 @@ const YtRow = React.memo(function YtRow({
           <Play size={13} fill="currentColor" strokeWidth={0} />
         </span>
       </button>
-      <button
-        type="button"
-        onClick={() => usePlayerStore.getState().addToQueue([track])}
-        title={track.title}
-        className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white/35 hover:text-white/80 hover:bg-white/[0.07] transition-all cursor-pointer"
-      >
-        <ListPlus size={15} />
-      </button>
+      <AddToPlaylistDialog trackUrns={[track.urn]} tracks={[track]}>
+        <button
+          type="button"
+          title={t('playlist.addToPlaylist')}
+          aria-label={t('playlist.addToPlaylist')}
+          className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white/35 hover:text-white/80 hover:bg-white/[0.07] transition-all cursor-pointer"
+        >
+          <ListPlus size={15} />
+        </button>
+      </AddToPlaylistDialog>
     </div>
   );
 });
