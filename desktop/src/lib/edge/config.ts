@@ -30,10 +30,13 @@ interface OriginState {
 
 const TIER_ORDER: Record<Tier, number> = { direct: 0, relay: 1 };
 const DIRECT_FAIL_THRESHOLD = 2;
+/** Consecutive relay failures that force a fallback to direct-first. */
+const RELAY_FAIL_THRESHOLD = 2;
 
 let relays = new Map<string, string[]>();
 let revalidateMs = 600_000;
 const origins = new Map<string, OriginState>();
+const relayFails = new Map<string, number>();
 
 /** Дёргать до первого сетевого запроса. Без конфига остаётся прямой путь. */
 export async function initEdge(): Promise<void> {
@@ -130,11 +133,26 @@ export function noteHop(hop: Hop, ok: boolean): void {
       revalidateAt,
       directFails: tier === 'direct' ? 0 : DIRECT_FAIL_THRESHOLD,
     });
+    relayFails.delete(hop.origin);
     report(hop.origin, tier);
     return;
   }
 
-  if (hop.tier !== 'direct') return;
+  if (hop.tier !== 'direct') {
+    // Relay failures were never counted, so a dead relay pool kept its
+    // first-hop slot forever while a working origin starved on leftover
+    // budget ("all hosts are down" with healthy hosts). Enough consecutive
+    // relay failures fall back to direct-first.
+    const fails = (relayFails.get(hop.origin) ?? 0) + 1;
+    if (fails >= RELAY_FAIL_THRESHOLD) {
+      relayFails.delete(hop.origin);
+      origins.set(hop.origin, { tier: 'direct', revalidateAt: now + revalidateMs, directFails: 0 });
+      report(hop.origin, 'direct');
+    } else {
+      relayFails.set(hop.origin, fails);
+    }
+    return;
+  }
   const state = prev ?? { tier: 'direct' as Tier, revalidateAt: now, directFails: 0 };
   state.directFails += 1;
   state.revalidateAt = now + revalidateMs;

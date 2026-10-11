@@ -106,7 +106,9 @@ export async function edgeFetch(
         noteHop(hop, true);
         return res;
       }
-      if (hop.tier === 'direct') noteHop(hop, false);
+      // Unusable answers count for every tier — not just direct. Otherwise a
+      // dead relay pool never loses its slot (see noteHop).
+      noteHop(hop, false);
       if (isLast) throw new EdgeTransportError(hop.tier, res.status);
     } catch (error) {
       if (error instanceof EdgeTransportError) throw error;
