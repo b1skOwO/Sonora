@@ -7,7 +7,7 @@ mod engine;
 mod eq;
 mod media_controls;
 mod resample;
-mod state;
+pub(crate) mod state;
 mod tick;
 mod timing;
 mod types;

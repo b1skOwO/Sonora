@@ -1,4 +1,5 @@
-use std::io::Cursor;
+use std::fs::File;
+use std::io::{BufReader, Cursor};
 use std::num::NonZero;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
@@ -29,6 +30,22 @@ pub fn is_ogg_opus(bytes: &[u8]) -> bool {
             .any(|w| w == b"OpusHead")
 }
 
+/// `is_ogg_opus` for a reader: peeks at the first 64 bytes without loading the
+/// file. The caller's reader is left wherever the peek ended — decode paths
+/// always re-open the source anyway.
+pub(crate) fn is_ogg_opus_reader<R: std::io::Read>(reader: &mut R) -> bool {
+    let mut buf = [0u8; 64];
+    let mut filled = 0;
+    while filled < buf.len() {
+        match reader.read(&mut buf[filled..]) {
+            Ok(0) => break,
+            Ok(n) => filled += n,
+            Err(_) => return false,
+        }
+    }
+    is_ogg_opus(&buf[..filled])
+}
+
 pub(crate) struct OpusSource<R: std::io::Read + std::io::Seek> {
     reader: ogg::reading::PacketReader<R>,
     decoder: audiopus::coder::Decoder,
@@ -47,7 +64,7 @@ impl OpusSource<Cursor<Vec<u8>>> {
 }
 
 impl<R: std::io::Read + std::io::Seek> OpusSource<R> {
-    fn from_reader(reader: R) -> Result<Self, String> {
+    pub(crate) fn from_reader(reader: R) -> Result<Self, String> {
         let mut reader = ogg::reading::PacketReader::new(reader);
 
         let head_pkt = reader
@@ -339,6 +356,41 @@ pub fn resolve_loudness_analysis(
     Ok(analysis)
 }
 
+/// `resolve_loudness_analysis` for a file source: decodes the analysis window
+/// straight off disk instead of first loading the whole file into memory.
+pub fn resolve_loudness_analysis_file(
+    path: &Path,
+    cache_dir: Option<&Path>,
+    cache_key: Option<&str>,
+) -> Result<LoudnessAnalysis, String> {
+    if let Some(analysis) = read_cached_analysis(cache_dir, cache_key) {
+        return Ok(analysis);
+    }
+
+    let open = || {
+        File::open(path)
+            .map(BufReader::new)
+            .map_err(|e| format!("Failed to open {}: {}", path.display(), e))
+    };
+    let is_opus = is_ogg_opus_reader(&mut open()?);
+
+    let analysis = if is_opus {
+        analyze_samples(
+            OpusSource::from_reader(open()?).map_err(|e| format!("Failed to decode: {}", e))?,
+        )
+    } else {
+        match Decoder::new(open()?) {
+            Ok(source) => analyze_samples(source),
+            _ => analyze_samples(
+                OpusSource::from_reader(open()?).map_err(|e| format!("Failed to decode: {}", e))?,
+            ),
+        }
+    };
+
+    write_cached_analysis(cache_dir, cache_key, analysis);
+    Ok(analysis)
+}
+
 /// Append `source` to `player`, resampling to `output_sample_rate` first when
 /// the rates differ, so rodio's mixer never falls back to its linear
 /// interpolator (see `resample`).
@@ -393,8 +445,9 @@ fn append_chain<S>(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn create_player_from_bytes(
-    bytes: &[u8],
+fn create_player_from_reader<R, F>(
+    make_reader: F,
+    is_opus: bool,
     mixer: &Mixer,
     volume: f32,
     volume_handle: Option<Arc<std::sync::atomic::AtomicU32>>,
@@ -403,7 +456,11 @@ pub fn create_player_from_bytes(
     eq_params: Arc<RwLock<EqParams>>,
     analyser_buffer: Arc<AnalyserBuffer>,
     output_sample_rate: u32,
-) -> Result<(Player, Option<f64>), String> {
+) -> Result<(Player, Option<f64>), String>
+where
+    R: std::io::Read + std::io::Seek + Send + Sync + 'static,
+    F: Fn() -> Result<R, String>,
+{
     let player = Player::connect_new(mixer);
     if volume_handle.is_none() {
         player.set_volume(volume);
@@ -413,22 +470,9 @@ pub fn create_player_from_bytes(
     }
 
     let duration;
-    if is_ogg_opus(bytes) {
+    if is_opus {
         let source =
-            OpusSource::new(bytes.to_vec()).map_err(|e| format!("Failed to decode: {}", e))?;
-        duration = source.total_duration().map(|d| d.as_secs_f64());
-        append_chain(
-            &player,
-            source,
-            normalization_gain,
-            eq_params,
-            analyser_buffer,
-            volume_handle,
-            output_sample_rate,
-        );
-    } else if Decoder::new(Cursor::new(bytes.to_vec())).is_ok() {
-        let source = Decoder::new(Cursor::new(bytes.to_vec()))
-            .map_err(|e| format!("Failed to decode: {}", e))?;
+            OpusSource::from_reader(make_reader()?).map_err(|e| format!("Failed to decode: {}", e))?;
         duration = source.total_duration().map(|d| d.as_secs_f64());
         append_chain(
             &player,
@@ -440,21 +484,105 @@ pub fn create_player_from_bytes(
             output_sample_rate,
         );
     } else {
-        let source =
-            OpusSource::new(bytes.to_vec()).map_err(|e| format!("Failed to decode: {}", e))?;
-        duration = source.total_duration().map(|d| d.as_secs_f64());
-        append_chain(
-            &player,
-            source,
-            normalization_gain,
-            eq_params,
-            analyser_buffer,
-            volume_handle,
-            output_sample_rate,
-        );
+        match Decoder::new(make_reader()?) {
+            Ok(source) => {
+                duration = source.total_duration().map(|d| d.as_secs_f64());
+                append_chain(
+                    &player,
+                    source,
+                    normalization_gain,
+                    eq_params,
+                    analyser_buffer,
+                    volume_handle,
+                    output_sample_rate,
+                );
+            }
+            Err(_) => {
+                let source = OpusSource::from_reader(make_reader()?)
+                    .map_err(|e| format!("Failed to decode: {}", e))?;
+                duration = source.total_duration().map(|d| d.as_secs_f64());
+                append_chain(
+                    &player,
+                    source,
+                    normalization_gain,
+                    eq_params,
+                    analyser_buffer,
+                    volume_handle,
+                    output_sample_rate,
+                );
+            }
+        }
     }
 
     Ok((player, duration))
+}
+
+/// Player from an in-memory payload. The buffer is shared through an `Arc`, so
+/// the decoder's cursor and any re-open clone only the handle, never the bytes.
+#[allow(clippy::too_many_arguments)]
+pub fn create_player_from_arc_bytes(
+    bytes: Arc<Vec<u8>>,
+    mixer: &Mixer,
+    volume: f32,
+    volume_handle: Option<Arc<std::sync::atomic::AtomicU32>>,
+    normalization_gain: f32,
+    start_paused: bool,
+    eq_params: Arc<RwLock<EqParams>>,
+    analyser_buffer: Arc<AnalyserBuffer>,
+    output_sample_rate: u32,
+) -> Result<(Player, Option<f64>), String> {
+    let is_opus = is_ogg_opus(&bytes);
+    let arc = crate::audio::state::ArcBytes(bytes);
+    create_player_from_reader(
+        move || Ok(Cursor::new(arc.clone())),
+        is_opus,
+        mixer,
+        volume,
+        volume_handle,
+        normalization_gain,
+        start_paused,
+        eq_params,
+        analyser_buffer,
+        output_sample_rate,
+    )
+}
+
+/// Player from a cached file: the decoder streams off disk, so a full track is
+/// never buffered in RAM (the whole point for WAV caches).
+#[allow(clippy::too_many_arguments)]
+pub fn create_player_from_file(
+    path: &Path,
+    mixer: &Mixer,
+    volume: f32,
+    volume_handle: Option<Arc<std::sync::atomic::AtomicU32>>,
+    normalization_gain: f32,
+    start_paused: bool,
+    eq_params: Arc<RwLock<EqParams>>,
+    analyser_buffer: Arc<AnalyserBuffer>,
+    output_sample_rate: u32,
+) -> Result<(Player, Option<f64>), String> {
+    let is_opus = {
+        let mut probe =
+            File::open(path).map_err(|e| format!("Failed to open {}: {}", path.display(), e))?;
+        is_ogg_opus_reader(&mut probe)
+    };
+    let path = path.to_path_buf();
+    create_player_from_reader(
+        move || {
+            File::open(&path)
+                .map(BufReader::new)
+                .map_err(|e| format!("Failed to open {}: {}", path.display(), e))
+        },
+        is_opus,
+        mixer,
+        volume,
+        volume_handle,
+        normalization_gain,
+        start_paused,
+        eq_params,
+        analyser_buffer,
+        output_sample_rate,
+    )
 }
 
 

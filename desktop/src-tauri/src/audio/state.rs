@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
@@ -10,6 +11,28 @@ use crate::audio::device::open_device_sink;
 use crate::audio::types::{
     AudioThreadCmd, EqParams, FloatingCommentEvent, LyricsTimingLine, MediaCmd,
 };
+
+/// Decodable payload of the current track.
+///
+/// `File` is the normal path for cached playback: the decoder streams from
+/// disk, so a whole track never sits in RAM (matters most for WAV caches).
+/// `Bytes` is the fallback for direct stream loads that have no cache file.
+#[derive(Clone)]
+pub enum AudioSource {
+    File(PathBuf),
+    Bytes(Arc<Vec<u8>>),
+}
+
+/// `Arc<Vec<u8>>` wrapper that satisfies `Cursor`'s `AsRef<[u8]>` bound, so a
+/// byte-backed source can be re-opened without copying the buffer.
+#[derive(Clone)]
+pub struct ArcBytes(pub Arc<Vec<u8>>);
+
+impl AsRef<[u8]> for ArcBytes {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_slice()
+    }
+}
 
 pub struct LyricsTimelineState {
     pub lines: Vec<LyricsTimingLine>,
@@ -74,7 +97,9 @@ pub struct AudioState {
     pub load_gen: AtomicU64,
     pub media_tx: Mutex<Option<std::sync::mpsc::Sender<MediaCmd>>>,
     pub audio_tx: std::sync::mpsc::Sender<AudioThreadCmd>,
-    pub source_bytes: Mutex<Option<Vec<u8>>>,
+    /// Where the current track decodes from. Cached files stream straight off
+    /// disk (no full-file buffer in RAM); streamed URL loads keep their bytes.
+    pub source: Mutex<Option<AudioSource>>,
     pub follow_default_output: AtomicBool,
     pub last_known_default_output: Mutex<Option<String>>,
     pub lyrics_timeline: Mutex<Option<LyricsTimelineState>>,
@@ -201,7 +226,7 @@ pub fn init() -> AudioState {
         load_gen: AtomicU64::new(0),
         media_tx: Mutex::new(None),
         audio_tx: cmd_tx,
-        source_bytes: Mutex::new(None),
+        source: Mutex::new(None),
         follow_default_output: AtomicBool::new(true),
         last_known_default_output: Mutex::new(None),
         lyrics_timeline: Mutex::new(None),

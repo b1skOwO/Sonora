@@ -15,6 +15,13 @@ use tauri::Manager;
 use discord::DiscordState;
 use network::server::ServerState;
 
+/// Hand the persisted memory-saver toggles to WebView2. MUST run before `run()`
+/// — WebView2 reads `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` only once, while
+/// creating its environment.
+pub fn apply_startup_memory_args() {
+    app::memory::apply_startup_args();
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 #[cfg_attr(feature = "cef", tauri::cef_entry_point)]
 pub fn run() {
@@ -154,6 +161,9 @@ pub fn run() {
             audio::start_media_controls(app.handle());
             audio::start_default_output_monitor(app.handle());
             audio::start_fft_thread(app.handle().clone(), analyser_buffer);
+
+            // Release WebView2 memory while the window is minimized/hidden.
+            app::memory::setup(app.handle());
 
             app.manage(app::popover::TrayState::default());
             app::tray::setup_tray(app).expect("failed to setup tray");

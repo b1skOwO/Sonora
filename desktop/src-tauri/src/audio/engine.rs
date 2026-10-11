@@ -6,9 +6,10 @@ use tauri::State;
 use tokio::task;
 
 use crate::audio::decode::{
-    create_player_from_bytes, loudness_gain, peak_safety_gain, resolve_loudness_analysis,
+    LoudnessAnalysis, create_player_from_arc_bytes, create_player_from_file, loudness_gain,
+    peak_safety_gain, resolve_loudness_analysis, resolve_loudness_analysis_file,
 };
-use crate::audio::state::AudioState;
+use crate::audio::state::{AudioSource, AudioState};
 use crate::audio::types::{AudioLoadResult, MediaCmd, EQ_BANDS, STALL_SUPPRESS_MS, TICK_INTERVAL_MS};
 
 const ENDED_SUPPRESS_MS: u64 = 1200;
@@ -79,14 +80,14 @@ fn set_pos_anchor(state: &AudioState, source: f64, output: f64) {
 
 fn commit_loaded_track(
     state: &AudioState,
-    bytes: Vec<u8>,
+    source: AudioSource,
     new_player: rodio::Player,
     loudness: f32,
     safety: f32,
 ) {
     apply_current_rate(state, &new_player);
     *state.player.lock().unwrap() = Some(new_player);
-    *state.source_bytes.lock().unwrap() = Some(bytes);
+    *state.source.lock().unwrap() = Some(source);
     *state.normalization_gain.lock().unwrap() = loudness;
     *state.normalization_safety.lock().unwrap() = safety;
     // Fresh track starts at source 0 / output 0.
@@ -96,45 +97,102 @@ fn commit_loaded_track(
     state.device_error.store(false, Ordering::Relaxed);
 }
 
-// Все 9 параметров — это один build шаг плеера: mixer/volume/normalization-кеш
-// + eq + analyser идут в одну `spawn_blocking`-обертку. Заводить отдельную
-// структуру `BuildPlayerArgs` ради одной точки вызова — лишний слой.
-#[allow(clippy::too_many_arguments)]
-async fn build_player_from_bytes(
-    bytes: Vec<u8>,
-    mixer: rodio::mixer::Mixer,
-    volume: f32,
-    volume_handle: std::sync::Arc<std::sync::atomic::AtomicU32>,
-    normalization_enabled: bool,
-    normalization_cache_dir: Option<PathBuf>,
-    normalization_cache_key: Option<String>,
+/// Loudness + always-on peak safety from the analysis window, capped by the
+/// whole-file peak the downloader recorded when there is one.
+fn compute_gains(
+    analysis: LoudnessAnalysis,
     known_peak_db: Option<f64>,
+) -> (f32, f32) {
+    // The whole-file peak (measured by the cache when downloading) is more
+    // trustworthy than the analysis window for the safety cap.
+    let known_peak = known_peak_db
+        .map(|db| 10f64.powf(db / 20.0))
+        .unwrap_or(0.0);
+    let peak = analysis.peak.max(known_peak);
+    let loudness = loudness_gain(analysis, peak);
+    let safety = peak_safety_gain(peak);
+    (loudness, safety)
+}
+
+/// Build a player for `source` on the current thread (used by the sync
+/// device-reconnect / seek-recreate paths).
+#[allow(clippy::too_many_arguments)]
+fn create_player_for_source(
+    source: &AudioSource,
+    mixer: &rodio::mixer::Mixer,
+    volume: f32,
+    volume_handle: Option<std::sync::Arc<std::sync::atomic::AtomicU32>>,
+    normalization_gain: f32,
     start_paused: bool,
     eq_params: std::sync::Arc<std::sync::RwLock<crate::audio::types::EqParams>>,
     analyser_buffer: std::sync::Arc<crate::audio::analyser::AnalyserBuffer>,
     output_sample_rate: u32,
-) -> Result<(Vec<u8>, rodio::Player, Option<f64>, f32, f32), String> {
+) -> Result<(rodio::Player, Option<f64>), String> {
+    match source {
+        AudioSource::File(path) => create_player_from_file(
+            path,
+            mixer,
+            volume,
+            volume_handle,
+            normalization_gain,
+            start_paused,
+            eq_params,
+            analyser_buffer,
+            output_sample_rate,
+        ),
+        AudioSource::Bytes(bytes) => create_player_from_arc_bytes(
+            bytes.clone(),
+            mixer,
+            volume,
+            volume_handle,
+            normalization_gain,
+            start_paused,
+            eq_params,
+            analyser_buffer,
+            output_sample_rate,
+        ),
+    }
+}
+
+// Все аргументы — это один build шаг плеера: mixer/volume/normalization-кеш
+// + eq + analyser идут в одну `spawn_blocking`-обертку. Заводить отдельную
+// структуру `BuildPlayerArgs` ради одной точки вызова — лишний слой.
+#[allow(clippy::too_many_arguments)]
+async fn build_player(
+    source: AudioSource,
+    known_peak_db: Option<f64>,
+    normalization_cache_dir: Option<PathBuf>,
+    normalization_cache_key: Option<String>,
+    start_paused: bool,
+    mixer: rodio::mixer::Mixer,
+    volume: f32,
+    volume_handle: std::sync::Arc<std::sync::atomic::AtomicU32>,
+    normalization_enabled: bool,
+    eq_params: std::sync::Arc<std::sync::RwLock<crate::audio::types::EqParams>>,
+    analyser_buffer: std::sync::Arc<crate::audio::analyser::AnalyserBuffer>,
+    output_sample_rate: u32,
+) -> Result<(rodio::Player, Option<f64>, f32, f32), String> {
     task::spawn_blocking(move || {
-        let analysis = resolve_loudness_analysis(
-            &bytes,
-            normalization_cache_dir.as_deref(),
-            normalization_cache_key.as_deref(),
-        )?;
-        // The whole-file peak (measured by the cache when downloading) is more
-        // trustworthy than the analysis window for the safety cap.
-        let known_peak = known_peak_db
-            .map(|db| 10f64.powf(db / 20.0))
-            .unwrap_or(0.0);
-        let peak = analysis.peak.max(known_peak);
-        let loudness = loudness_gain(analysis, peak);
-        let safety = peak_safety_gain(peak);
+        let analysis = match &source {
+            AudioSource::File(path) => resolve_loudness_analysis_file(
+                path,
+                normalization_cache_dir.as_deref(),
+                normalization_cache_key.as_deref(),
+            )?,
+            AudioSource::Bytes(bytes) => resolve_loudness_analysis(
+                bytes,
+                normalization_cache_dir.as_deref(),
+                normalization_cache_key.as_deref(),
+            )?,
+        };
+        let (loudness, safety) = compute_gains(analysis, known_peak_db);
         let applied = if normalization_enabled {
             loudness.min(safety)
         } else {
             safety
         };
-        let (player, duration_secs) = create_player_from_bytes(
-            &bytes,
+        let (player, duration_secs) = create_player_for_source(
+            &source,
             &mixer,
             volume,
             Some(volume_handle),
@@ -144,7 +202,7 @@ async fn build_player_from_bytes(
             analyser_buffer,
             output_sample_rate,
         )?;
-        Ok((bytes, player, duration_secs, loudness, safety))
+        Ok((player, duration_secs, loudness, safety))
     })
     .await
     .map_err(|e| format!("audio decode task failed: {e}"))?
@@ -153,8 +211,8 @@ async fn build_player_from_bytes(
 pub fn reload_current_track(state: &AudioState) -> Result<(), String> {
     suppress_ended_temporarily(state);
     suppress_stall_temporarily(state);
-    let bytes = state.source_bytes.lock().unwrap().clone();
-    let Some(bytes) = bytes else {
+    let source = state.source.lock().unwrap().clone();
+    let Some(source) = source else {
         return Ok(());
     };
 
@@ -172,8 +230,8 @@ pub fn reload_current_track(state: &AudioState) -> Result<(), String> {
     let normalization_enabled = state.normalization_enabled.load(Ordering::Relaxed);
     let loudness = *state.normalization_gain.lock().unwrap();
     let safety = *state.normalization_safety.lock().unwrap();
-    let (new_player, _) = create_player_from_bytes(
-        &bytes,
+    let (new_player, _) = create_player_for_source(
+        &source,
         &mixer,
         vol,
         Some(state.volume_handle.clone()),
@@ -244,12 +302,18 @@ pub async fn load_file(
     start_paused: bool,
     state: State<'_, AudioState>,
 ) -> Result<AudioLoadResult, String> {
-    let bytes = task::spawn_blocking({
+    // Fail fast on a missing file BEFORE the current player is stopped, so a
+    // vanished cache entry doesn't kill playback.
+    task::spawn_blocking({
         let path = path.clone();
-        move || std::fs::read(&path).map_err(|e| format!("Failed to read {}: {}", path, e))
+        move || {
+            std::fs::File::open(&path)
+                .map(|_| ())
+                .map_err(|e| format!("Failed to read {}: {}", path, e))
+        }
     })
     .await
-    .map_err(|e| format!("audio file read task failed: {e}"))??;
+    .map_err(|e| format!("audio file check task failed: {e}"))??;
 
     stop_current_player(&state);
 
@@ -258,23 +322,24 @@ pub async fn load_file(
     let mixer = state.mixer.lock().unwrap().clone();
     let vol = *state.volume.lock().unwrap();
     let normalization_enabled = state.normalization_enabled.load(Ordering::Relaxed);
-    let (bytes, new_player, duration_secs, loudness, safety) = build_player_from_bytes(
-        bytes,
+    let source = AudioSource::File(PathBuf::from(&path));
+    let (new_player, duration_secs, loudness, safety) = build_player(
+        source.clone(),
+        known_peak_db,
+        normalization_cache_dir,
+        normalization_cache_key,
+        start_paused,
         mixer,
         vol,
         state.volume_handle.clone(),
         normalization_enabled,
-        normalization_cache_dir,
-        normalization_cache_key,
-        known_peak_db,
-        start_paused,
         state.eq_params.clone(),
         state.analyser_buffer.clone(),
         state.output_sample_rate.load(Ordering::Relaxed),
     )
     .await?;
 
-    commit_loaded_track(&state, bytes, new_player, loudness, safety);
+    commit_loaded_track(&state, source, new_player, loudness, safety);
 
     Ok(AudioLoadResult { duration_secs })
 }
@@ -346,12 +411,15 @@ pub async fn load_url(
         return Ok(empty_result);
     }
 
-    if let Some(path) = cache_path {
-        let data = bytes.clone();
-        tokio::spawn(async move {
-            tokio::fs::write(&path, &data).await.ok();
-        });
-    }
+    // Prefer the cache file: the decoder then streams off disk and no full-file
+    // buffer stays in RAM. Only fall back to the in-memory payload when the
+    // write fails.
+    let source = match cache_path {
+        Some(path) if tokio::fs::write(&path, &bytes).await.is_ok() => {
+            AudioSource::File(PathBuf::from(path))
+        }
+        _ => AudioSource::Bytes(std::sync::Arc::new(bytes)),
+    };
 
     stop_current_player(&state);
 
@@ -362,23 +430,23 @@ pub async fn load_url(
     let mixer = state.mixer.lock().unwrap().clone();
     let vol = *state.volume.lock().unwrap();
     let normalization_enabled = state.normalization_enabled.load(Ordering::Relaxed);
-    let (bytes, new_player, duration_secs, loudness, safety) = build_player_from_bytes(
-        bytes,
+    let (new_player, duration_secs, loudness, safety) = build_player(
+        source.clone(),
+        None,
+        normalization_cache_dir,
+        normalization_cache_key,
+        start_paused,
         mixer,
         vol,
         state.volume_handle.clone(),
         normalization_enabled,
-        normalization_cache_dir,
-        normalization_cache_key,
-        None,
-        start_paused,
         state.eq_params.clone(),
         state.analyser_buffer.clone(),
         state.output_sample_rate.load(Ordering::Relaxed),
     )
     .await?;
 
-    commit_loaded_track(&state, bytes, new_player, loudness, safety);
+    commit_loaded_track(&state, source, new_player, loudness, safety);
 
     Ok(AudioLoadResult { duration_secs })
 }
@@ -413,8 +481,8 @@ pub fn stop(state: State<'_, AudioState>) {
         && let Some(old) = player.take() {
             old.stop();
         }
-    if let Ok(mut bytes) = state.source_bytes.try_lock() {
-        *bytes = None;
+    if let Ok(mut source) = state.source.try_lock() {
+        *source = None;
     }
 }
 
@@ -457,8 +525,8 @@ pub fn seek_to(state: &AudioState, position: f64) -> Result<(), String> {
             }
     }
 
-    let bytes = state.source_bytes.lock().unwrap().clone();
-    let Some(bytes) = bytes else {
+    let source = state.source.lock().unwrap().clone();
+    let Some(source) = source else {
         return Err("No source to reload for seek".into());
     };
 
@@ -467,8 +535,8 @@ pub fn seek_to(state: &AudioState, position: f64) -> Result<(), String> {
     let normalization_enabled = state.normalization_enabled.load(Ordering::Relaxed);
     let loudness = *state.normalization_gain.lock().unwrap();
     let safety = *state.normalization_safety.lock().unwrap();
-    let (new_player, _) = create_player_from_bytes(
-        &bytes,
+    let (new_player, _) = create_player_for_source(
+        &source,
         &mixer,
         vol,
         Some(state.volume_handle.clone()),
@@ -641,12 +709,6 @@ pub async fn preview_play(
     if r#gen < state.preview.lock().unwrap().r#gen {
         return Ok(());
     }
-    let bytes = task::spawn_blocking({
-        let path = path.clone();
-        move || std::fs::read(&path).map_err(|e| format!("Failed to read {}: {}", path, e))
-    })
-        .await
-        .map_err(|e| format!("preview read task failed: {e}"))??;
 
     let mixer = state.mixer.lock().unwrap().clone();
     let eq_params = state.eq_params.clone();
@@ -658,8 +720,8 @@ pub async fn preview_play(
     let analyser = crate::audio::analyser::AnalyserBuffer::new();
     let output_sample_rate = state.output_sample_rate.load(Ordering::Relaxed);
     let player = task::spawn_blocking(move || {
-        create_player_from_bytes(
-            &bytes,
+        create_player_from_file(
+            std::path::Path::new(&path),
             &mixer,
             target,
             None,
