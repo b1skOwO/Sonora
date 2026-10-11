@@ -1,22 +1,20 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { proxiedAssetUrl } from '../../lib/asset-url';
 import { updateYtDlp } from '../../lib/cache';
 import { X, Youtube } from '../../lib/icons';
-import {
-  fetchYoutubePlaylist,
-  YOUTUBE_PLAYLIST_PREFIX,
-  ytEntryToTrack,
-} from '../../lib/youtube';
+import { fetchYoutubePlaylist, YOUTUBE_PLAYLIST_PREFIX, ytEntryToTrack } from '../../lib/youtube';
+import { type UpgradeProgress, upgradeYoutubeEntries } from '../../lib/youtube-upgrade';
 import type { LocalPlaylist } from '../../stores/local-playlists';
 import { useLocalPlaylistsStore } from '../../stores/local-playlists';
 import { usePlayerStore } from '../../stores/player';
 import { Modal, ModalClose, ModalContent, ModalTitle } from '../ui/Modal';
 
 function formatError(error: unknown): string {
-  const raw = typeof error === 'string' ? error : error instanceof Error ? error.message : String(error);
+  const raw =
+    typeof error === 'string' ? error : error instanceof Error ? error.message : String(error);
   return raw.replace(/^Error invoking remote method '[^']+':\s*/i, '').trim();
 }
 
@@ -30,27 +28,50 @@ function YoutubeImportDialog({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [url, setUrl] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [phase, setPhase] = useState<'idle' | 'fetch' | 'upgrade'>('idle');
+  const [progress, setProgress] = useState<UpgradeProgress | null>(null);
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<LocalPlaylist | null>(null);
+  const [replaced, setReplaced] = useState(0);
+  const [replaceOfficial, setReplaceOfficial] = useState(true);
+  const cancelRef = useRef(false);
+
+  const busy = phase !== 'idle';
 
   useEffect(() => {
     if (!open && !busy) {
       setUrl('');
       setError(null);
       setResult(null);
+      setReplaced(0);
+      setProgress(null);
     }
   }, [busy, open]);
 
   const handleImport = useCallback(async () => {
     const trimmed = url.trim();
     if (!trimmed) return;
-    setBusy(true);
+    cancelRef.current = false;
+    setPhase('fetch');
     setError(null);
+    setResult(null);
+    setProgress(null);
+    setReplaced(0);
     try {
       const playlist = await fetchYoutubePlaylist(trimmed);
-      const tracks = playlist.entries.map((entry) => ytEntryToTrack(entry, playlist.uploader));
+      let entries = playlist.entries;
+      let replacedCount = 0;
+      if (replaceOfficial && entries.length > 0) {
+        setPhase('upgrade');
+        const outcome = await upgradeYoutubeEntries(entries, {
+          shouldCancel: () => cancelRef.current,
+          onProgress: setProgress,
+        });
+        entries = outcome.entries;
+        replacedCount = outcome.replaced;
+      }
+      const tracks = entries.map((entry) => ytEntryToTrack(entry, playlist.uploader));
       const local: LocalPlaylist = {
         id: `${YOUTUBE_PLAYLIST_PREFIX}${playlist.id ?? Date.now().toString(36)}`,
         title: playlist.title,
@@ -62,13 +83,15 @@ function YoutubeImportDialog({
         createdAt: Date.now(),
       };
       useLocalPlaylistsStore.getState().upsert(local);
+      setReplaced(replacedCount);
       setResult(local);
     } catch (e) {
       setError(formatError(e));
     } finally {
-      setBusy(false);
+      setPhase('idle');
+      setProgress(null);
     }
-  }, [url]);
+  }, [url, replaceOfficial]);
 
   const handlePlay = useCallback(() => {
     if (!result || result.tracks.length === 0) return;
@@ -132,6 +155,11 @@ function YoutubeImportDialog({
                     {result.tracks.length} {t('search.tracks').toLowerCase()}
                   </p>
                   <p className="text-[11px] mt-1 text-green-400/80">{t('yt.done')}</p>
+                  {replaced > 0 && (
+                    <p className="text-[11px] mt-0.5 text-accent/85">
+                      {t('yt.replacedCount', { count: replaced })}
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="relative px-5 pb-5 flex items-center gap-2.5">
@@ -158,6 +186,24 @@ function YoutubeImportDialog({
                 <p className="text-[12px] leading-relaxed">{t('yt.hint')}</p>
               </div>
 
+              <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={replaceOfficial}
+                  disabled={busy}
+                  onChange={(e) => setReplaceOfficial(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 accent-[var(--color-accent)] cursor-pointer"
+                />
+                <span className="min-w-0">
+                  <span className="block text-[12.5px] font-medium text-white/75">
+                    {t('yt.replaceOfficial')}
+                  </span>
+                  <span className="block text-[11px] text-white/35 mt-0.5 leading-snug">
+                    {t('yt.replaceOfficialDesc')}
+                  </span>
+                </span>
+              </label>
+
               <input
                 type="text"
                 value={url}
@@ -179,11 +225,38 @@ function YoutubeImportDialog({
               {busy && (
                 <div className="space-y-3">
                   <div className="rounded-2xl border border-accent/15 bg-accent/[0.07] px-4 py-3 backdrop-blur-xl">
-                    <p className="text-[12px] font-medium text-white/78">{t('yt.preparing')}</p>
+                    <p className="text-[12px] font-medium text-white/78">
+                      {phase === 'upgrade' ? t('yt.upgrading') : t('yt.preparing')}
+                    </p>
+                    {phase === 'upgrade' && progress && progress.current && (
+                      <p className="text-[11px] text-white/40 mt-1 truncate">
+                        {progress.done}/{progress.total} · {progress.replaced}{' '}
+                        {t('yt.replacedShort')} — {progress.current}
+                      </p>
+                    )}
                   </div>
                   <div className="w-full h-2 rounded-full bg-white/[0.06] overflow-hidden">
-                    <div className="h-full w-1/3 rounded-full bg-accent animate-pulse" />
+                    <div
+                      className="h-full rounded-full bg-accent transition-[width] duration-300"
+                      style={{
+                        width:
+                          phase === 'upgrade' && progress && progress.total > 0
+                            ? `${Math.round((progress.done / progress.total) * 100)}%`
+                            : '33%',
+                      }}
+                    />
                   </div>
+                  {phase === 'upgrade' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        cancelRef.current = true;
+                      }}
+                      className="text-[12px] font-medium text-white/40 hover:text-white/75 transition-colors cursor-pointer"
+                    >
+                      {t('yt.cancelUpgrade')}
+                    </button>
+                  )}
                 </div>
               )}
             </>

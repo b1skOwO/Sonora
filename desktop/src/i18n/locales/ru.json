@@ -806,7 +806,15 @@
     "update": "Обновить yt-dlp",
     "updating": "Обновляю...",
     "updated": "yt-dlp обновлён",
-    "updateFailed": "Не удалось обновить yt-dlp"
+    "updateFailed": "Не удалось обновить yt-dlp",
+    "replaceOfficial": "Заменять на канал артиста",
+    "replaceOfficialDesc": "Если видео загрузил кто-то другой — играть версию с канала самого артиста (импорт дольше).",
+    "upgrading": "Ищем канал артиста…",
+    "replacedShort": "заменено",
+    "replacedCount_one": "{{count}} трек заменён на версию с канала артиста",
+    "replacedCount_few": "{{count}} трека заменено на версию с канала артиста",
+    "replacedCount_many": "{{count}} треков заменено на версию с канала артиста",
+    "cancelUpgrade": "Стоп"
   },
   "ytHome": {
     "subtitle": "Твои импортированные плейлисты и подборка с каналов, которые ты слушаешь.",

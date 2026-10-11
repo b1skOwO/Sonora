@@ -811,7 +811,14 @@
     "update": "Update yt-dlp",
     "updating": "Updating...",
     "updated": "yt-dlp updated",
-    "updateFailed": "yt-dlp update failed"
+    "updateFailed": "yt-dlp update failed",
+    "replaceOfficial": "Replace with the artist's channel",
+    "replaceOfficialDesc": "When a video was uploaded by someone else, play the artist's own upload instead (import takes longer).",
+    "upgrading": "Looking for the artist's channel…",
+    "replacedShort": "replaced",
+    "replacedCount_one": "{{count}} track replaced with the artist's upload",
+    "replacedCount_other": "{{count}} tracks replaced with the artist's upload",
+    "cancelUpgrade": "Stop"
   },
   "ytHome": {
     "subtitle": "Your imported playlists, plus picks from the channels you keep.",

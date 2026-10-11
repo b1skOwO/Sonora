@@ -703,7 +703,14 @@
     "update": "yt-dlp'yi guncelle",
     "updating": "Guncelleniyor...",
     "updated": "yt-dlp guncellendi",
-    "updateFailed": "yt-dlp guncellenemedi"
+    "updateFailed": "yt-dlp guncellenemedi",
+    "replaceOfficial": "Sanatcinin kanaliyla degistir",
+    "replaceOfficialDesc": "Video baska biri tarafindan yuklendiyse sanatcinin kendi yuklemesini cal (ice aktarma daha uzun surer).",
+    "upgrading": "Sanatcinin kanali araniyor…",
+    "replacedShort": "degistirildi",
+    "replacedCount_one": "{{count}} parca sanatcinin yuklemesiyle degistirildi",
+    "replacedCount_other": "{{count}} parca sanatcinin yuklemesiyle degistirildi",
+    "cancelUpgrade": "Durdur"
   },
   "ytHome": {
     "subtitle": "Ice aktardigin calma listeleri ve takip ettigin kanallardan secmeler.",
