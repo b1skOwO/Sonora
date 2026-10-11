@@ -49,9 +49,21 @@ function trackUrlForDiscord(track: Track): string | undefined {
   if (isYoutubeUrn(track.urn)) {
     const videoId = youtubeVideoId(track.urn);
     if (videoId) return `https://www.youtube.com/watch?v=${videoId}`;
-    return raw || undefined;
+    return raw || searchFallback('youtube', track);
   }
-  return raw ? raw.replace(/\?.*$/, '') : undefined;
+  if (raw) return raw.replace(/\?.*$/, '');
+  return searchFallback('soundcloud', track);
+}
+
+/** Last-resort link so the button still appears when the track carries no
+ *  permalink (e.g. id-only queue stubs): a search for artist + title. */
+function searchFallback(service: 'youtube' | 'soundcloud', track: Track): string | undefined {
+  const query = `${track.user?.username ?? ''} ${track.title}`.trim();
+  if (!query) return undefined;
+  const encoded = encodeURIComponent(query);
+  return service === 'youtube'
+    ? `https://www.youtube.com/results?search_query=${encoded}`
+    : `https://soundcloud.com/search?q=${encoded}`;
 }
 
 async function updatePresence(track: Track) {

@@ -5,6 +5,7 @@ use discord_rich_presence::{
     DiscordIpc, DiscordIpcClient,
 };
 
+use crate::rt::AppHandle;
 use crate::shared::constants::DISCORD_CLIENT_ID;
 
 pub struct DiscordState {
@@ -71,6 +72,7 @@ pub fn discord_disconnect(state: tauri::State<'_, Arc<DiscordState>>) {
 pub fn discord_set_activity(
     state: tauri::State<'_, Arc<DiscordState>>,
     track: DiscordTrackInfo,
+    app: AppHandle,
 ) -> Result<(), String> {
     let mut guard = state.client.lock().map_err(|e| e.to_string())?;
     let client = guard.as_mut().ok_or("Discord not connected")?;
@@ -170,8 +172,22 @@ pub fn discord_set_activity(
             } else {
                 "Listen on SoundCloud"
             };
+            crate::app::diagnostics::log_native(
+                &app,
+                "INFO",
+                format!("[Discord] button '{label}' -> {url}"),
+            );
             activity = activity.buttons(vec![Button::new(label, url)]);
-        }
+        } else {
+        crate::app::diagnostics::log_native(
+            &app,
+            "INFO",
+            format!(
+                "[Discord] no button (show_button={show_button}, has_url={})",
+                track.track_url.is_some()
+            ),
+        );
+    }
 
     let result = client.set_activity(activity);
 
