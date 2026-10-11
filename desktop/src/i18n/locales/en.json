@@ -696,6 +696,8 @@
     "disableGpuDesc": "Software rendering — removes the GPU process and its memory, but animations and scrolling may feel heavier.",
     "memoryRestartNote": "Both switches apply after restarting Sonora.",
     "memoryMinimizeNote": "While minimized or hidden, the app automatically releases WebView memory and picks it back up on restore.",
+    "keepInTray": "Keep running in the tray",
+    "keepInTrayDesc": "The close button hides the window and keeps playing. Off: the close button quits Sonora.",
     "startup": "Startup",
     "startupPageDesc": "Choose which page opens when the app launches",
     "playback": "Playback",

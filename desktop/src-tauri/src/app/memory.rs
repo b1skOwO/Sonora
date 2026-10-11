@@ -15,8 +15,6 @@
 
 use tauri::Manager;
 
-const SETTINGS_DIR: &str = "com.soundcloud.desktop";
-const SETTINGS_FILE: &str = "sc-settings.json";
 const WATCH_INTERVAL: std::time::Duration = std::time::Duration::from_secs(2);
 
 /// Hand the persisted memory toggles to WebView2 as browser arguments.
@@ -43,19 +41,7 @@ pub fn apply_startup_args() {
 
 #[cfg(windows)]
 fn startup_args_from_settings() -> String {
-    let Some(raw) = settings_raw() else {
-        return String::new();
-    };
-    let Ok(json) = serde_json::from_str::<serde_json::Value>(&raw) else {
-        return String::new();
-    };
-    let state = json.get("state").unwrap_or(&json);
-    let flag = |name: &str| {
-        state
-            .get(name)
-            .and_then(|value| value.as_bool())
-            .unwrap_or(false)
-    };
+    let flag = |name: &str| crate::app::prefs::read_bool(name).unwrap_or(false);
 
     let mut args: Vec<&str> = Vec::new();
     if flag("memorySaver") {
@@ -68,15 +54,6 @@ fn startup_args_from_settings() -> String {
         args.push("--disable-gpu");
     }
     args.join(" ")
-}
-
-#[cfg(windows)]
-fn settings_raw() -> Option<String> {
-    let base = std::env::var_os("APPDATA")?;
-    let path = std::path::Path::new(&base)
-        .join(SETTINGS_DIR)
-        .join(SETTINGS_FILE);
-    std::fs::read_to_string(path).ok()
 }
 
 /// Start watching the main window's minimized/hidden state.

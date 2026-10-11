@@ -92,6 +92,8 @@ export interface SettingsState {
   memorySaver: boolean;
   /** Software rendering (`--disable-gpu`) — big memory cut, CPU raster cost. */
   disableGpu: boolean;
+  /** Close button keeps the app alive in the tray instead of quitting. */
+  keepInTray: boolean;
   setAccentColor: (color: string) => void;
   setBgPrimary: (bg: string) => void;
   setThemePreset: (id: ThemePreset) => void;
@@ -128,6 +130,7 @@ export interface SettingsState {
   setWallhavenApiKey: (key: string) => void;
   setMemorySaver: (v: boolean) => void;
   setDisableGpu: (v: boolean) => void;
+  setKeepInTray: (v: boolean) => void;
   resetTheme: () => void;
 }
 
@@ -168,6 +171,7 @@ const DEFAULTS = {
   wallhavenApiKey: '',
   memorySaver: false,
   disableGpu: false,
+  keepInTray: false,
 };
 
 export const useSettingsStore = create<SettingsState>()(
@@ -231,6 +235,7 @@ export const useSettingsStore = create<SettingsState>()(
       setWallhavenApiKey: (wallhavenApiKey) => set({ wallhavenApiKey }),
       setMemorySaver: (memorySaver) => set({ memorySaver }),
       setDisableGpu: (disableGpu) => set({ disableGpu }),
+      setKeepInTray: (keepInTray) => set({ keepInTray }),
       resetTheme: () =>
         set({
           accentColor: DEFAULTS.accentColor,
@@ -301,6 +306,7 @@ export const useSettingsStore = create<SettingsState>()(
         wallhavenApiKey: s.wallhavenApiKey,
         memorySaver: s.memorySaver,
         disableGpu: s.disableGpu,
+        keepInTray: s.keepInTray,
       }),
     },
   ),

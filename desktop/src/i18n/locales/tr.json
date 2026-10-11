@@ -590,6 +590,8 @@
     "disableGpuDesc": "Yazilim olusturma — GPU surecini ve bellegini kaldirir, ancak animasyonlar ve kaydirma daha agir olabilir.",
     "memoryRestartNote": "Her iki anahtar da Sonora yeniden baslatildiktan sonra uygulanir.",
     "memoryMinimizeNote": "Simge durumuna kucultulmus veya gizliyken uygulama WebView bellegini otomatik olarak serbest birakir ve geri yukler.",
+    "keepInTray": "Tepside calismaya devam et",
+    "keepInTrayDesc": "Kapatma dugmesi pencereyi gizler ve calmaya devam eder. Kapaliyken kapatma dugmesi Sonora'yi kapatir.",
     "startup": "Baslangic",
     "startupPageDesc": "Uygulama acildiginda hangi sayfanin gosterilecegini secin",
     "playback": "Oynatma",

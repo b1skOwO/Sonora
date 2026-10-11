@@ -179,9 +179,22 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| match event {
+            // Mini player ✕: dismiss (hide) — the app stays alive for the tray.
+            tauri::WindowEvent::CloseRequested { api, .. }
+            if window.label() == app::popover::LABEL =>
+                {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            // Main window ✕: quit, unless the user opted into staying in the
+            // tray (Settings → General → "Keep running in the tray").
             tauri::WindowEvent::CloseRequested { api, .. } => {
-                api.prevent_close();
-                let _ = window.hide();
+                if app::prefs::read_bool("keepInTray").unwrap_or(false) {
+                    api.prevent_close();
+                    let _ = window.hide();
+                } else {
+                    window.app_handle().exit(0);
+                }
             }
             // Transient popover (tray left-click) dismisses on blur; a pinned one
             // (opened from the "Mini player" menu) stays put — closed only by its ✕.
