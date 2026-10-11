@@ -29,6 +29,7 @@ import {
   FileDown as _FileDown,
   Flame as _Flame,
   Fullscreen as _Fullscreen,
+  Gauge as _Gauge,
   Globe as _Globe,
   GripVertical as _GripVertical,
   Hash as _Hash,
@@ -125,6 +126,7 @@ export const Disc3 = memo(_Disc3);
 export const ExternalLink = memo(_ExternalLink);
 export const Eye = memo(_Eye);
 export const Fullscreen = memo(_Fullscreen);
+export const Gauge = memo(_Gauge);
 export const Globe = memo(_Globe);
 export const GripVertical = memo(_GripVertical);
 export const Hash = memo(_Hash);

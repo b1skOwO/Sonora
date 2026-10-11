@@ -9,6 +9,7 @@ import { EffectsCard } from './cards/EffectsCard';
 import { EqualizerCard } from './cards/EqualizerCard';
 import { ImportCard } from './cards/ImportCard';
 import { LanguageCard } from './cards/LanguageCard';
+import { MemoryCard } from './cards/MemoryCard';
 import { NetworkCard } from './cards/NetworkCard';
 import { PlaybackCard } from './cards/PlaybackCard';
 import { SoundForgeCard } from './cards/SoundForgeCard';
@@ -54,6 +55,7 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
         <ThemeCard />
         <WallpaperCard />
         <EffectsCard />
+        <MemoryCard />
       </>
     ),
   },

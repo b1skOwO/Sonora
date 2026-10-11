@@ -1,5 +1,5 @@
-import {BaseDirectory, exists, mkdir, readTextFile, writeTextFile} from '@tauri-apps/plugin-fs';
-import type {Track} from '../stores/player';
+import { BaseDirectory, exists, mkdir, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
+import type { Track } from '../stores/player';
 
 const BASE_DIR = BaseDirectory.AppData;
 const INDEX_PATH = 'offline-index.json';
@@ -36,6 +36,25 @@ function cloneTrack(track: Track): Track {
     ...track,
     user: { ...track.user },
   };
+}
+
+/** Bound on the remembered-track metadata map. Liked and locally cached
+ *  tracks are always kept; the rest falls off oldest-first. */
+const TRACKS_BY_URN_CAP = 5000;
+
+function trimTracksByUrn(index: OfflineIndex) {
+  const keys = Object.keys(index.tracksByUrn);
+  if (keys.length <= TRACKS_BY_URN_CAP) {
+    return;
+  }
+  const keep = new Set([...index.likedUrns, ...index.cacheOrder]);
+  let over = keys.length - TRACKS_BY_URN_CAP;
+  for (const key of keys) {
+    if (over <= 0) break;
+    if (keep.has(key)) continue;
+    delete index.tracksByUrn[key];
+    over--;
+  }
 }
 
 async function readIndexFile(): Promise<OfflineIndex> {
@@ -106,6 +125,7 @@ export async function rememberTracks(tracks: Track[]) {
   }
 
   if (changed) {
+    trimTracksByUrn(index);
     schedulePersist();
   }
 }
@@ -118,6 +138,7 @@ export async function rememberLikedTracks(tracks: Track[]) {
   }
 
   index.likedUrns = tracks.map((track) => track.urn);
+  trimTracksByUrn(index);
   index.updatedAt = Date.now();
   schedulePersist();
 }

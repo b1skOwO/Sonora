@@ -14,7 +14,7 @@ function barsForMode(mode: PerfMode): number {
 }
 
 /** Downsample SC waveform samples into BAR_COUNT averaged bars (0..1). */
-function downsample(samples: number[], height: number, count: number): number[] {
+function downsample(samples: ArrayLike<number>, height: number, count: number): number[] {
   if (!samples.length) return new Array(count).fill(0.35);
   const bucketSize = samples.length / count;
   const out = new Array<number>(count);

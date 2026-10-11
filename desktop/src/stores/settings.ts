@@ -88,6 +88,10 @@ export interface SettingsState {
   lyricsVisualizer: boolean;
   artistWaveCollapsed: boolean;
   wallhavenApiKey: string;
+  /** WebView2 memory saver: heap/GPU caps via browser args (needs a restart). */
+  memorySaver: boolean;
+  /** Software rendering (`--disable-gpu`) — big memory cut, CPU raster cost. */
+  disableGpu: boolean;
   setAccentColor: (color: string) => void;
   setBgPrimary: (bg: string) => void;
   setThemePreset: (id: ThemePreset) => void;
@@ -122,6 +126,8 @@ export interface SettingsState {
   setLyricsVisualizer: (v: boolean) => void;
   setArtistWaveCollapsed: (v: boolean) => void;
   setWallhavenApiKey: (key: string) => void;
+  setMemorySaver: (v: boolean) => void;
+  setDisableGpu: (v: boolean) => void;
   resetTheme: () => void;
 }
 
@@ -160,6 +166,8 @@ const DEFAULTS = {
   lyricsVisualizer: false,
   artistWaveCollapsed: false,
   wallhavenApiKey: '',
+  memorySaver: false,
+  disableGpu: false,
 };
 
 export const useSettingsStore = create<SettingsState>()(
@@ -221,6 +229,8 @@ export const useSettingsStore = create<SettingsState>()(
       setLyricsVisualizer: (lyricsVisualizer) => set({ lyricsVisualizer }),
       setArtistWaveCollapsed: (artistWaveCollapsed) => set({ artistWaveCollapsed }),
       setWallhavenApiKey: (wallhavenApiKey) => set({ wallhavenApiKey }),
+      setMemorySaver: (memorySaver) => set({ memorySaver }),
+      setDisableGpu: (disableGpu) => set({ disableGpu }),
       resetTheme: () =>
         set({
           accentColor: DEFAULTS.accentColor,

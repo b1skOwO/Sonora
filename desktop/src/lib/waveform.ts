@@ -3,7 +3,8 @@ import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import type { Track } from '../stores/player';
 
 export interface WaveformSamples {
-  values: number[];
+  /** Packed u8 amplitudes (0..height) — 8× smaller than a parsed number[]. */
+  values: Uint8Array;
   height: number;
 }
 
@@ -32,17 +33,22 @@ async function fetchWaveform(rawUrl: string): Promise<WaveformSamples> {
   if (!Array.isArray(json.samples) || json.samples.length === 0) {
     throw new Error('waveform: empty samples');
   }
-  return { values: json.samples, height: json.height || 140 };
+  // Samples are small integers (0..height); pack them so the react-query cache
+  // holds bytes, not boxed numbers.
+  const values = Uint8Array.from(json.samples, (value) =>
+    Math.max(0, Math.min(255, Math.round(value))),
+  );
+  return { values, height: json.height || 140 };
 }
 
-/** Fetch + cache a track's raw SC waveform JSON. 30-min cache per track URN. */
+/** Fetch + cache a track's raw SC waveform JSON. 15-min cache per track URN. */
 export function useTrackWaveform(track: Track | null) {
   const rawUrl = track?.waveform_url ?? null;
   return useQuery({
     queryKey: ['waveform', rawUrl],
     enabled: !!rawUrl,
-    staleTime: 1000 * 60 * 30,
-    gcTime: 1000 * 60 * 60,
+    staleTime: 1000 * 60 * 15,
+    gcTime: 1000 * 60 * 15,
     retry: false,
     queryFn: () => fetchWaveform(rawUrl!),
   });
