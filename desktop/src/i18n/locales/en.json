@@ -813,6 +813,13 @@
     "updated": "yt-dlp updated",
     "updateFailed": "yt-dlp update failed"
   },
+  "ytHome": {
+    "subtitle": "Your imported playlists, plus picks from the channels you keep.",
+    "forYou": "Picked for you",
+    "import": "Import a playlist",
+    "emptyTitle": "No YouTube playlists yet",
+    "emptyBody": "Import a YouTube or Spotify playlist to start listening here."
+  },
   "spotify": {
     "instructions": "Paste a Spotify playlist link",
     "hint": "Each track is searched on YouTube and played via yt-dlp (downloaded on first play). Up to 100 tracks per playlist.",

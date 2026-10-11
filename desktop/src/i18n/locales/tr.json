@@ -705,6 +705,13 @@
     "updated": "yt-dlp guncellendi",
     "updateFailed": "yt-dlp guncellenemedi"
   },
+  "ytHome": {
+    "subtitle": "Ice aktardigin calma listeleri ve takip ettigin kanallardan secmeler.",
+    "forYou": "Senin icin secildi",
+    "import": "Calma listesi ice aktar",
+    "emptyTitle": "Henuz YouTube calma listesi yok",
+    "emptyBody": "Burada dinlemeye baslamak icin YouTube veya Spotify'dan bir calma listesi ice aktar."
+  },
   "spotify": {
     "instructions": "Bir Spotify calma listesi baglantisi yapistirin",
     "hint": "Her parca YouTube'da aranir ve yt-dlp ile oynatilir (ilk oynatmada indirilir). Calma listesi basina en fazla 100 parca.",

@@ -4,13 +4,15 @@ import { RIVER_KEYFRAMES } from '../components/home/river/keyframes';
 import { RiverFlow } from '../components/home/river/RiverFlow';
 import { RiverMasthead } from '../components/home/river/RiverMasthead';
 import { WaveFrame } from '../components/home/WaveFrame';
+import { YoutubeHome } from '../components/home/YoutubeHome';
 import { useSoundprint } from '../components/library/useSoundprint';
 import { useLikedTracks } from '../lib/hooks';
 import { useAuthStore } from '../stores/auth';
+import { useServiceStore } from '../stores/service';
 
 /** Главная — «Течение»: река твоей музыки. Устье (играющее + waveform-вода),
  *  русло «Волны» и притоки вдоль нити течения; внизу — затоны (архив). */
-export function Home() {
+function SoundCloudHome() {
   const user = useAuthStore((s) => s.user);
   const likedTracksQuery = useLikedTracks(100);
 
@@ -35,4 +37,12 @@ export function Home() {
       <ArchiveStation likedTracks={likedShelfTracks} likedLoading={likedTracksQuery.isLoading} />
     </WaveFrame>
   );
+}
+
+/** Home is service-aware: SoundCloud shows the river, YouTube shows the
+ *  imported playlists + YouTube picks — no cross-service content. */
+export function Home() {
+  const service = useServiceStore((s) => s.service);
+  if (service === 'youtube') return <YoutubeHome />;
+  return <SoundCloudHome />;
 }

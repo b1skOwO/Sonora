@@ -150,6 +150,9 @@ export const Sidebar = React.memo(() => {
   const visiblePins = pinnedPlaylists.filter((p) =>
     service === 'youtube' ? isLocalPlaylistUrn(p.urn) : !isLocalPlaylistUrn(p.urn),
   );
+  // Discover is a SoundCloud catalog surface — it has no YouTube counterpart.
+  const items =
+    service === 'youtube' ? navItems.filter((item) => item.to !== '/discover') : navItems;
 
   const toggleLanguage = () => {
     void changeAppLanguage(i18n.language === 'ru' ? 'en' : 'ru');
@@ -167,7 +170,7 @@ export const Sidebar = React.memo(() => {
       }}
     >
       <nav className="flex flex-col gap-0.5 px-2 pt-3">
-        {navItems.map((item) => (
+        {items.map((item) => (
           <NavItem
             key={item.to}
             to={item.to}

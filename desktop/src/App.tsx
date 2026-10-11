@@ -3,8 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { useShallow } from 'zustand/shallow';
-import { ErrorBoundary } from './components/ErrorBoundary';
 import { DjPanel } from './components/dj/DjPanel';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { HostStatusBanner } from './components/host-status/HostStatusBanner';
 import { HostStatusModal } from './components/host-status/HostStatusModal';
 import { AppShell } from './components/layout/AppShell';
@@ -16,6 +16,7 @@ import { CHECK_UPDATES } from './lib/constants';
 import { checkForAppUpdate, type GithubRelease } from './lib/update-check';
 import { getAppMode, useAppMode, useAppStatusStore } from './stores/app-status';
 import { useAuthStore } from './stores/auth';
+import { useServiceStore } from './stores/service';
 import { type StartupPage, useSettingsStore } from './stores/settings';
 import { useYmImportStore } from './stores/ym-import';
 
@@ -341,7 +342,9 @@ export default function App() {
                   path="discover"
                   element={
                     <RouteLoader>
-                      <Discover />
+                      <SoundCloudOnly>
+                        <Discover />
+                      </SoundCloudOnly>
                     </RouteLoader>
                   }
                 />
@@ -360,6 +363,14 @@ export default function App() {
       </BrowserRouter>
     </ThemeProvider>
   );
+}
+
+/** SoundCloud-only surfaces (Discover) step aside in YouTube mode: they have no
+ *  YouTube counterpart and would otherwise show the SC catalog. */
+function SoundCloudOnly({ children }: { children: ReactNode }) {
+  const service = useServiceStore((s) => s.service);
+  if (service === 'youtube') return <Navigate to="/home" replace />;
+  return children;
 }
 
 function RouteLoader({ children }: { children: ReactNode }) {
