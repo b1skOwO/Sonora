@@ -45,7 +45,7 @@ Most players lock you into one service. Sonora treats **SoundCloud and YouTube a
 - **Yandex Music likes** — import your likes into SoundCloud
 
 #### Playback & DJ
-- Gapless-feel playback engine in Rust (rodio + symphonia), high-quality resampling
+- Native playback engine in Rust (rodio + symphonia) with high-quality resampling
 - **Two-deck DJ mode** — BPM + Sync, crossfade, auto-mix, DJ filter, flanger, waveform
 - Playback speed & pitch controls, A–B loop, shuffle / repeat
 - Hover-to-preview tracks without interrupting playback
@@ -60,12 +60,11 @@ Most players lock you into one service. Sonora treats **SoundCloud and YouTube a
 #### Offline & performance
 - **Offline cache** with selectable format (m4a / mp3 / wav) and size limit; likes get a protected cache
 - **Memory saver** — caps WebView heap/GPU caches; memory is auto-released while minimized
-- Permanent on-disk image cache, virtualized lists everywhere
+- Permanent on-disk image cache, virtualized lists
 
 #### Integrations
 - **Discord Rich Presence** with a per-service "Listen on SoundCloud / YouTube" button that opens the track
 - System media keys + OS media popup (Windows SMTC / MPRIS), system tray + mini player
-- Auto-updates via GitHub releases
 
 ### Dependencies
 
@@ -111,9 +110,9 @@ Checks (same as CI):
 
 ```bash
 pnpm exec tsc --noEmit   # TypeScript
+pnpm exec vite build     # frontend build
 cargo check              # Rust (run in desktop/src-tauri)
 cargo test --lib         # Rust tests
-pnpm exec biome check src/  # lint
 ```
 
 ### Origin
@@ -184,12 +183,11 @@ MIT. See [LICENSE](LICENSE).
 #### オフライン・軽量化
 - **オフラインキャッシュ**（形式選択可: m4a / mp3 / wav、容量上限あり）。いいねは保護キャッシュ
 - **メモリ節約モード** — WebViewのヒープ／GPUキャッシュを制限。最小化中は自動でメモリ解放
-- 画像の永続ディスクキャッシュ、全リスト仮想化
+- 画像の永続ディスクキャッシュ、リストの仮想化
 
 #### 連携
 - **Discord Rich Presence** — サービス別の「Listen on SoundCloud / YouTube」ボタン付き（押すとその曲が開く）
 - メディアキー＋OSメディアポップアップ（Windows SMTC / MPRIS）、トレイ＋ミニプレイヤー
-- GitHubリリース経由の自動更新
 
 ### 依存関係
 
@@ -235,9 +233,9 @@ pnpm tauri build
 
 ```bash
 pnpm exec tsc --noEmit      # TypeScript
+pnpm exec vite build        # フロントビルド
 cargo check                 # Rust (desktop/src-tauri にて)
 cargo test --lib            # Rustテスト
-pnpm exec biome check src/  # lint
 ```
 
 ### フォーク元
