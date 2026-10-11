@@ -4,7 +4,7 @@ import { useSettingsStore } from '../stores/settings';
 import { getCurrentTime, subscribe as subscribeAudioTime } from './audio';
 import { trackedInvoke as invoke } from './diagnostics';
 import { getArtistDisplay, getDisplayTitle } from './track-display';
-import { isYoutubeUrn } from './youtube';
+import { isYoutubeUrn, youtubeVideoId } from './youtube';
 
 let connected = false;
 let lastConnectAttemptAt = 0;
@@ -41,6 +41,19 @@ function artworkToLarge(url: string | null): string | undefined {
   return url.replace(/-large(\.[^.]+)$/, '-t500x500$1');
 }
 
+/** Public link for the Discord button. SoundCloud permalinks carry social
+ *  query params that are dropped; YouTube's `?v=<id>` IS the track, so it must
+ *  survive — stripping it left the button pointing at youtube.com/watch. */
+function trackUrlForDiscord(track: Track): string | undefined {
+  const raw = track.permalink_url?.trim();
+  if (isYoutubeUrn(track.urn)) {
+    const videoId = youtubeVideoId(track.urn);
+    if (videoId) return `https://www.youtube.com/watch?v=${videoId}`;
+    return raw || undefined;
+  }
+  return raw ? raw.replace(/\?.*$/, '') : undefined;
+}
+
 async function updatePresence(track: Track) {
   if (!(await ensureConnected())) return;
 
@@ -56,7 +69,7 @@ async function updatePresence(track: Track) {
         title: getDisplayTitle(track),
         artist: display.primary || track.user?.username || '',
         artwork_url: artworkToLarge(track.artwork_url),
-        track_url: track.permalink_url ? `${track.permalink_url}`.replace(/\?.*$/, '') : undefined,
+        track_url: trackUrlForDiscord(track),
         duration_secs: Math.round(track.duration / 1000),
         elapsed_secs: Math.round(getCurrentTime()),
         is_playing: isPlaying,
