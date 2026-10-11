@@ -367,22 +367,22 @@ pub fn resolve_loudness_analysis_file(
         return Ok(analysis);
     }
 
-    let open = || {
-        File::open(path)
-            .map(BufReader::new)
-            .map_err(|e| format!("Failed to open {}: {}", path.display(), e))
+    let open_file = || {
+        File::open(path).map_err(|e| format!("Failed to open {}: {}", path.display(), e))
     };
-    let is_opus = is_ogg_opus_reader(&mut open()?);
+    let is_opus = is_ogg_opus_reader(&mut open_file()?);
 
     let analysis = if is_opus {
         analyze_samples(
-            OpusSource::from_reader(open()?).map_err(|e| format!("Failed to decode: {}", e))?,
+            OpusSource::from_reader(open_file()?).map_err(|e| format!("Failed to decode: {}", e))?,
         )
     } else {
-        match Decoder::new(open()?) {
+        match open_file().and_then(|file| {
+            Decoder::try_from(file).map_err(|e| format!("Failed to decode: {}", e))
+        }) {
             Ok(source) => analyze_samples(source),
             _ => analyze_samples(
-                OpusSource::from_reader(open()?).map_err(|e| format!("Failed to decode: {}", e))?,
+                OpusSource::from_reader(open_file()?).map_err(|e| format!("Failed to decode: {}", e))?,
             ),
         }
     };
@@ -445,8 +445,9 @@ fn append_chain<S>(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn create_player_from_reader<R, F>(
+fn create_player_from_reader<R, F, D>(
     make_reader: F,
+    make_decoder: D,
     is_opus: bool,
     mixer: &Mixer,
     volume: f32,
@@ -460,6 +461,7 @@ fn create_player_from_reader<R, F>(
 where
     R: std::io::Read + std::io::Seek + Send + Sync + 'static,
     F: Fn() -> Result<R, String>,
+    D: Fn(R) -> Result<Decoder<R>, String>,
 {
     let player = Player::connect_new(mixer);
     if volume_handle.is_none() {
@@ -484,7 +486,7 @@ where
             output_sample_rate,
         );
     } else {
-        match Decoder::new(make_reader()?) {
+        match make_decoder(make_reader()?) {
             Ok(source) => {
                 duration = source.total_duration().map(|d| d.as_secs_f64());
                 append_chain(
@@ -535,6 +537,7 @@ pub fn create_player_from_arc_bytes(
     let arc = crate::audio::state::ArcBytes(bytes);
     create_player_from_reader(
         move || Ok(Cursor::new(arc.clone())),
+        |reader| Decoder::new(reader).map_err(|e| format!("Failed to decode: {}", e)),
         is_opus,
         mixer,
         volume,
@@ -566,12 +569,26 @@ pub fn create_player_from_file(
             File::open(path).map_err(|e| format!("Failed to open {}: {}", path.display(), e))?;
         is_ogg_opus_reader(&mut probe)
     };
+    // Feed the decoder the file length: symphonia then knows the byte length
+    // (accurate seeking + duration for MP3s).
+    let byte_len = std::fs::metadata(path).map(|meta| meta.len()).ok();
     let path = path.to_path_buf();
     create_player_from_reader(
         move || {
             File::open(&path)
                 .map(BufReader::new)
                 .map_err(|e| format!("Failed to open {}: {}", path.display(), e))
+        },
+        move |reader| {
+            let mut builder = Decoder::<BufReader<File>>::builder()
+                .with_data(reader)
+                .with_seekable(true);
+            if let Some(len) = byte_len {
+                builder = builder.with_byte_len(len);
+            }
+            builder
+                .build()
+                .map_err(|e| format!("Failed to decode: {}", e))
         },
         is_opus,
         mixer,
