@@ -448,7 +448,8 @@
     "recommended": "Recommended For You",
     "startListening": "Start Listening",
     "startLikingTitle": "Like tracks — more music will appear here",
-    "startLikingDesc": "The more likes, the better recommendations and richer home page"
+    "startLikingDesc": "The more likes, the better recommendations and richer home page",
+    "randomMix": "Random mix"
   },
   "soundwave": {
     "tagline": "Your personal radio — picked just for you",

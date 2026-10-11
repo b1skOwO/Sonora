@@ -12,13 +12,42 @@ import { useSoundprint } from '../components/library/useSoundprint';
 import { PlaylistCard } from '../components/music/PlaylistCard';
 import { TrackCard } from '../components/music/TrackCard';
 import { useLikedTracks, useMyPlaylists } from '../lib/hooks';
-import { Heart, ListMusic } from '../lib/icons';
+import { Heart, ListMusic, RefreshCw } from '../lib/icons';
 import { likedTracksCount } from '../lib/likes';
 import { armLikesContinuation } from '../lib/queue-continuation';
 import { useAuthStore } from '../stores/auth';
 import { useUnifiedLikes } from '../stores/local-likes';
+import type { LocalPlaylist } from '../stores/local-playlists';
 import { localPlaylistToCard, useLocalPlaylistsStore } from '../stores/local-playlists';
+import type { Track } from '../stores/player';
 import { useServiceStore } from '../stores/service';
+
+const RANDOM_MIX_SIZE = 15;
+
+/** One ephemeral playlist: a shuffled pick across unified likes + every
+ *  imported playlist, deduped. Re-rolled on demand — never saved, so the
+ *  library stays clean. */
+function buildRandomMix(
+  likes: Track[],
+  imports: LocalPlaylist[],
+  count: number = RANDOM_MIX_SIZE,
+): Track[] {
+  const pool = [...likes];
+  const seen = new Set(pool.map((t) => t.urn));
+  for (const playlist of imports) {
+    for (const track of playlist.tracks) {
+      if (!seen.has(track.urn)) {
+        seen.add(track.urn);
+        pool.push(track);
+      }
+    }
+  }
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, count);
+}
 
 /** SoundCloud home without the river: the recommendations feed behind it
  *  takes up to a minute+ on slow connections, blocking the whole page on
@@ -41,6 +70,12 @@ function SoundCloudHome() {
   const { playlists } = useMyPlaylists();
   const localPlaylists = useLocalPlaylistsStore((s) => s.playlists);
   const unifiedLikes = useUnifiedLikes();
+  const [mixSeed, setMixSeed] = useState(0);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mixSeed re-rolls the mix on demand
+  const randomMix = useMemo(
+    () => buildRandomMix(unifiedLikes, localPlaylists),
+    [unifiedLikes, localPlaylists, mixSeed],
+  );
   const likesPreview = useMemo(() => {
     const base = genre
       ? likedTracksQuery.tracks.filter((tr) => tr.genre?.trim() === genre)
@@ -61,6 +96,32 @@ function SoundCloudHome() {
       <ContinueRow genre={genre} />
 
       <FreshDrops genre={genre} />
+
+      {randomMix.length > 0 && (
+        <CollectionRail
+          icon={<RefreshCw size={16} />}
+          title={t('home.randomMix')}
+          count={randomMix.length}
+          to="/library/local-likes"
+          action={
+            <button
+              type="button"
+              onClick={() => setMixSeed((s) => s + 1)}
+              title={t('discover.prismShuffle')}
+              aria-label={t('discover.prismShuffle')}
+              className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-white/35 hover:text-white/80 hover:bg-white/[0.07] transition-all cursor-pointer"
+            >
+              <RefreshCw size={14} />
+            </button>
+          }
+        >
+          {randomMix.map((tr) => (
+            <div key={tr.urn} className="w-[150px] shrink-0">
+              <TrackCard track={tr} queue={randomMix} />
+            </div>
+          ))}
+        </CollectionRail>
+      )}
 
       {likesPreview.length > 0 && (
         <CollectionRail
