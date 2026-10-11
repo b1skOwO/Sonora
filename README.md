@@ -66,6 +66,17 @@ Most players lock you into one service. Sonora treats **SoundCloud and YouTube a
 - **Discord Rich Presence** with a per-service "Listen on SoundCloud / YouTube" button that opens the track
 - System media keys + OS media popup (Windows SMTC / MPRIS), system tray + mini player
 
+### New in this fork
+
+Everything above the origin ([zxcloli666/SoundCloud-Desktop](https://github.com/zxcloli666/SoundCloud-Desktop)) doesn't have — and most of it isn't on soundcloud.com either:
+
+- **YouTube as a first-class service** — one-click switching, per-service volume and pins, a YouTube home with picks from your channels, YouTube search, YouTube lyrics
+- **Two-deck DJ mode** — crossfader, tempo + BPM sync, 3-band EQ, DJ filter, flanger, auto-mix, per-deck waveform
+- **Imports that prefer the artist** — Spotify matching and the YouTube "replace with the artist's channel" option swap re-uploads for the artist's own upload; second-chance matching rescues "not found" tracks
+- **Offline cache you control** — m4a / mp3 / wav choice, size limit, protected likes cache, and a peak-safe pipeline with no limiter (dynamics untouched)
+- **Memory saver** — heap/GPU caps, streaming decode without full-track RAM buffers, automatic release while minimized
+- **Sane window behavior** — close quits; staying in the tray is opt-in
+
 ### Dependencies
 
 | Tool | Version | Notes |
@@ -188,6 +199,17 @@ MIT. See [LICENSE](LICENSE).
 #### 連携
 - **Discord Rich Presence** — サービス別の「Listen on SoundCloud / YouTube」ボタン付き（押すとその曲が開く）
 - メディアキー＋OSメディアポップアップ（Windows SMTC / MPRIS）、トレイ＋ミニプレイヤー
+
+### このフォークでの追加分
+
+フォーク元（[zxcloli666/SoundCloud-Desktop](https://github.com/zxcloli666/SoundCloud-Desktop)）になく、ほとんどは本家soundcloud.comにもないもの：
+
+- **YouTubeを一人前のサービスとして統合** — ワンクリック切り替え、サービス別音量・ピン、チャンネル起点のおすすめ付きYouTubeホーム、YouTube検索、YouTube曲の歌詞
+- **2デッキDJモード** — クロスフェーダー、テンポ＋BPM同期、3バンドEQ、DJフィルター、フランジャー、オートミックス、デッキ別波形
+- **アーティスト優先のインポート** — SpotifyマッチングとYouTubeの「本人のチャンネルに置き換え」で転載を公式アップロードに差し替え。救済マッチングで「not found」を減らす
+- **思い通りのオフラインキャッシュ** — m4a / mp3 / wav選択、容量上限、いいね保護、リミッターなしのピークセーフ処理（ダイナミクス不変）
+- **メモリ節約** — ヒープ／GPU上限、曲全体をRAMに載せないストリーム再生、最小化中の自動解放
+- **まともなウィンドウ動作** — 閉じれば終了。トレイ常駐は任意設定
 
 ### 依存関係
 
