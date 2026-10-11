@@ -67,6 +67,8 @@ export interface SettingsState {
   /** Accent glow/tint intensity (0–150, %). */
   glowStrength: number;
   audioCacheLimitMB: number;
+  /** Delete cached audio not played for this many days (0 = off). */
+  cacheMaxAgeDays: number;
   language: string;
   eqEnabled: boolean;
   eqGains: number[];
@@ -105,6 +107,7 @@ export interface SettingsState {
   setBlurStrength: (value: number) => void;
   setGlowStrength: (value: number) => void;
   setAudioCacheLimitMB: (limit: number) => void;
+  setCacheMaxAgeDays: (days: number) => void;
   setLanguage: (lang: string) => void;
   setEqEnabled: (enabled: boolean) => void;
   setEqGains: (gains: number[]) => void;
@@ -148,6 +151,7 @@ const DEFAULTS = {
   blurStrength: 100,
   glowStrength: 100,
   audioCacheLimitMB: 1024,
+  cacheMaxAgeDays: 5,
   language: navigator.language?.split('-')[0] || 'en',
   eqEnabled: false,
   eqGains: DEFAULT_EQ_GAINS,
@@ -196,6 +200,7 @@ export const useSettingsStore = create<SettingsState>()(
       setBlurStrength: (blurStrength) => set({ blurStrength }),
       setGlowStrength: (glowStrength) => set({ glowStrength }),
       setAudioCacheLimitMB: (audioCacheLimitMB) => set({ audioCacheLimitMB }),
+      setCacheMaxAgeDays: (cacheMaxAgeDays) => set({ cacheMaxAgeDays }),
       setLanguage: (language) => set({ language }),
       setEqEnabled: (eqEnabled) => set({ eqEnabled }),
       setEqGains: (eqGains) => set({ eqGains, eqPreset: 'custom' }),
@@ -283,6 +288,7 @@ export const useSettingsStore = create<SettingsState>()(
         blurStrength: s.blurStrength,
         glowStrength: s.glowStrength,
         audioCacheLimitMB: s.audioCacheLimitMB,
+        cacheMaxAgeDays: s.cacheMaxAgeDays,
         language: s.language,
         eqEnabled: s.eqEnabled,
         eqGains: s.eqGains,

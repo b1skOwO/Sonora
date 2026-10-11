@@ -346,6 +346,12 @@ struct TrackCacheMetadata {
     /// masters (high peak, low crest) — see `is_spiky_transcode`.
     #[serde(default)]
     crest_db: Option<f64>,
+    /// Wall-clock ms of the last playback of this file. Stamped on every load
+    /// by the audio engine; drives the "delete unplayed for N days" eviction.
+    /// Absent on files written before the tracking existed — those are never
+    /// age-evicted (grace period), only size-evicted.
+    #[serde(default)]
+    last_played_ms: Option<u64>,
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -887,6 +893,7 @@ async fn write_response_to_cache(
         format: None,
         peak_db: None,
         crest_db: None,
+        last_played_ms: None,
     };
 
     if let Ok(meta) = tokio::fs::metadata(&final_path).await
@@ -968,6 +975,7 @@ async fn write_bytes_to_cache(
         format: None,
         peak_db: None,
         crest_db: None,
+        last_played_ms: None,
     };
 
     if let Ok(meta) = tokio::fs::metadata(&final_path).await
@@ -1551,6 +1559,7 @@ impl TrackCacheState {
             format: None,
             peak_db: None,
             crest_db: None,
+        last_played_ms: None,
         });
         meta.liked = liked;
         if expected_duration_ms.is_some() {
@@ -1703,6 +1712,7 @@ impl TrackCacheState {
             format: Some(format),
             peak_db: clean_peak_db,
             crest_db: clean_crest_db,
+            last_played_ms: None,
         };
         write_cache_metadata(&clean_path, &clean_meta).await;
         // Defer dropping the raw А file: the path may have just been handed to the
@@ -1962,6 +1972,7 @@ impl TrackCacheState {
             format: None,
             peak_db: None,
             crest_db: None,
+        last_played_ms: None,
         };
         write_cache_metadata(&dest, &meta).await;
         Ok(dest)
@@ -2762,14 +2773,25 @@ impl TrackCacheState {
         out
     }
 
-    pub fn enforce_limit(&self, limit_mb: u64) {
-        if limit_mb == 0 {
+    pub fn enforce_limit(
+        &self,
+        limit_mb: u64,
+        max_age_days: u64,
+        protected: Option<&std::path::Path>,
+    ) {
+        if limit_mb == 0 && max_age_days == 0 {
             return;
         }
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+        let max_age_ms = max_age_days.saturating_mul(24 * 60 * 60 * 1000);
         let limit_bytes = limit_mb * 1024 * 1024;
 
         let mut files: Vec<(PathBuf, u64, std::time::SystemTime)> = Vec::new();
         let mut total = 0u64;
+        let mut removed_stale = 0u32;
 
         // URNs with a transcode in flight — their raw source must not be evicted
         // out from under the А→Б promotion.
@@ -2792,6 +2814,11 @@ impl TrackCacheState {
                 if !is_audio_cache_file(&path) {
                     continue;
                 }
+                // Never evict the file the decoder is currently streaming —
+                // playback reads it on demand.
+                if protected.is_some_and(|p| p == path) {
+                    continue;
+                }
                 // Protect staged files that are liked-bound or mid-promotion: a
                 // raw file evicted here would silently cancel the user's cache and,
                 // for liked tracks, defeat the dedicated protected quota.
@@ -2812,12 +2839,29 @@ impl TrackCacheState {
                             .or_else(|_| meta.modified())
                             .unwrap_or(std::time::UNIX_EPOCH);
                         total += size;
+                        // Age-eviction stamp: files that were never played since
+                        // tracking began carry no stamp and are kept (grace).
+                        let last_played =
+                            read_cache_metadata(&path).and_then(|m| m.last_played_ms);
+                        let stale = max_age_days > 0
+                            && last_played.is_some_and(|t| now_ms.saturating_sub(t) > max_age_ms);
+                        if stale {
+                            if std::fs::remove_file(&path).is_ok() {
+                                remove_cache_metadata(&path);
+                                total = total.saturating_sub(size);
+                                removed_stale += 1;
+                            }
+                            continue;
+                        }
                         files.push((path, size, accessed));
                     }
             }
         }
 
         if total <= limit_bytes {
+            if removed_stale > 0 {
+                println!("[TrackCache] evicted {removed_stale} unplayed files");
+            }
             return;
         }
 
@@ -2839,6 +2883,32 @@ impl TrackCacheState {
             "[TrackCache] evicted {removed} files, freed {} MB",
             (before - total) / (1024 * 1024)
         );
+        if removed_stale > 0 {
+            println!("[TrackCache] evicted {removed_stale} unplayed files");
+        }
+    }
+
+    /// Stamp a cached file as just played. Called by the audio engine on every
+    /// load; files without a metadata sidecar (legacy) are left alone and keep
+    /// their age-eviction grace.
+    pub async fn note_played(&self, audio_path: &std::path::Path) {
+        let Some(mut meta) = read_cache_metadata(audio_path) else {
+            return;
+        };
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+        // Skip the write when the stamp is fresh — at most one sidecar write
+        // per minute per file even under seek-heavy replay.
+        if meta
+            .last_played_ms
+            .is_some_and(|t| now_ms.saturating_sub(t) < 60_000)
+        {
+            return;
+        }
+        meta.last_played_ms = Some(now_ms);
+        write_cache_metadata(audio_path, &meta).await;
     }
 }
 

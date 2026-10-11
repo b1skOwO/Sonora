@@ -1,5 +1,6 @@
 use tauri::State;
 
+use crate::audio::state::{AudioSource, AudioState};
 use crate::track_cache::state::{
     CacheInventoryEntry, CacheRequest, LikeCacheEntry, TrackCacheEntry, TrackCacheState,
     TranscodeStatus,
@@ -227,8 +228,23 @@ pub fn track_cache_inventory(state: State<'_, TrackCacheState>) -> Vec<CacheInve
 }
 
 #[tauri::command]
-pub fn track_enforce_cache_limit(limit_mb: u64, state: State<'_, TrackCacheState>) {
-    state.enforce_limit(limit_mb);
+pub fn track_enforce_cache_limit(
+    limit_mb: u64,
+    max_age_days: u64,
+    state: State<'_, TrackCacheState>,
+    audio: State<'_, AudioState>,
+) {
+    // The file the decoder is currently streaming must survive enforcement.
+    let protected = audio
+        .source
+        .lock()
+        .ok()
+        .and_then(|guard| guard.clone())
+        .and_then(|source| match source {
+            AudioSource::File(path) => Some(path),
+            AudioSource::Bytes(_) => None,
+        });
+    state.enforce_limit(limit_mb, max_age_days, protected.as_deref());
 }
 
 #[tauri::command]

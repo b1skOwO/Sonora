@@ -1,12 +1,12 @@
-import {appCacheDir, join} from '@tauri-apps/api/path';
-import {mkdir, readDir, remove, writeFile} from '@tauri-apps/plugin-fs';
-import {fetch as tauriFetch} from '@tauri-apps/plugin-http';
-import type {PlaybackQuality, PlaybackSource} from '../stores/player';
-import {useSettingsStore} from '../stores/settings';
-import {toScproxyUrl} from './asset-url';
-import {getStaticPort} from './constants';
-import {trackedInvoke as invoke} from './diagnostics';
-import {ensureYoutubeCached, youtubeVideoId} from './youtube';
+import { appCacheDir, join } from '@tauri-apps/api/path';
+import { mkdir, readDir, remove, writeFile } from '@tauri-apps/plugin-fs';
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
+import type { PlaybackQuality, PlaybackSource } from '../stores/player';
+import { useSettingsStore } from '../stores/settings';
+import { toScproxyUrl } from './asset-url';
+import { getStaticPort } from './constants';
+import { trackedInvoke as invoke } from './diagnostics';
+import { ensureYoutubeCached, youtubeVideoId } from './youtube';
 
 const WALLPAPERS_DIR = 'wallpapers';
 const CACHE_MAINTENANCE_INTERVAL_MS = 60 * 1000;
@@ -194,9 +194,13 @@ export function cancelCacheLikes(): Promise<void> {
 
 export function enforceAudioCacheLimit(
   limitMb = useSettingsStore.getState().audioCacheLimitMB,
+  maxAgeDays = useSettingsStore.getState().cacheMaxAgeDays,
 ): Promise<void> {
-  if (!limitMb || limitMb <= 0) return Promise.resolve();
-  return invoke('track_enforce_cache_limit', { limitMb });
+  if ((!limitMb || limitMb <= 0) && (!maxAgeDays || maxAgeDays <= 0)) return Promise.resolve();
+  return invoke('track_enforce_cache_limit', {
+    limitMb: limitMb > 0 ? limitMb : 0,
+    maxAgeDays: maxAgeDays > 0 ? Math.round(maxAgeDays) : 0,
+  });
 }
 
 /* ── Cache maintenance ───────────────────────────────────── */
@@ -208,8 +212,11 @@ export function setupCacheMaintenance() {
   void enforceAudioCacheLimit();
 
   useSettingsStore.subscribe((state, prev) => {
-    if (state.audioCacheLimitMB !== prev.audioCacheLimitMB) {
-      void enforceAudioCacheLimit(state.audioCacheLimitMB);
+    if (
+      state.audioCacheLimitMB !== prev.audioCacheLimitMB ||
+      state.cacheMaxAgeDays !== prev.cacheMaxAgeDays
+    ) {
+      void enforceAudioCacheLimit(state.audioCacheLimitMB, state.cacheMaxAgeDays);
     }
   });
 

@@ -1,6 +1,7 @@
 //! Local likes: backend-independent hearts, primarily for YouTube tracks
 //! (SoundCloud likes stay server-side). Stored as full Track objects so the
-//! collection plays like a playlist with no extra fetching.
+//! collection plays like a playlist with no extra fetching. Unbounded on
+//! purpose — a heart must never be silently dropped.
 
 import { useMemo } from 'react';
 import { create } from 'zustand';
@@ -8,9 +9,6 @@ import { persist } from 'zustand/middleware';
 import { useLikedTracks } from '../lib/hooks';
 import { createThrottledJsonStorage } from '../lib/tauri-storage';
 import type { Track } from './player';
-
-/** Generous bound so the persisted file can't grow without limit. */
-const MAX_LOCAL_LIKES = 2000;
 
 interface LocalLikesState {
   tracks: Track[];
@@ -27,7 +25,7 @@ export const useLocalLikesStore = create<LocalLikesState>()(
           if (state.tracks.some((t) => t.urn === track.urn)) {
             return { tracks: state.tracks.filter((t) => t.urn !== track.urn) };
           }
-          return { tracks: [track, ...state.tracks].slice(0, MAX_LOCAL_LIKES) };
+          return { tracks: [track, ...state.tracks] };
         }),
       remove: (urn) => set((state) => ({ tracks: state.tracks.filter((t) => t.urn !== urn) })),
     }),

@@ -38,9 +38,10 @@ function cloneTrack(track: Track): Track {
   };
 }
 
-/** Bound on the remembered-track metadata map. Liked and locally cached
+/** Safety bound on the remembered-track metadata map (pathological growth
+ *  only — effectively unlimited for real use). Liked and locally cached
  *  tracks are always kept; the rest falls off oldest-first. */
-const TRACKS_BY_URN_CAP = 5000;
+const TRACKS_BY_URN_CAP = 50000;
 
 function trimTracksByUrn(index: OfflineIndex) {
   const keys = Object.keys(index.tracksByUrn);

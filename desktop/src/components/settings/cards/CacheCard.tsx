@@ -1,28 +1,28 @@
-import {ask, open} from '@tauri-apps/plugin-dialog';
-import {FolderOpen} from 'lucide-react';
-import {useCallback, useEffect, useState} from 'react';
-import {useTranslation} from 'react-i18next';
-import {toast} from 'sonner';
+import { ask, open } from '@tauri-apps/plugin-dialog';
+import { FolderOpen } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 import {
-    type AudioCacheFormat,
-    clearCache,
-    clearImageCache,
-    clearLikedCache,
-    getCacheDir,
-    getCacheFormat,
-    getCacheSize,
-    getImageCacheSize,
-    getLikedCacheSize,
-    restartApp,
-    setCacheDir,
-    setCacheFormat,
+  type AudioCacheFormat,
+  clearCache,
+  clearImageCache,
+  clearLikedCache,
+  getCacheDir,
+  getCacheFormat,
+  getCacheSize,
+  getImageCacheSize,
+  getLikedCacheSize,
+  restartApp,
+  setCacheDir,
+  setCacheFormat,
 } from '../../../lib/cache';
-import {formatBytes} from '../../../lib/formatters';
-import {Database, Download, Loader2, Trash2, X} from '../../../lib/icons';
-import {useCacheLikes} from '../../../lib/likes-cache';
-import {useSettingsStore} from '../../../stores/settings';
-import {Skeleton} from '../../ui/Skeleton';
-import {Card, Divider, RangeSlider} from '../primitives';
+import { formatBytes } from '../../../lib/formatters';
+import { Database, Download, Loader2, Trash2, X } from '../../../lib/icons';
+import { useCacheLikes } from '../../../lib/likes-cache';
+import { useSettingsStore } from '../../../stores/settings';
+import { Skeleton } from '../../ui/Skeleton';
+import { Card, Divider, RangeSlider } from '../primitives';
 
 const CACHE_FORMATS = ['m4a', 'mp3', 'wav'] as const;
 
@@ -68,6 +68,8 @@ export function CacheCard() {
   const { t } = useTranslation();
   const audioCacheLimitMB = useSettingsStore((s) => s.audioCacheLimitMB);
   const setAudioCacheLimitMB = useSettingsStore((s) => s.setAudioCacheLimitMB);
+  const cacheMaxAgeDays = useSettingsStore((s) => s.cacheMaxAgeDays);
+  const setCacheMaxAgeDays = useSettingsStore((s) => s.setCacheMaxAgeDays);
   const [audioSize, setAudioSize] = useState<number | null>(null);
   const [imagesSize, setImagesSize] = useState<number | null>(null);
   const [likedSize, setLikedSize] = useState<number | null>(null);
@@ -190,6 +192,10 @@ export function CacheCard() {
       : audioCacheLimitMB >= 1024
         ? `${(audioCacheLimitMB / 1024).toFixed(audioCacheLimitMB % 1024 === 0 ? 0 : 1)} GB`
         : `${audioCacheLimitMB} MB`;
+  const ageLabel =
+    cacheMaxAgeDays <= 0
+      ? t('settings.cacheMaxAgeOff')
+      : t('settings.cacheMaxAgeDays', { count: cacheMaxAgeDays });
   const progressPct =
     progress && progress.total > 0
       ? Math.min(100, Math.round((progress.done / progress.total) * 100))
@@ -281,6 +287,40 @@ export function CacheCard() {
       <div className="pt-3 space-y-3">
         <div className="flex items-center justify-between">
           <div>
+            <p className="text-[13px] text-white/60 font-medium">{t('settings.cacheMaxAge')}</p>
+            <p className="text-[11px] text-white/30 mt-0.5">{t('settings.cacheMaxAgeDesc')}</p>
+          </div>
+          <span className="text-[12px] text-white/30 tabular-nums">{ageLabel}</span>
+        </div>
+        <RangeSlider
+          value={cacheMaxAgeDays}
+          min={0}
+          max={30}
+          step={1}
+          onChange={setCacheMaxAgeDays}
+        />
+        <div className="flex items-center justify-end gap-2">
+          <input
+            type="number"
+            min={0}
+            max={365}
+            step={1}
+            value={cacheMaxAgeDays}
+            onChange={(e) => {
+              const value = Number(e.target.value);
+              if (!Number.isFinite(value) || value < 0) return;
+              setCacheMaxAgeDays(Math.min(365, Math.round(value)));
+            }}
+            className="w-24 px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06] text-[13px] text-white/80 tabular-nums outline-none focus:border-white/[0.14] transition-colors"
+          />
+          <span className="text-[12px] text-white/35">{t('settings.cacheMaxAgeUnit')}</span>
+        </div>
+      </div>
+
+      <Divider />
+      <div className="pt-3 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
             <p className="text-[13px] text-white/60 font-medium">{t('settings.audioCacheLimit')}</p>
             <p className="text-[11px] text-white/30 mt-0.5">{t('settings.audioCacheLimitDesc')}</p>
           </div>
@@ -354,7 +394,11 @@ export function CacheCard() {
             disabled={changingDir}
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-[12px] font-semibold bg-white/[0.06] text-white/75 hover:bg-white/[0.1] border border-white/[0.06] hover:border-white/[0.12] transition-all duration-200 cursor-pointer disabled:opacity-40 shrink-0"
           >
-            {changingDir ? <Loader2 size={12} className="animate-spin" /> : <FolderOpen size={12} />}
+            {changingDir ? (
+              <Loader2 size={12} className="animate-spin" />
+            ) : (
+              <FolderOpen size={12} />
+            )}
             {t('settings.cacheDirChange')}
           </button>
         </div>

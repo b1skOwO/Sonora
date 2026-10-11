@@ -20,14 +20,19 @@ pub async fn audio_load_file(
         .app_cache_dir()
         .ok()
         .map(|dir| dir.join("audio-normalization"));
-    engine::load_file(
-        path,
+    let result = engine::load_file(
+        path.clone(),
         normalization_cache_dir,
         cache_key,
         start_paused,
         state,
     )
-    .await
+    .await?;
+    // Stamp the file as just played for the unplayed-days eviction.
+    if let Some(cache) = app.try_state::<crate::track_cache::TrackCacheState>() {
+        cache.note_played(std::path::Path::new(&path)).await;
+    }
+    Ok(result)
 }
 
 #[tauri::command]
@@ -45,16 +50,23 @@ pub async fn audio_load_url(
         .app_cache_dir()
         .ok()
         .map(|dir| dir.join("audio-normalization"));
-    engine::load_url(
+    let result = engine::load_url(
         url,
         session_id,
-        cache_path,
+        cache_path.clone(),
         normalization_cache_dir,
         cache_key,
         start_paused,
         state,
     )
-    .await
+    .await?;
+    // Stamp the file as just played for the unplayed-days eviction.
+    if let Some(path) = cache_path
+        && let Some(cache) = app.try_state::<crate::track_cache::TrackCacheState>()
+    {
+        cache.note_played(std::path::Path::new(&path)).await;
+    }
+    Ok(result)
 }
 
 #[tauri::command]
