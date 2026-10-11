@@ -69,21 +69,52 @@ Most players lock you into one service. Sonora treats **SoundCloud and YouTube a
 
 ---
 
-## Build from source
+## Dependencies
+
+| Tool | Version | Notes |
+|---|---|---|
+| [Node.js](https://nodejs.org/) | 22+ | CI pins 22 |
+| [pnpm](https://pnpm.io/) | 10+ | `corepack enable` also works |
+| [Rust](https://rustup.rs/) | stable | via rustup |
+
+Platform prerequisites (Tauri):
+
+- **Windows** — Windows 10 (1809+) / 11, [Visual Studio C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) ("Desktop development with C++"), WebView2 (preinstalled on Win10/11)
+- **Linux** — webkit2gtk, rsvg, soup + build tools; see [Tauri prerequisites](https://tauri.app/start/prerequisites/)
+- **macOS** — Xcode Command Line Tools
+
+No manual setup for media tools: **ffmpeg and yt-dlp are downloaded by the app itself** on first use (import / transcode flows).
+
+## Setup & build
+
+This repo is private — clone with an account that has access:
 
 ```bash
-cd desktop
-pnpm install
+git clone https://github.com/b1skOwO/Sonora.git
+cd Sonora/desktop
+pnpm install --frozen-lockfile
+```
+
+Run in development mode (hot reload):
+
+```bash
+pnpm tauri dev
+```
+
+Production build (installer + portable bundle):
+
+```bash
 pnpm tauri build
 ```
 
-Requirements: **Node.js** 22+, **pnpm** 10+, **Rust** stable. Artifacts land in `desktop/src-tauri/target/release/bundle/`.
+Artifacts land in `desktop/src-tauri/target/release/bundle/`.
 
-Checks:
+Checks (same as CI):
 
 ```bash
 pnpm exec tsc --noEmit   # TypeScript
-cargo check              # Rust (in desktop/src-tauri)
+cargo check              # Rust (run in desktop/src-tauri)
+cargo test --lib         # Rust tests
 pnpm exec biome check src/  # lint
 ```
 

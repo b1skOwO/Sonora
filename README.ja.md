@@ -69,21 +69,52 @@
 
 ---
 
-## ソースからビルド
+## 依存関係
+
+| ツール | バージョン | 備考 |
+|---|---|---|
+| [Node.js](https://nodejs.org/) | 22+ | CIは22固定 |
+| [pnpm](https://pnpm.io/) | 10+ | `corepack enable`でも可 |
+| [Rust](https://rustup.rs/) | stable | rustup経由 |
+
+OS別の前提条件（Tauri）：
+
+- **Windows** — Windows 10 (1809+) / 11、[Visual Studio C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)（「C++によるデスクトップ開発」）、WebView2（Win10/11は標準搭載）
+- **Linux** — webkit2gtk、rsvg、soup＋ビルドツール。詳細は[Tauri公式の前提条件](https://tauri.app/start/prerequisites/)参照
+- **macOS** — Xcode Command Line Tools
+
+メディアツールは手動導入不要：**ffmpegとyt-dlpは初回利用時にアプリが自動取得**します（インポート／変換機能用）。
+
+## セットアップ＆ビルド
+
+このリポジトリはプライベートです。アクセス権のあるアカウントでcloneしてください：
 
 ```bash
-cd desktop
-pnpm install
+git clone https://github.com/b1skOwO/Sonora.git
+cd Sonora/desktop
+pnpm install --frozen-lockfile
+```
+
+開発モード（ホットリロード）で起動：
+
+```bash
+pnpm tauri dev
+```
+
+リリースビルド（インストーラー＋ポータブル）：
+
+```bash
 pnpm tauri build
 ```
 
-必要環境: **Node.js** 22+、**pnpm** 10+、**Rust** stable。成果物は `desktop/src-tauri/target/release/bundle/` に出ます。
+成果物は `desktop/src-tauri/target/release/bundle/` に出ます。
 
-チェック:
+チェック（CIと同内容）:
 
 ```bash
 pnpm exec tsc --noEmit      # TypeScript
 cargo check                 # Rust (desktop/src-tauri にて)
+cargo test --lib            # Rustテスト
 pnpm exec biome check src/  # lint
 ```
 
