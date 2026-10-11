@@ -11,7 +11,7 @@ import {
   useSearchTracks,
   useSearchUsers,
 } from '../../lib/hooks';
-import { useSmartWave, useWaveBoard } from '../../lib/soundwave';
+import { useSmartWave } from '../../lib/soundwave';
 import type { Track } from '../../stores/player';
 import type { SearchSource } from '../../stores/searchPrefs';
 import { useSettingsStore } from '../../stores/settings';
@@ -95,7 +95,8 @@ export function useSearchWall(
   const textMode = hasQuery && db && !dive;
 
   const hideListened = useSettingsStore((s) => s.soundwaveHideListened);
-  const wave = useWaveBoard({ enabled: landing, hideListened });
+  // No landing fetch: the search page stays a blank plaque until the user
+  // commits a query — no unasked wave load, no skeleton outlines.
   const lex = useSearchDbTracks(textMode ? trimmed : '');
   const lyric = useLyricSearch(textMode ? trimmed : '', 'auto');
   const artists = useSearchDbArtists(textMode ? trimmed : '');
@@ -120,7 +121,7 @@ export function useSearchWall(
 
   const items = useMemo<WallItem[]>(() => {
     if (dive) return toTiles(diveWave.data?.tracks ?? [], 'vibe');
-    if (landing) return toTiles(wave.tracks, 'wave');
+    if (landing) return [];
     if (scMode) return toTiles(scTracks.items, 'lexical');
     if (textMode) return weaveText(lex.tracks, lyric.hits);
     return [];
@@ -128,7 +129,6 @@ export function useSearchWall(
     dive,
     diveWave.data?.tracks,
     landing,
-    wave.tracks,
     scMode,
     scTracks.items,
     textMode,
@@ -234,11 +234,11 @@ export function useSearchWall(
       entities,
       atmosphere,
       preparing: false,
-      isLoading: wave.isLoading,
-      hasMore: wave.hasNextPage,
-      isFetchingMore: wave.isFetchingNextPage,
+      isLoading: false,
+      hasMore: false,
+      isFetchingMore: false,
       entitiesLoading: false,
-      loadMore: () => void wave.fetchNextPage(),
+      loadMore: () => {},
     };
   }
   if (scMode) {
