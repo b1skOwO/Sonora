@@ -1,23 +1,22 @@
-import {useMemo} from 'react';
-import {useNavigate} from 'react-router-dom';
-import {art} from '../../lib/formatters';
+import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { art } from '../../lib/formatters';
 import {
-    useLyricSearch,
-    useSearchDbArtists,
-    useSearchDbPlaylists,
-    useSearchDbTracks,
-    useSearchDbUsers,
-    useSearchPlaylists,
-    useSearchTracks,
-    useSearchUsers,
-    useVibeSearch,
+  useLyricSearch,
+  useSearchDbArtists,
+  useSearchDbPlaylists,
+  useSearchDbTracks,
+  useSearchDbUsers,
+  useSearchPlaylists,
+  useSearchTracks,
+  useSearchUsers,
 } from '../../lib/hooks';
-import {useSmartWave, useWaveBoard} from '../../lib/soundwave';
-import type {Track} from '../../stores/player';
-import type {SearchMode, SearchSource} from '../../stores/searchPrefs';
-import {useSettingsStore} from '../../stores/settings';
-import type {EntityItem} from './EntityStrip';
-import {genreColor, isHeroPos, isHeroUrn, vibeEnergy, type WallItem} from './utils';
+import { useSmartWave, useWaveBoard } from '../../lib/soundwave';
+import type { Track } from '../../stores/player';
+import type { SearchSource } from '../../stores/searchPrefs';
+import { useSettingsStore } from '../../stores/settings';
+import type { EntityItem } from './EntityStrip';
+import { genreColor, isHeroPos, isHeroUrn, vibeEnergy, type WallItem } from './utils';
 
 export interface DiveSeed {
   urn: string;
@@ -45,17 +44,15 @@ function toTiles(tracks: Track[], kind: WallItem['kind']): WallItem[] {
   return tracks.filter((t) => t?.urn).map((track, i) => ({ track, kind, hero: isHeroPos(i) }));
 }
 
-/** Weave lexical + lyric + a pinch of vibe into one deduped wall (text mode). */
+/** Weave lexical + lyric hits into one deduped wall (text mode). */
 function weaveText(
   lex: Track[],
   lyric: { track: Track; matchedLine: string | null }[],
-  vibe: Track[],
 ): WallItem[] {
   const out: WallItem[] = [];
   const seen = new Set<string>();
   let li = 0;
   let ly = 0;
-  let vi = 0;
   let slot = 0;
   const push = (track: Track, kind: WallItem['kind'], matchedLine?: string | null): boolean => {
     if (!track?.urn || seen.has(track.urn)) return false;
@@ -64,35 +61,28 @@ function weaveText(
     return true;
   };
 
-  while (li < lex.length || ly < lyric.length || vi < vibe.length) {
+  while (li < lex.length || ly < lyric.length) {
     let placed = false;
     if (ly < lyric.length && slot % 4 === 2) {
       placed = push(lyric[ly].track, 'lyric', lyric[ly].matchedLine);
       ly++;
-    } else if (vi < vibe.length && slot % 7 === 5) {
-      placed = push(vibe[vi], 'vibe');
-      vi++;
     } else if (li < lex.length) {
       placed = push(lex[li], 'lexical');
       li++;
     } else if (ly < lyric.length) {
       placed = push(lyric[ly].track, 'lyric', lyric[ly].matchedLine);
       ly++;
-    } else if (vi < vibe.length) {
-      placed = push(vibe[vi], 'vibe');
-      vi++;
     }
     if (placed) slot++;
   }
   return out.map((it) => ({ ...it, hero: isHeroUrn(it.track.urn) }));
 }
 
-/** Decides what fills the wall for the current query/mode/source/dive, plus the
+/** Decides what fills the wall for the current query/source/dive, plus the
  *  atmosphere tint, the entity strip, and pagination. Keeps the page thin.
  *  source 'sc' searches the live SoundCloud (lexical only) instead of our DB. */
 export function useSearchWall(
   query: string,
-  mode: SearchMode,
   source: SearchSource,
   dive: DiveSeed | null,
 ): SearchWallResult {
@@ -102,15 +92,10 @@ export function useSearchWall(
   const db = source === 'db';
   const landing = !hasQuery && !dive;
   const scMode = hasQuery && source === 'sc' && !dive;
-  const textMode = hasQuery && mode === 'text' && db && !dive;
-  const vibeMode = hasQuery && mode === 'vibe' && db && !dive;
+  const textMode = hasQuery && db && !dive;
 
   const hideListened = useSettingsStore((s) => s.soundwaveHideListened);
   const wave = useWaveBoard({ enabled: landing, hideListened });
-  const vibeQ = vibeMode || textMode ? trimmed : '';
-  // Text mode only needs a pinch of vibe tiles (+ a genre sample for atmosphere),
-  // so cap it small instead of the full 48 used in dedicated vibe mode.
-  const vibe = useVibeSearch(vibeQ, textMode ? { limit: 12 } : undefined);
   const lex = useSearchDbTracks(textMode ? trimmed : '');
   const lyric = useLyricSearch(textMode ? trimmed : '', 'auto');
   const artists = useSearchDbArtists(textMode ? trimmed : '');
@@ -137,8 +122,7 @@ export function useSearchWall(
     if (dive) return toTiles(diveWave.data?.tracks ?? [], 'vibe');
     if (landing) return toTiles(wave.tracks, 'wave');
     if (scMode) return toTiles(scTracks.items, 'lexical');
-    if (vibeMode) return toTiles(vibe.tracks, 'vibe');
-    if (textMode) return weaveText(lex.tracks, lyric.hits, vibe.tracks.slice(0, 8));
+    if (textMode) return weaveText(lex.tracks, lyric.hits);
     return [];
   }, [
     dive,
@@ -147,8 +131,6 @@ export function useSearchWall(
     wave.tracks,
     scMode,
     scTracks.items,
-    vibeMode,
-    vibe.tracks,
     textMode,
     lex.tracks,
     lyric.hits,
@@ -219,10 +201,19 @@ export function useSearchWall(
   ]);
 
   const atmosphere = useMemo(() => {
-    const top = vibe.atmosphere?.topGenres;
-    if (dive || landing || scMode || !top?.length) return { tint: [] as string[], energy: 0.5 };
-    return { tint: top.slice(0, 2).map(genreColor), energy: vibeEnergy(top) };
-  }, [dive, landing, scMode, vibe.atmosphere?.topGenres]);
+    if (dive || landing || scMode) return { tint: [] as string[], energy: 0.5 };
+    const counts = new Map<string, number>();
+    for (const t of lex.tracks) {
+      const g = t.genre?.trim();
+      if (g) counts.set(g, (counts.get(g) ?? 0) + 1);
+    }
+    const top = [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 2)
+      .map(([g]) => g);
+    if (top.length === 0) return { tint: [] as string[], energy: 0.5 };
+    return { tint: top.map(genreColor), energy: vibeEnergy(top) };
+  }, [dive, landing, scMode, lex.tracks]);
 
   if (dive) {
     return {
@@ -261,19 +252,6 @@ export function useSearchWall(
       isFetchingMore: scTracks.isFetchingNextPage,
       entitiesLoading: (scPlaylists.isLoading || scUsers.isLoading) && entities.length === 0,
       loadMore: () => scTracks.fetchNextPage(),
-    };
-  }
-  if (vibeMode) {
-    return {
-      items,
-      entities,
-      atmosphere,
-      preparing: vibe.preparing,
-      isLoading: vibe.isLoading,
-      hasMore: false,
-      isFetchingMore: false,
-      entitiesLoading: false,
-      loadMore: () => {},
     };
   }
   // text mode

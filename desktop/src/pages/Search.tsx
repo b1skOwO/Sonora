@@ -38,8 +38,6 @@ export function Search() {
   const commitValue = useSearchQueryStore((s) => s.commitValue);
   const [dive, setDive] = useState<DiveSeed | null>(null);
 
-  const mode = useSearchPrefsStore((s) => s.mode);
-  const setMode = useSearchPrefsStore((s) => s.setMode);
   const source = useSearchPrefsStore((s) => s.source);
   const setSource = useSearchPrefsStore((s) => s.setSource);
   const addQuery = useSearchHistoryStore((s) => s.addQuery);
@@ -72,7 +70,7 @@ export function Search() {
   }, [submitted, addQuery, service]);
 
   // YouTube mode doesn't use the SoundCloud wall — keep the hook fed idle.
-  const wall = useSearchWall(service === 'youtube' ? '' : query, mode, source, dive);
+  const wall = useSearchWall(service === 'youtube' ? '' : query, source, dive);
 
   // Play queue is read lazily at play time (see useTrackPlay/CoverTile): a fresh
   // array each append would defeat every tile's memo. Keep a ref + stable thunk.
@@ -104,7 +102,6 @@ export function Search() {
   }, [topGenreKey]);
 
   const seedGenre = (g: string) => {
-    setMode('vibe');
     setSource('db');
     commitValue(g);
   };
@@ -151,24 +148,12 @@ export function Search() {
         title: t('search.empty.scTitle'),
         body: t('search.empty.scBody', { query: query.trim() }),
       };
-    if (mode === 'text')
-      return {
-        icon: <Sparkles size={26} />,
-        title: t('search.empty.toVibeTitle'),
-        body: t('search.empty.toVibeBody'),
-        cta: t('search.empty.toVibeCta'),
-        ctaIcon: <Sparkles size={15} />,
-        onAction: () => setMode('vibe'),
-      };
     return {
       icon: <Type size={26} />,
-      title: t('search.empty.toTextTitle'),
-      body: t('search.empty.toTextBody'),
-      cta: t('search.empty.toTextCta'),
-      ctaIcon: <Type size={15} />,
-      onAction: () => setMode('text'),
+      title: t('search.noResults'),
+      body: t('search.empty.scBody', { query: query.trim() }),
     };
-  }, [wall.preparing, dive, hasQuery, pendingText, q, mode, source, query, t, setMode, commit]);
+  }, [wall.preparing, dive, hasQuery, pendingText, q, source, query, t, commit]);
 
   return (
     <div className="relative min-h-full w-full" data-tg-hidden={hidden ? '1' : '0'}>

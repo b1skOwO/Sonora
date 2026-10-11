@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { AudioLines, ChevronRight, Sparkles } from '../../../lib/icons';
 import { usePerfMode } from '../../../lib/perf';
-import { useSearchPrefsStore } from '../../../stores/searchPrefs';
 
 interface Props {
   className?: string;
@@ -40,7 +39,6 @@ export const VibePortal = React.memo(function VibePortal({ className }: Props) {
   const pending = useRef<{ x: number; y: number } | null>(null);
 
   const open = useCallback(() => {
-    useSearchPrefsStore.getState().setMode('vibe');
     navigate('/search');
     requestAnimationFrame(() => {
       (document.getElementById('global-search-input') as HTMLInputElement | null)?.focus();
