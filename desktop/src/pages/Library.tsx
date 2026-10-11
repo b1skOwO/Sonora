@@ -1,21 +1,22 @@
-import React, {useMemo, useState} from 'react';
-import {useTranslation} from 'react-i18next';
-import {ArtistMiniCard} from '../components/library/ArtistMiniCard';
-import {CollectionRail} from '../components/library/CollectionRail';
-import {ContinueRow} from '../components/library/ContinueRow';
-import {FreshDrops} from '../components/library/FreshDrops';
-import {LibraryFrame} from '../components/library/LibraryFrame';
-import {SoundPrintMasthead} from '../components/library/SoundPrintMasthead';
-import {useSoundprint} from '../components/library/useSoundprint';
-import {PlaylistCard} from '../components/music/PlaylistCard';
-import {TrackCard} from '../components/music/TrackCard';
+import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { ArtistMiniCard } from '../components/library/ArtistMiniCard';
+import { CollectionRail } from '../components/library/CollectionRail';
+import { ContinueRow } from '../components/library/ContinueRow';
+import { FreshDrops } from '../components/library/FreshDrops';
+import { LibraryFrame } from '../components/library/LibraryFrame';
+import { SoundPrintMasthead } from '../components/library/SoundPrintMasthead';
+import { useSoundprint } from '../components/library/useSoundprint';
+import { PlaylistCard } from '../components/music/PlaylistCard';
+import { TrackCard } from '../components/music/TrackCard';
 import { useLikedTracks, useMyFollowings, useMyLikedPlaylists, useMyPlaylists } from '../lib/hooks';
-import {Bookmark, Heart, ListMusic, Users, Youtube} from '../lib/icons';
-import {likedTracksCount} from '../lib/likes';
-import {armLikesContinuation} from '../lib/queue-continuation';
-import {useAuthStore} from '../stores/auth';
-import {localPlaylistToCard, useLocalPlaylistsStore} from '../stores/local-playlists';
-import {useServiceStore} from '../stores/service';
+import { Bookmark, Heart, ListMusic, Users, Youtube } from '../lib/icons';
+import { likedTracksCount } from '../lib/likes';
+import { armLikesContinuation } from '../lib/queue-continuation';
+import { useAuthStore } from '../stores/auth';
+import { useLocalLikesStore } from '../stores/local-likes';
+import { localPlaylistToCard, useLocalPlaylistsStore } from '../stores/local-playlists';
+import { useServiceStore } from '../stores/service';
 
 /** Library "Hub" — a living home base. Your identity up top, then the reason to
  *  come back (fresh drops from who you follow), then a way back into what you
@@ -32,6 +33,7 @@ export const Library = React.memo(() => {
   const { playlists: likedPlaylists } = useMyLikedPlaylists();
   const { users: followings } = useMyFollowings();
   const localPlaylists = useLocalPlaylistsStore((s) => s.playlists);
+  const localLikes = useLocalLikesStore((s) => s.tracks);
   const service = useServiceStore((s) => s.service);
 
   const playlistPreview = useMemo(() => {
@@ -47,6 +49,7 @@ export const Library = React.memo(() => {
     const base = genre ? likedTracks.filter((tr) => tr.genre?.trim() === genre) : likedTracks;
     return base.slice(0, 12);
   }, [likedTracks, genre]);
+  const localLikesPreview = useMemo(() => localLikes.slice(0, 12), [localLikes]);
 
   if (!user) return null;
 
@@ -56,6 +59,20 @@ export const Library = React.memo(() => {
     return (
       <LibraryFrame sound={sound}>
         <div className="space-y-9">
+          {localLikesPreview.length > 0 && (
+            <CollectionRail
+              icon={<Heart size={16} />}
+              title={t('library.localLikes')}
+              count={localLikes.length}
+              to="/library/local-likes"
+            >
+              {localLikesPreview.map((tr) => (
+                <div key={tr.urn} className="w-[150px] shrink-0">
+                  <TrackCard track={tr} queue={localLikes} />
+                </div>
+              ))}
+            </CollectionRail>
+          )}
           <CollectionRail
             icon={<Youtube size={16} />}
             title={t('library.importedPlaylists')}
@@ -161,6 +178,21 @@ export const Library = React.memo(() => {
                   queue={likesPreview}
                   onPlay={genre ? undefined : armLikesContinuation}
                 />
+              </div>
+            ))}
+          </CollectionRail>
+        )}
+
+        {localLikesPreview.length > 0 && (
+          <CollectionRail
+            icon={<Heart size={16} />}
+            title={t('library.localLikes')}
+            count={localLikes.length}
+            to="/library/local-likes"
+          >
+            {localLikesPreview.map((tr) => (
+              <div key={tr.urn} className="w-[150px] shrink-0">
+                <TrackCard track={tr} queue={localLikes} />
               </div>
             ))}
           </CollectionRail>
