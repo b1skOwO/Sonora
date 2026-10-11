@@ -60,7 +60,6 @@ Most players lock you into one service. Sonora treats **SoundCloud and YouTube a
 #### Offline & performance
 - **Offline cache** with selectable format (m4a / mp3 / wav) and size limit; likes get a protected cache
 - **Memory saver** — caps WebView heap/GPU caches; memory is auto-released while minimized
-- Light / Balanced / Beauty visual modes for weak to strong hardware
 - Permanent on-disk image cache, virtualized lists everywhere
 
 #### Integrations
@@ -185,7 +184,6 @@ MIT. See [LICENSE](LICENSE).
 #### オフライン・軽量化
 - **オフラインキャッシュ**（形式選択可: m4a / mp3 / wav、容量上限あり）。いいねは保護キャッシュ
 - **メモリ節約モード** — WebViewのヒープ／GPUキャッシュを制限。最小化中は自動でメモリ解放
-- Light / Balanced / Beauty の3段階ビジュアルモード
 - 画像の永続ディスクキャッシュ、全リスト仮想化
 
 #### 連携
