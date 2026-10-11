@@ -1,243 +1,110 @@
 <p align="center">
-<a href="https://github.com/zxcloli666/SoundCloud-Desktop/releases/latest">
-<img src="https://raw.githubusercontent.com/zxcloli666/SoundCloud-Desktop/main/_refs/soundcloud.png" width="180px" style="border-radius: 50%;" />
-</a>
+  <img src="desktop/src-tauri/icons/128x128.png" width="120px" alt="Sonora" />
 </p>
 
-<h1 align="center"><a href="https://soundcloud-desktop.fun/">SoundCloud Desktop</a></h1>
+<h1 align="center">Sonora</h1>
 
 <p align="center">
-<b>[<a href="https://github.com/okeydw/SoundCloud-Android">Android версия</a>]</b><br>
-<b>Нативное десктопное приложение для SoundCloud</b><br>
-Без рекламы · Без капчи · Без цензуры · Доступно в России
-</p>
-
-<p align="center">
-<a href="https://github.com/zxcloli666/SoundCloud-Desktop/releases/latest">
-<img src="https://img.shields.io/github/v/release/zxcloli666/SoundCloud-Desktop?style=for-the-badge&logo=github&color=FF5500&label=VERSION" alt="Version"/>
-</a>
-<a href="https://github.com/zxcloli666/SoundCloud-Desktop/releases">
-<img src="https://img.shields.io/github/downloads/zxcloli666/SoundCloud-Desktop/total?style=for-the-badge&logo=download&color=FF5500&label=Downloads" alt="Downloads"/>
-</a>
-<a href="https://github.com/zxcloli666/SoundCloud-Desktop/stargazers">
-<img src="https://img.shields.io/github/stars/zxcloli666/SoundCloud-Desktop?style=for-the-badge&logo=github&color=FF5500&label=Stars" alt="Stars"/>
-</a>
-<a href="https://github.com/zxcloli666/SoundCloud-Desktop/blob/main/LICENSE">
-<img src="https://img.shields.io/badge/License-MIT-FF5500?style=for-the-badge" alt="License"/>
-</a>
-</p>
-
-<p align="center">
-<a href="https://github.com/zxcloli666/SoundCloud-Desktop/releases/latest">
-<img src="https://img.shields.io/badge/Скачать-Последнюю_Версию-FF5500?style=for-the-badge" alt="Download"/>
-</a>
-<a href="https://github.com/zxcloli666/SoundCloud-Desktop-EN">
-<img src="https://img.shields.io/badge/English-README-0066FF?style=for-the-badge" alt="English"/>
-</a>
+  <b>A desktop music player for SoundCloud <i>and</i> YouTube.</b><br />
+  One window, two services — switch with a single click.<br />
+  <a href="README.ja.md">日本語版はこちら</a>
 </p>
 
 ---
 
-![wave-net](https://github.com/user-attachments/assets/616f80f0-c6d3-42ae-8093-0d2d3067cc17)
+## Screenshots
+
+**YouTube mode** — imported playlists plus picks from the channels you keep:
+
+![YouTube mode](docs/screenshots/youtube-home.png)
+
+**SoundCloud mode** — full playlist pages with genres, stats and one-click playback:
+
+![SoundCloud mode](docs/screenshots/soundcloud-playlist.png)
 
 ---
 
-## Что это?
+## Why Sonora?
 
-**SoundCloud Desktop** — полноценное десктопное приложение для прослушивания музыки на SoundCloud. Написано на Tauri 2 + React 19 — работает нативно, потребляет минимум ресурсов и не тормозит.
-
-Более **100 000 скачиваний**. Работает на Windows, Linux и macOS.
+Most players lock you into one service. Sonora treats **SoundCloud and YouTube as equals**: flip the brand in the titlebar and the whole app — home, search, pins, volume — follows the service. Your YouTube imports live next to your SoundCloud library, playable in the same queue, DJ decks and offline cache.
 
 ---
 
-## Почему SoundCloud Desktop
+## Features
 
-### Доступно в России
+### Two services, one player
+- **One-click SoundCloud ⇄ YouTube switch** in the titlebar (Home, Search, sidebar pins and volume all follow the service)
+- **Per-service volume** — SoundCloud and YouTube remember their own level
+- **Unified queue** — mix SoundCloud and YouTube tracks in one playback session
 
-SoundCloud заблокирован Роскомнадзором — веб-версия не открывается. SoundCloud Desktop работает напрямую без каких-либо дополнительных программ. Весь каталог SoundCloud доступен полностью.
+### Imports
+- **YouTube playlists** — paste a link, get a local playlist (audio downloads on first play via yt-dlp)
+- **Replace with the artist's channel** — re-uploads and lyric videos are swapped for the artist's own upload when found (optional, on by default)
+- **Spotify playlists** — matched onto YouTube, preferring the artist's official channel
+- **Yandex Music likes** — import your likes into SoundCloud
 
-### Никакой рекламы
+### Playback & DJ
+- Gapless-feel playback engine in Rust (rodio + symphonia), high-quality resampling
+- **Two-deck DJ mode** — BPM + Sync, crossfade, auto-mix, DJ filter, flanger, waveform
+- Playback speed & pitch controls, A–B loop, shuffle / repeat
+- Hover-to-preview tracks without interrupting playback
 
-Ноль рекламных баннеров, ноль промо-вставок между треками, ноль всплывающих окон «оформи подписку». Чистый интерфейс, только музыка.
+### Library & discovery
+- Likes, playlists, followings, history, fresh drops from artists you follow
+- Infinite SoundWave radio tuned to your taste (likes / skips / dislikes feedback)
+- Discover catalogs (albums, artists, genres), search by text, vibe or lyrics
+- **Lyrics** — synced karaoke + plain lyrics, manual search fallback (works for YouTube tracks too)
+- Floating comments during playback
 
-### Без капчи
+### Offline & performance
+- **Offline cache** with selectable format (m4a / mp3 / wav) and size limit; likes get a protected cache
+- **Memory saver** — caps WebView heap/GPU caches; memory is auto-released while minimized
+- Light / Balanced / Beauty visual modes for weak to strong hardware
+- Permanent on-disk image cache, virtualized lists everywhere
 
-Никаких бесконечных проверок «я не робот». Открыл — слушаешь.
-
-### Без цензуры
-
-Доступ ко всему каталогу SoundCloud без региональных ограничений. Все треки, все артисты, все жанры.
-
-### Нативное и лёгкое
-
-Построено на **Tauri 2** (Rust) вместо Electron. Результат:
-- Размер установщика **~15 МБ** (а не 200+ МБ как у Electron-приложений)
-- Потребление оперативной памяти **~80–120 МБ** при воспроизведении
-- Мгновенный запуск
-- Плавный интерфейс на 60 FPS даже на слабом железе
-
-### Полностью на русском
-
-Интерфейс переведён на русский язык. Язык определяется автоматически по системе — ничего настраивать не нужно.
-
-### Системная интеграция
-
-- **Управление из системы** — медиа-кнопки на клавиатуре, системный центр уведомлений (Windows), MPRIS (Linux)
-- **Discord Rich Presence** — показывай друзьям, что слушаешь
-- **Трей** — приложение работает в фоне
-- **Автообновления** — новые версии устанавливаются в один клик
-
----
-
-## Скачать
-
-### Windows
-
-Перейди на [страницу релизов](https://github.com/zxcloli666/SoundCloud-Desktop/releases/latest) и скачай:
-- **`.exe`** (NSIS-установщик) — рекомендуется
-- **`.msi`** — альтернативный установщик
-
-Требования: Windows 10 (1809+) или Windows 11
-
-### Linux
-
-| Формат | Архитектура | Описание |
-|--------|------------|----------|
-| `.deb` | amd64, arm64 | Ubuntu, Debian, Mint, Pop!_OS |
-| `.rpm` | amd64, arm64 | Fedora, openSUSE, CentOS |
-| `.AppImage` | amd64, arm64 | Универсальный, работает везде |
-| `.flatpak` | amd64 | Песочница, автообновления |
-
-Скачай нужный формат со [страницы релизов](https://github.com/zxcloli666/SoundCloud-Desktop/releases/latest).
-
-Для AppImage:
-```bash
-chmod +x soundcloud-desktop-*.AppImage
-./soundcloud-desktop-*.AppImage
-```
-
-### macOS
-
-- **Apple Silicon** (M1/M2/M3/M4): `*_arm64.dmg`
-- **Intel**: `*_x64.dmg`
-
-Скачай со [страницы релизов](https://github.com/zxcloli666/SoundCloud-Desktop/releases/latest).
-
-> [!NOTE]
-> **macOS блокирует запуск?** Приложение не подписано Apple Developer сертификатом, поэтому Gatekeeper может показать ошибку «приложение повреждено». Исправляется одной командой:
-> ```bash
-> xattr -cr /Applications/soundcloud-desktop.app
-> ```
-> После этого приложение запустится нормально.
+### Integrations
+- **Discord Rich Presence** with a per-service "Listen on SoundCloud / YouTube" button that opens the track
+- System media keys + OS media popup (Windows SMTC / MPRIS), system tray + mini player
+- Auto-updates via GitHub releases
 
 ---
 
-## Скриншоты
-
-<p align="center">
-
-![home-screen](https://github.com/user-attachments/assets/66d6abb5-7ecd-493c-a0a1-19e7b22d2da5)
-
-![liked-tracks](https://github.com/user-attachments/assets/d590bfe7-487b-4578-90fd-2c21646e262a)
-
-</p>
-
----
-
-## Обратная связь
-
-| | |
-|---|---|
-| Предложить идею | [Обсуждение #121](https://github.com/zxcloli666/SoundCloud-Desktop/discussions/121) |
-| Что-то не работает? | [Обсуждение #144](https://github.com/zxcloli666/SoundCloud-Desktop/discussions/144) |
-| Поставить звезду | [GitHub Stars](https://github.com/zxcloli666/SoundCloud-Desktop/stargazers) — помогает продвижению! |
-
-Pull requests приветствуются. Для крупных изменений сначала откройте issue.
-
----
-
-## Сборка из исходников
-
-<details>
-<summary><b>Инструкция для разработчиков</b></summary>
-
-### Требования
-
-- **Node.js** 22+
-- **pnpm** 10+
-- **Rust** 1.77+ (stable)
-
-### Запуск
+## Build from source
 
 ```bash
-git clone https://github.com/zxcloli666/SoundCloud-Desktop.git
-cd SoundCloud-Desktop/desktop
+cd desktop
 pnpm install
-pnpm tauri dev
-```
-
-### Production-сборка
-
-```bash
 pnpm tauri build
 ```
 
-Артефакты появятся в `src-tauri/target/release/bundle/`.
+Requirements: **Node.js** 22+, **pnpm** 10+, **Rust** stable. Artifacts land in `desktop/src-tauri/target/release/bundle/`.
 
-### Проверки
+Checks:
 
 ```bash
-npx tsc --noEmit        # типы TypeScript
-cargo check              # компиляция Rust
-npx biome check src/     # линтинг
+pnpm exec tsc --noEmit   # TypeScript
+cargo check              # Rust (in desktop/src-tauri)
+pnpm exec biome check src/  # lint
 ```
 
-</details>
+---
+
+## Origin
+
+Sonora is a fork of **[zxcloli666/SoundCloud-Desktop](https://github.com/zxcloli666/SoundCloud-Desktop)** — a native SoundCloud desktop client (Tauri 2 + React 19). All credit for the original client goes to its authors. Sonora extends it with YouTube playback, service switching, DJ mode, import flows and the changes listed above.
 
 ---
 
-## Стек
+## Disclaimer — use at your own risk
 
-| Компонент | Технология |
-|-----------|-----------|
-| Оболочка | Tauri 2 (Rust) |
-| Фронтенд | React 19, Vite 7, Tailwind CSS 4 |
-| Стейт | Zustand, TanStack Query |
-| Аудио | rodio (rust) |
-| UI-компоненты | Radix UI |
-| Бэкенд | NestJS 11, TypeORM, PostgreSQL |
-| CI/CD | GitHub Actions — сборка под все платформы |
-| Линтер | Biome |
+- This is an **unofficial, community-built** client. It is **not affiliated with, endorsed by, or connected to SoundCloud, YouTube/Google, or Spotify**.
+- Downloading, caching or converting audio may **violate the terms of service** of those platforms. Depending on your country, it may also infringe copyright law.
+- Using third-party clients can lead to **account restrictions or bans** on those services.
+- **You are solely responsible for how you use this software.** The authors accept no liability for any damage, data loss, account action or legal consequence arising from its use.
+- All trademarks (SoundCloud, YouTube, Spotify, Discord) belong to their respective owners.
 
 ---
 
-## Статистика
+## License
 
-<p align="center">
-<img src="https://api.star-history.com/chart?repos=zxcloli666%2Fsoundcloud-desktop&type=date&theme=dark&legend=top-left&sealed_token=L7HmrysXvAF2F-KHbNCQwWtEHc7isP3JLFIpAHGUgDTsVf3elOFK00lq1TfqgSg6swsgysRz7Bb-Z9_nhfdRqhiCwVTI9j70Ntv-qjE9T4I6boQqdCL8Jw" alt="Star History" />
-</p>
-
-<p align="center">
-<img src="https://zxcloli666.github.io/download-history/zxcloli666_SoundCloud-Desktop.svg" alt="Download History" />
-</p>
-
----
-
-## Лицензия
-
-MIT. Подробности — в файле [LICENSE](LICENSE).
-
-SoundCloud — торговая марка SoundCloud Ltd. Это приложение не аффилировано с SoundCloud.
-
----
-
-<p align="center">
-<code>soundcloud desktop</code> · <code>soundcloud приложение</code> · <code>soundcloud клиент</code> · <code>soundcloud для пк</code> · <code>soundcloud windows</code> · <code>soundcloud linux</code> · <code>soundcloud macos</code> · <code>soundcloud без рекламы</code> · <code>soundcloud россия</code> · <code>soundcloud в россии</code> · <code>soundcloud не открывается</code> · <code>soundcloud заблокирован</code> · <code>soundcloud blocked russia</code> · <code>soundcloud desktop app</code> · <code>soundcloud desktop client</code> · <code>soundcloud player</code> · <code>soundcloud app for pc</code> · <code>soundcloud без капчи</code> · <code>скачать soundcloud на компьютер</code> · <code>soundcloud desktop download</code> · <code>soundcloud alternative client</code> · <code>soundcloud no ads</code> · <code>музыкальный плеер soundcloud</code>
-</p>
-
-<p align="center">
-<a href="https://github.com/zxcloli666/SoundCloud-Desktop/releases/latest">
-<img src="https://img.shields.io/badge/Скачать_SoundCloud_Desktop-FF5500?style=for-the-badge&logoColor=white" alt="Download" height="50"/>
-</a>
-</p>
-
+MIT. See [LICENSE](LICENSE).
