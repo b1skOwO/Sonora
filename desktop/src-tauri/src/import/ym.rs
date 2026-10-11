@@ -205,38 +205,57 @@ pub async fn ym_import_start(
 
             let current_track = format!("{} - {}", artist, title);
 
-            let query = format!("{} {}", artist, title);
-            let search_url = format!(
-                "{}/tracks?q={}&limit=3&linked_partitioning=true",
-                backend_url,
-                urlencoding::encode(&query)
-            );
+            // Primary query keeps the artist credit; when that finds nothing,
+            // retry with the bare title — re-uploads on SoundCloud often carry
+            // a different artist name, and a re-upload beats "not found".
+            let mut queries: Vec<String> = Vec::new();
+            let primary = format!("{} {}", artist, title).trim().to_string();
+            if !primary.is_empty() {
+                queries.push(primary);
+            }
+            if !title.is_empty() && !artist.is_empty() {
+                queries.push(title.to_string());
+            }
 
-            let search_resp = client
-                .get(&search_url)
-                .header("x-session-id", &session_id)
-                .send()
-                .await;
+            let mut matched_urn: Option<String> = None;
+            for (attempt, query) in queries.iter().enumerate() {
+                let search_url = format!(
+                    "{}/tracks?q={}&limit=3&linked_partitioning=true",
+                    backend_url,
+                    urlencoding::encode(query)
+                );
 
-            if let Ok(resp) = search_resp {
-                match resp.json::<ScSearchResult>().await { Ok(results) => {
-                    if let Some(urn) = results.collection.first().and_then(|t| t.urn.as_deref()) {
-                        found += 1;
-                        app.emit(
-                            "ym_import:match",
-                            YmImportMatch {
-                                urn: urn.to_string(),
-                            },
-                        )
-                        .ok();
-                    } else {
-                        not_found += 1;
+                let search_resp = client
+                    .get(&search_url)
+                    .header("x-session-id", &session_id)
+                    .send()
+                    .await;
+
+                let Ok(resp) = search_resp else {
+                    continue;
+                };
+                let Ok(results) = resp.json::<ScSearchResult>().await else {
+                    continue;
+                };
+                if let Some(urn) = results.collection.first().and_then(|t| t.urn.as_deref()) {
+                    matched_urn = Some(urn.to_string());
+                    if attempt > 0 {
+                        crate::app::diagnostics::log_native(
+                            &app,
+                            "INFO",
+                            format!("[YM] fallback match '{title}' -> {urn}"),
+                        );
                     }
-                } _ => {
-                    not_found += 1;
-                }}
-            } else {
-                not_found += 1;
+                    break;
+                }
+            }
+
+            match matched_urn {
+                Some(urn) => {
+                    found += 1;
+                    app.emit("ym_import:match", YmImportMatch { urn }).ok();
+                }
+                None => not_found += 1,
             }
 
             emit_progress(

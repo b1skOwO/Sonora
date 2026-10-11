@@ -34,6 +34,9 @@ const MAX_ARTIST_LOOKUPS: usize = 5;
 const OFFICIAL_CHANNEL_BONUS: f64 = 0.35;
 const SEARCH_DELAY_MS: u64 = 250;
 const MATCH_THRESHOLD: f64 = 0.4;
+/// Second-chance floor: when nothing solid is found, a re-upload or a
+/// differently credited upload still beats dropping the track entirely.
+const FALLBACK_THRESHOLD: f64 = 0.2;
 /// Abort the import when this many searches fail in a row (YouTube unreachable).
 const MAX_CONSECUTIVE_ERRORS: u32 = 3;
 
@@ -254,24 +257,32 @@ fn uploader_matches(hint: &str, uploader: Option<&str>) -> bool {
             || hint_norm.contains(&uploader_norm))
 }
 
-fn score_match(track: &SpotifyTrack, candidate: &YtEntry, channel_hint: Option<&str>) -> f64 {
+/// Title overlap only (0..1): 1.0 for equal/containing titles, Jaccard word
+/// overlap otherwise. `None` when either title has nothing to compare.
+fn title_overlap(track: &SpotifyTrack, candidate: &YtEntry) -> Option<f64> {
     let sp_title = normalize(&track.title);
     let cand_title = normalize(&candidate.title);
     if sp_title.is_empty() || cand_title.is_empty() {
-        return 0.0;
+        return None;
     }
-
-    let mut score = 0.0;
     if cand_title == sp_title || cand_title.contains(&sp_title) || sp_title.contains(&cand_title) {
-        score += 0.55;
-    } else {
-        let a: std::collections::HashSet<&str> = sp_title.split(' ').collect();
-        let b: std::collections::HashSet<&str> = cand_title.split(' ').collect();
-        let inter = a.intersection(&b).count() as f64;
-        let union = a.union(&b).count().max(1) as f64;
-        score += 0.55 * (inter / union);
+        return Some(1.0);
     }
+    let a: std::collections::HashSet<&str> = sp_title.split(' ').collect();
+    let b: std::collections::HashSet<&str> = cand_title.split(' ').collect();
+    let inter = a.intersection(&b).count() as f64;
+    let union = a.union(&b).count().max(1) as f64;
+    Some(inter / union)
+}
 
+fn score_match(track: &SpotifyTrack, candidate: &YtEntry, channel_hint: Option<&str>) -> f64 {
+    let Some(title_score) = title_overlap(track, candidate) else {
+        return 0.0;
+    };
+
+    let mut score = 0.55 * title_score;
+
+    let cand_title = normalize(&candidate.title);
     let uploader = candidate
         .uploader
         .as_deref()
@@ -305,6 +316,30 @@ fn score_match(track: &SpotifyTrack, candidate: &YtEntry, channel_hint: Option<&
     score
 }
 
+/// Pick the best candidate above `threshold`. With `require_title` the winner
+/// must also share at least one title word — the fallback pass must never
+/// accept a candidate that only matches on duration.
+fn pick_best(
+    track: &SpotifyTrack,
+    entries: &[YtEntry],
+    channel_hint: Option<&str>,
+    threshold: f64,
+    require_title: bool,
+) -> Option<YtEntry> {
+    let best = entries.iter().max_by(|a, b| {
+        score_match(track, a, channel_hint)
+            .partial_cmp(&score_match(track, b, channel_hint))
+            .unwrap_or(std::cmp::Ordering::Equal)
+    })?;
+    if score_match(track, best, channel_hint) < threshold {
+        return None;
+    }
+    if require_title && title_overlap(track, best).unwrap_or(0.0) <= 0.0 {
+        return None;
+    }
+    Some(best.clone())
+}
+
 async fn search_best(
     ytdlp: &Path,
     track: &SpotifyTrack,
@@ -316,17 +351,19 @@ async fn search_best(
         format!("{} {}", track.title, track.artists)
     };
     let entries = crate::ytdlp::search_tracks(ytdlp, &query, SEARCH_RESULTS).await?;
-    let best = entries.iter().max_by(|a, b| {
-        score_match(track, a, channel_hint)
-            .partial_cmp(&score_match(track, b, channel_hint))
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
-    match best {
-        Some(entry) if score_match(track, entry, channel_hint) >= MATCH_THRESHOLD => {
-            Ok(Some(entry.clone()))
-        }
-        _ => Ok(None),
+    if let Some(best) = pick_best(track, &entries, channel_hint, MATCH_THRESHOLD, false) {
+        return Ok(Some(best));
     }
+
+    // Nothing solid. Try the bare title once — re-uploads and covers often
+    // carry a different artist credit, and a re-upload beats "not found".
+    if !track.artists.trim().is_empty() {
+        let entries = crate::ytdlp::search_tracks(ytdlp, &track.title, SEARCH_RESULTS).await?;
+        if let Some(best) = pick_best(track, &entries, channel_hint, FALLBACK_THRESHOLD, true) {
+            return Ok(Some(best));
+        }
+    }
+    Ok(None)
 }
 
 /// Fetch a Spotify playlist, match every track on YouTube and stream the
@@ -413,14 +450,16 @@ pub async fn spotify_import_start(
                 let on_artist_channel = channel_hint
                     .as_deref()
                     .is_some_and(|hint| uploader_matches(hint, entry.uploader.as_deref()));
+                let score = score_match(track, &entry, channel_hint.as_deref());
                 crate::app::diagnostics::log_native(
                     &app,
                     "INFO",
                     format!(
-                        "[Spotify] match '{}' -> '{}' [{}]{}",
+                        "[Spotify] match '{}' -> '{}' [{}] score={:.2}{}",
                         track.title,
                         entry.title,
                         entry.uploader.as_deref().unwrap_or("-"),
+                        score,
                         if on_artist_channel { " (artist channel)" } else { "" }
                     ),
                 );
@@ -476,8 +515,9 @@ pub fn spotify_import_stop() {
 #[cfg(test)]
 mod tests {
     use super::{
-        extract_playlist_id, fetch_playlist, score_match, search_best, split_artists,
-        uploader_matches, SpotifyTrack, OFFICIAL_CHANNEL_BONUS,
+        extract_playlist_id, fetch_playlist, pick_best, score_match, search_best, split_artists,
+        title_overlap, uploader_matches, SpotifyTrack, FALLBACK_THRESHOLD, MATCH_THRESHOLD,
+        OFFICIAL_CHANNEL_BONUS,
     };
     use crate::ytdlp::YtEntry;
 
@@ -533,6 +573,34 @@ mod tests {
     fn splits_artist_lists() {
         assert_eq!(split_artists("A, B & C"), vec!["A", "B", "C"]);
         assert_eq!(split_artists("  "), Vec::<String>::new());
+    }
+
+    #[test]
+    fn fallback_accepts_a_weak_but_related_upload() {
+        let sp = track("Song Name Two Words", "Composer", 200.0);
+        let extended = entry("e", "Song Name Other Words", "Some Re-upload", Some(230.0));
+        // Below the primary bar…
+        assert!(score_match(&sp, &extended, None) < MATCH_THRESHOLD);
+        assert!(pick_best(&sp, &[extended.clone()], None, MATCH_THRESHOLD, false).is_none());
+        // …but good enough for the second chance.
+        assert!(pick_best(&sp, &[extended], None, FALLBACK_THRESHOLD, true).is_some());
+    }
+
+    #[test]
+    fn fallback_rejects_titleless_matches_even_with_artist_and_duration() {
+        let sp = track("Song Name", "Composer", 200.0);
+        let unrelated = entry("u", "Totally Different Track", "Composer Official", Some(200.0));
+        // Artist + duration give it enough points, but the title shares nothing.
+        assert!(score_match(&sp, &unrelated, None) >= FALLBACK_THRESHOLD);
+        assert!(pick_best(&sp, &[unrelated.clone()], None, FALLBACK_THRESHOLD, true).is_none());
+        assert!(pick_best(&sp, &[unrelated], None, FALLBACK_THRESHOLD, false).is_some());
+    }
+
+    #[test]
+    fn title_overlap_ignores_bracketed_noise() {
+        let sp = track("Song", "Composer", 200.0);
+        let official = entry("o", "Song (Official Video)", "Channel", Some(200.0));
+        assert_eq!(title_overlap(&sp, &official), Some(1.0));
     }
 
     #[test]
