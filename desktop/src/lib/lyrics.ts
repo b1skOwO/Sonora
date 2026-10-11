@@ -1,5 +1,7 @@
-import {api} from './api';
-import {isYoutubeUrn} from './youtube';
+import type { Track } from '../stores/player';
+import { api } from './api';
+import { getTrackDisplay } from './track-display';
+import { isYoutubeUrn } from './youtube';
 
 export type LyricsSource = 'lrclib' | 'musixmatch' | 'genius' | 'netease' | 'self_gen' | 'none';
 
@@ -75,4 +77,48 @@ export async function searchLyricsManual(
     180_000,
   ).catch(() => null);
   return toResult(data);
+}
+
+/**
+ * Lyrics for any track. SoundCloud goes through the backend cache by id;
+ * YouTube tracks have no backend id, so they are searched by artist/title —
+ * the same route the manual search uses, with a couple of fallback splits for
+ * "Artist - Song" style video titles.
+ */
+export async function getLyricsForTrack(track: Track): Promise<LyricsResult | null> {
+  if (!isYoutubeUrn(track.urn)) return getLyricsByTrack(track.urn);
+
+  const display = getTrackDisplay(track);
+  const uploader = track.user?.username?.trim() ?? '';
+  const attempts: Array<{ artist: string; title: string }> = [];
+  const push = (artist: string | undefined, title: string | undefined) => {
+    const a = (artist ?? '').trim();
+    const t = (title ?? '').trim();
+    if (!a || !t) return;
+    if (attempts.some((x) => x.artist === a && x.title === t)) return;
+    attempts.push({ artist: a, title: t });
+  };
+
+  push(display.artistLine || uploader, display.title);
+  // Japanese video titles often wrap the song in 「」 after the group name
+  // ("初星学園「がむしゃらに行こう」"): the inner text is the actual title.
+  const jp = display.title.match(/^(.{0,40}?)「(.+?)」/);
+  if (jp) {
+    push(jp[1] || uploader, jp[2]);
+    push(uploader, jp[2]);
+  }
+  // The display kept "Artist - Song" whole (the artist wasn't in the known
+  // set): try both directions once before giving up.
+  const split = display.title.match(/^(.{2,60}?)\s[-–—|]\s(.{2,80})$/);
+  if (split) {
+    push(split[1], split[2]);
+    push(split[2], split[1]);
+  }
+  push(uploader, display.title);
+
+  for (const attempt of attempts.slice(0, 3)) {
+    const result = await searchLyricsManual(attempt.artist, attempt.title, track.duration);
+    if (result && ((result.synced?.length ?? 0) > 0 || result.plain)) return result;
+  }
+  return null;
 }
