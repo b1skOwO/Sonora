@@ -295,33 +295,52 @@ export async function fetchPublicUserFollowers(userUrn: string): Promise<SCUser[
 
 const IMPORTED_PLAYLISTS_KEY = 'scd.imported-public-playlists.v1';
 
+/** Parsed-snapshot cache keyed on the raw stored string. Render-time callers
+ *  (`usePlaylistTracks`) must see a STABLE identity — parsing per call used to
+ *  return a fresh array every render, which looped React (#185) on the
+ *  playlist page via the server→local track sync effect. */
+let importedCacheRaw: string | null = null;
+let importedCache: Playlist[] = [];
+
 export function loadImportedPublicPlaylists(): Playlist[] {
+  let raw: string | null = null;
   try {
-    const value = localStorage.getItem(IMPORTED_PLAYLISTS_KEY);
-    if (!value) return [];
-    const parsed: unknown = JSON.parse(value);
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter((item): item is Playlist => {
-        if (!item || typeof item !== 'object') return false;
-        const candidate = item as Partial<Playlist>;
-        return (
-          typeof candidate.urn === 'string' &&
-          typeof candidate.title === 'string' &&
-          Array.isArray(candidate.tracks) &&
-          !!candidate.user &&
-          typeof candidate.user === 'object'
-        );
-      })
-      .map((playlist) => ({
-        ...playlist,
-        // Imported public playlists are local snapshots. Give them a local URN
-        // so generic playlist widgets never send these IDs to the API.
-        urn: `soundcloud:playlists:imported-${playlist.id}`,
-      }));
+    raw = localStorage.getItem(IMPORTED_PLAYLISTS_KEY);
   } catch {
-    return [];
+    raw = null;
   }
+  if (raw === importedCacheRaw) return importedCache;
+  importedCacheRaw = raw;
+  if (!raw) {
+    importedCache = [];
+    return importedCache;
+  }
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    importedCache = !Array.isArray(parsed)
+      ? []
+      : parsed
+          .filter((item): item is Playlist => {
+            if (!item || typeof item !== 'object') return false;
+            const candidate = item as Partial<Playlist>;
+            return (
+              typeof candidate.urn === 'string' &&
+              typeof candidate.title === 'string' &&
+              Array.isArray(candidate.tracks) &&
+              !!candidate.user &&
+              typeof candidate.user === 'object'
+            );
+          })
+          .map((playlist) => ({
+            ...playlist,
+            // Imported public playlists are local snapshots. Give them a local URN
+            // so generic playlist widgets never send these IDs to the API.
+            urn: `soundcloud:playlists:imported-${playlist.id}`,
+          }));
+  } catch {
+    importedCache = [];
+  }
+  return importedCache;
 }
 
 export function saveImportedPublicPlaylist(playlist: Playlist): Playlist[] {
@@ -332,6 +351,8 @@ export function saveImportedPublicPlaylist(playlist: Playlist): Playlist[] {
   ];
   try {
     localStorage.setItem(IMPORTED_PLAYLISTS_KEY, JSON.stringify(playlists));
+    // Storage changed — drop the parse cache so the next load re-reads it.
+    importedCacheRaw = null;
   } catch {}
   return playlists;
 }

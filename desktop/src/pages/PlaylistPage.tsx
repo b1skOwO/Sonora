@@ -5,8 +5,8 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useShallow } from 'zustand/shallow';
-import { CrateLedger } from '../components/playlist/CrateLedger';
 import { AddTracksDialog } from '../components/playlist/AddTracksDialog';
+import { CrateLedger } from '../components/playlist/CrateLedger';
 import { PLAYLIST_KEYFRAMES } from '../components/playlist/keyframes';
 import { LocalPlaylistView } from '../components/playlist/LocalPlaylistView';
 import { MoreCrates } from '../components/playlist/MoreCrates';
@@ -94,9 +94,14 @@ export const PlaylistPage = React.memo(function PlaylistPage() {
   // Local order for DnD; skip server sync while a debounced save is in flight.
   const [localTracks, setLocalTracks] = useState<Track[]>([]);
   const pendingMutationRef = useRef(false);
+  // Keyed on a CONTENT signature, not the array identity: a fresh identity with
+  // the same tracks (e.g. a re-parsed local snapshot) must not re-fire this
+  // sync — that identity churn looped React (#185) on this page.
+  const serverSig = useMemo(() => serverTracks.map((tr) => tr.urn).join('|'), [serverTracks]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the content signature on purpose
   useEffect(() => {
     if (!pendingMutationRef.current) setLocalTracks(serverTracks);
-  }, [serverTracks]);
+  }, [serverSig]);
 
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout>>(null!);
   const debouncedUpdate = useCallback(
