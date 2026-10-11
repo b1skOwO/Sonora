@@ -18,6 +18,8 @@ export const GlobalSearch = memo(function GlobalSearch() {
   const location = useLocation();
   const q = useSearchQueryStore((s) => s.q);
   const setQ = useSearchQueryStore((s) => s.setQ);
+  const commit = useSearchQueryStore((s) => s.commit);
+  const commitValue = useSearchQueryStore((s) => s.commitValue);
   const history = useSearchHistoryStore((s) => s.queries);
   const removeQuery = useSearchHistoryStore((s) => s.removeQuery);
   const clearHistory = useSearchHistoryStore((s) => s.clearHistory);
@@ -46,7 +48,7 @@ export const GlobalSearch = memo(function GlobalSearch() {
     if (v) goSearch();
   };
   const pick = (value: string) => {
-    setQ(value);
+    commitValue(value);
     goSearch();
   };
 
@@ -93,6 +95,7 @@ export const GlobalSearch = memo(function GlobalSearch() {
           }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
+              commit();
               goSearch();
               (e.currentTarget as HTMLInputElement).blur();
             } else if (e.key === 'Escape') {

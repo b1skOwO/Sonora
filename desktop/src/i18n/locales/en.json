@@ -136,6 +136,7 @@
     "constellation": "Pick a vibe",
     "firstTimeTitle": "Start exploring",
     "firstTimeBody": "Type a song, an artist, a mood. Or pick a vibe above. Recent searches will collect here as you go.",
+    "runSearchHint": "Nothing searched yet — press Enter (or the button) to run it.",
     "seeAll": "See all",
     "back": "Back",
     "try": "Try one",
