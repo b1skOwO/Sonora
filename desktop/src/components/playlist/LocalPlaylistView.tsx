@@ -7,15 +7,21 @@ import { proxiedAssetUrl } from '../../lib/asset-url';
 import {
   ChevronLeft,
   ListPlus,
-  pauseBlack20,
   Play,
+  pauseBlack20,
   Shuffle,
   Spotify,
   Youtube,
 } from '../../lib/icons';
-import { localPlaylistSourceLabel, useLocalPlaylistsStore, type LocalPlaylist } from '../../stores/local-playlists';
-import { usePlayerStore, type Track } from '../../stores/player';
+import {
+  type LocalPlaylist,
+  localPlaylistSourceLabel,
+  useLocalPlaylistsStore,
+} from '../../stores/local-playlists';
+import { type Track, usePlayerStore } from '../../stores/player';
+import { usePlaylistArtwork } from '../../stores/playlist-artwork';
 import { AddTracksDialog } from './AddTracksDialog';
+import { PlaylistArtworkButton } from './PlaylistArtworkDialog';
 import { SequenceList } from './SequenceList';
 
 /** Playlist page for locally imported YouTube playlists — no backend involved. */
@@ -28,6 +34,7 @@ export const LocalPlaylistView = React.memo(function LocalPlaylistView({
   const navigate = useNavigate();
   const sentinelRef = useRef<HTMLDivElement>(null);
   const tracks = playlist?.tracks ?? [];
+  const artworkOverride = usePlaylistArtwork(playlist?.id);
   const sourceLabel = playlist ? localPlaylistSourceLabel(playlist.source) : 'YouTube';
   const SourceIcon = playlist?.source === 'spotify' ? Spotify : Youtube;
   const [showAdd, setShowAdd] = useState(false);
@@ -118,9 +125,9 @@ export const LocalPlaylistView = React.memo(function LocalPlaylistView({
         >
           <div className="flex flex-col md:flex-row items-center md:items-end gap-6">
             <div className="w-[150px] h-[150px] md:w-[190px] md:h-[190px] rounded-[1.6rem] overflow-hidden bg-white/[0.04] border border-white/[0.06] shrink-0">
-              {playlist.artworkUrl ? (
+              {(artworkOverride ?? playlist.artworkUrl) ? (
                 <img
-                  src={proxiedAssetUrl(playlist.artworkUrl) ?? ''}
+                  src={proxiedAssetUrl(artworkOverride ?? playlist.artworkUrl) ?? ''}
                   alt=""
                   className="w-full h-full object-cover"
                 />
@@ -138,7 +145,8 @@ export const LocalPlaylistView = React.memo(function LocalPlaylistView({
                 {playlist.title}
               </h1>
               <p className="mt-2 text-[13px] text-white/45">
-                {playlist.uploader ?? sourceLabel} · {t('playlist.tracks', { count: tracks.length })}
+                {playlist.uploader ?? sourceLabel} ·{' '}
+                {t('playlist.tracks', { count: tracks.length })}
               </p>
               <div className="mt-5 flex items-center justify-center md:justify-start gap-3">
                 <button
@@ -147,7 +155,11 @@ export const LocalPlaylistView = React.memo(function LocalPlaylistView({
                   className="inline-flex items-center gap-2 px-5 py-3 rounded-full font-bold text-[14px] cursor-pointer transition-transform duration-300 hover:scale-[1.04] active:scale-95"
                   style={{ background: 'var(--color-accent)', color: '#0a0a0c' }}
                 >
-                  {isCurrent ? pauseBlack20 : <Play size={18} fill="currentColor" strokeWidth={0} />}
+                  {isCurrent ? (
+                    pauseBlack20
+                  ) : (
+                    <Play size={18} fill="currentColor" strokeWidth={0} />
+                  )}
                   {t('playlist.playAll')}
                 </button>
                 <button
@@ -166,6 +178,7 @@ export const LocalPlaylistView = React.memo(function LocalPlaylistView({
                   <ListPlus size={17} />
                   {t('playlist.addTracks')}
                 </button>
+                {playlist && <PlaylistArtworkButton urn={playlist.id} tracks={tracks} />}
               </div>
             </div>
           </div>
@@ -186,9 +199,7 @@ export const LocalPlaylistView = React.memo(function LocalPlaylistView({
         open={showAdd}
         onOpenChange={setShowAdd}
         target={
-          playlist
-            ? { kind: 'local', playlistId: playlist.id, existingUrns: trackUrnSet }
-            : null
+          playlist ? { kind: 'local', playlistId: playlist.id, existingUrns: trackUrnSet } : null
         }
       />
     </div>

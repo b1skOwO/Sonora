@@ -48,6 +48,7 @@ export const PlaylistHero = React.memo(function PlaylistHero({
   onTogglePin,
   onDelete,
   onAddTracks,
+  artworkButton,
 }: {
   playlist: Playlist;
   tracks: Track[];
@@ -61,6 +62,7 @@ export const PlaylistHero = React.memo(function PlaylistHero({
   onTogglePin: () => void;
   onDelete: () => void;
   onAddTracks?: () => void;
+  artworkButton?: React.ReactNode;
 }) {
   const { t } = useTranslation();
   const kl = kindLabelKey(playlist.kind);
@@ -155,6 +157,7 @@ export const PlaylistHero = React.memo(function PlaylistHero({
               onTogglePin={onTogglePin}
               onDelete={onDelete}
               onAddTracks={onAddTracks}
+              artworkButton={artworkButton}
             />
           </div>
 

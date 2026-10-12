@@ -22,6 +22,7 @@ import { usePerfMode } from '../../lib/perf';
 import { useAppMode } from '../../stores/app-status';
 import { useAuthStore } from '../../stores/auth';
 import { isLocalPlaylistUrn } from '../../stores/local-playlists';
+import { usePlaylistArtworkStore } from '../../stores/playlist-artwork';
 import { useServiceStore } from '../../stores/service';
 import { useSettingsStore } from '../../stores/settings';
 import { Avatar } from '../ui/Avatar';
@@ -145,6 +146,7 @@ export const Sidebar = React.memo(() => {
   );
   const perf = usePerfMode();
   const service = useServiceStore((s) => s.service);
+  const artworkOverrides = usePlaylistArtworkStore((s) => s.overrides);
   // Pinned playlists follow the service tab: SoundCloud pins in SoundCloud
   // mode, imported (YouTube/Spotify) pins in YouTube mode.
   const visiblePins = pinnedPlaylists.filter((p) =>
@@ -211,7 +213,7 @@ export const Sidebar = React.memo(() => {
         />
 
         {visiblePins.map((playlist) => {
-          const artwork = art(playlist.artworkUrl, 'small');
+          const artwork = art(artworkOverrides[playlist.urn] ?? playlist.artworkUrl, 'small');
           const to = `/playlist/${encodeURIComponent(playlist.urn)}`;
           const isActive = isRouteActive(pathname, to);
           return (

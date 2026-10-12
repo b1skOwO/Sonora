@@ -30,6 +30,7 @@ import {
 import { useAutoHide } from '../../lib/useAutoHide';
 import { useTrackPlay } from '../../lib/useTrackPlay';
 import { type Track, usePlayerStore } from '../../stores/player';
+import { usePlaylistArtwork } from '../../stores/playlist-artwork';
 import { ArtistNameLinks } from '../music/ArtistNameLinks';
 import { TrackStatusBadges } from '../music/TrackStatusBadges';
 import { UploadKindDot } from '../music/UploadKindDot';
@@ -232,7 +233,8 @@ const FeaturedPlaylistHero = React.memo(function FeaturedPlaylistHero({
       isPausedFromThis: !s.isPlaying && s.currentTrack != null && trackUrns.has(s.currentTrack.urn),
     })),
   );
-  const cover = playlistCoverUrl(playlist.artwork_url, playlist.tracks);
+  const coverOverride = usePlaylistArtwork(playlist.urn);
+  const cover = playlistCoverUrl(coverOverride ?? playlist.artwork_url, playlist.tracks);
 
   const handlePlay = async () => {
     const { play, pause, resume } = usePlayerStore.getState();

@@ -15,6 +15,7 @@ import { playlistCoverUrl } from '../../lib/playlist-cover';
 import { isYoutubeUrn } from '../../lib/youtube';
 import { localPlaylistToCard, useLocalPlaylistsStore } from '../../stores/local-playlists';
 import { type Track, usePlayerStore } from '../../stores/player';
+import { usePlaylistArtwork } from '../../stores/playlist-artwork';
 import {
   Modal,
   ModalClose,
@@ -51,7 +52,8 @@ const PlaylistOption = React.memo(function PlaylistOption({
   containsSome: boolean;
 }) {
   const { t } = useTranslation();
-  const cover = playlistCoverUrl(playlist.artwork_url, playlist.tracks, 'small');
+  const override = usePlaylistArtwork(playlist.urn);
+  const cover = playlistCoverUrl(override ?? playlist.artwork_url, playlist.tracks, 'small');
 
   return (
     <button

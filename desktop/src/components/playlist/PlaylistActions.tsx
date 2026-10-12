@@ -121,6 +121,7 @@ export const PlaylistActions = React.memo(function PlaylistActions({
   onTogglePin,
   onDelete,
   onAddTracks,
+  artworkButton,
 }: {
   playlist: Playlist;
   isOwner: boolean;
@@ -131,6 +132,7 @@ export const PlaylistActions = React.memo(function PlaylistActions({
   onTogglePin: () => void;
   onDelete: () => void;
   onAddTracks?: () => void;
+  artworkButton?: React.ReactNode;
 }) {
   const { t } = useTranslation();
 
@@ -203,6 +205,7 @@ export const PlaylistActions = React.memo(function PlaylistActions({
           <MapPin size={16} />
         </button>
         <CopyIconAction url={playlist.permalink_url} />
+        {artworkButton}
         {isOwner && (
           <>
             <span className="w-px h-5 bg-white/[0.08] mx-0.5" aria-hidden />

@@ -5,6 +5,7 @@ import { art } from '../../lib/formatters';
 import { ListMusic } from '../../lib/icons';
 import { rawPlaylistCover } from '../../lib/playlist-cover';
 import { canUsePublicFallback, fetchPublicPlaylistTracks } from '../../lib/public-sc';
+import { usePlaylistArtwork } from '../../stores/playlist-artwork';
 
 type CoverTrack = { artwork_url?: string | null };
 
@@ -60,7 +61,8 @@ export const PlaylistCover = React.memo(function PlaylistCover({
   iconSize = 28,
   alt = '',
 }: Props) {
-  const direct = rawPlaylistCover(artworkUrl, tracks);
+  const override = usePlaylistArtwork(urn);
+  const direct = rawPlaylistCover(override ?? artworkUrl, tracks);
   const fetched = useFirstTrackArtwork(urn, !direct);
   const cover = art(direct ?? fetched, size);
 

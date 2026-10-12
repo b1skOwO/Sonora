@@ -10,6 +10,7 @@ import { CrateLedger } from '../components/playlist/CrateLedger';
 import { PLAYLIST_KEYFRAMES } from '../components/playlist/keyframes';
 import { LocalPlaylistView } from '../components/playlist/LocalPlaylistView';
 import { MoreCrates } from '../components/playlist/MoreCrates';
+import { PlaylistArtworkButton } from '../components/playlist/PlaylistArtworkDialog';
 import { PlaylistHero } from '../components/playlist/PlaylistHero';
 import { SequenceList } from '../components/playlist/SequenceList';
 import { SetRibbon } from '../components/playlist/SetRibbon';
@@ -29,6 +30,7 @@ import { armPlaylistContinuation } from '../lib/queue-continuation';
 import { useAuthStore } from '../stores/auth';
 import { isLocalPlaylistUrn, useLocalPlaylistsStore } from '../stores/local-playlists';
 import { type Track, usePlayerStore } from '../stores/player';
+import { playlistArtworkOverride } from '../stores/playlist-artwork';
 import { useSettingsStore } from '../stores/settings';
 
 function HeroSkeleton() {
@@ -213,7 +215,8 @@ export const PlaylistPage = React.memo(function PlaylistPage() {
     pinPlaylist({
       urn: playlist.urn,
       title: playlist.title,
-      artworkUrl: rawPlaylistCover(playlist.artwork_url, tracks),
+      artworkUrl:
+        playlistArtworkOverride(playlist.urn) ?? rawPlaylistCover(playlist.artwork_url, tracks),
     });
     toast.success(t('sidebar.pinned'));
   }, [playlist, isPinned, unpinPlaylist, pinPlaylist, tracks, t]);
@@ -285,6 +288,7 @@ export const PlaylistPage = React.memo(function PlaylistPage() {
           onTogglePin={handleTogglePin}
           onDelete={() => setShowDeleteConfirm(true)}
           onAddTracks={isOwner ? () => setShowAddTracks(true) : undefined}
+          artworkButton={<PlaylistArtworkButton urn={playlist.urn} tracks={tracks} />}
         />
 
         <CrateLedger playlist={playlist} tracks={tracks} />
