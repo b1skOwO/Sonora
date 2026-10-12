@@ -11,6 +11,7 @@ import {
   useDiscoverAlbumsByYear,
 } from '../../lib/discover';
 import { Disc3 } from '../../lib/icons';
+import { usePerfMode } from '../../lib/perf';
 import { Skeleton } from '../ui/Skeleton';
 import { VirtualGrid } from '../ui/VirtualGrid';
 import { AlbumGridCard } from './AlbumGridCard';
@@ -154,6 +155,7 @@ const YearGroup = memo(function YearGroup({
   aura: Aura;
 }) {
   const { t } = useTranslation();
+  const glow = usePerfMode().glow;
   return (
     <div className="flex flex-col md:flex-row md:gap-8 gap-4">
       <div className="md:w-[200px] md:shrink-0 flex md:flex-col md:items-end items-center md:sticky md:top-24 self-start">
@@ -165,7 +167,7 @@ const YearGroup = memo(function YearGroup({
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
-              filter: `drop-shadow(0 4px 24px ${auraRgba(aura, 0.35)})`,
+              filter: glow ? `drop-shadow(0 4px 24px ${auraRgba(aura, 0.35)})` : undefined,
             }}
           >
             {year}

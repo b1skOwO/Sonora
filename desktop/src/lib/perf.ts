@@ -52,7 +52,11 @@ const MODE_PROFILES: Record<PerfMode, Omit<PerfProfile, 'mode' | 'glowScale'>> =
     bloom: true,
   },
   light: {
-    blur: (px) => Math.round(px * 0.3),
+    // Zero by contract (see PerfProfile.blur + the "light disables blur" hint
+    // in the effects settings): every caller already swaps to a solid tint on
+    // 0. A non-zero radius here re-enables full-screen backdrop/filter blurs
+    // that tank FPS on CPU rendering.
+    blur: () => 0,
     particles: () => 0,
     idleAnim: false,
     atmosphere: false,

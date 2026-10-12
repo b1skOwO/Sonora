@@ -32,7 +32,7 @@ function DiscoverHeroImpl({
   return (
     <GlassHeroPanel aura={aura}>
       <div className="relative p-6 md:p-12 flex flex-col lg:flex-row gap-8 lg:gap-12 items-center lg:items-stretch">
-        <CompassArtifact aura={aura} idleAnim={perf.idleAnim} />
+        <CompassArtifact aura={aura} idleAnim={perf.idleAnim} glow={perf.glow} />
 
         <div className="flex-1 min-w-0 flex flex-col justify-between gap-6 text-center lg:text-left">
           <h1
@@ -44,7 +44,7 @@ function DiscoverHeroImpl({
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
               animation: perf.idleAnim ? 'prismatic-shift 8s linear infinite' : undefined,
-              filter: 'drop-shadow(0 12px 36px rgba(0,0,0,0.55))',
+              filter: perf.glow ? 'drop-shadow(0 12px 36px rgba(0,0,0,0.55))' : undefined,
             }}
           >
             {t('discover.title')}
@@ -209,10 +209,13 @@ const Stat = memo(function Stat({
 const CompassArtifact = memo(function CompassArtifact({
   aura,
   idleAnim,
+  glow,
 }: {
   aura: Aura;
   idleAnim: boolean;
+  glow: boolean;
 }) {
+  const dropShadow = glow ? 'drop-shadow(0 12px 26px rgba(0,0,0,0.5))' : undefined;
   return (
     <div className="relative shrink-0 self-center lg:self-start w-[180px] h-[180px] md:w-[220px] md:h-[220px]">
       <div
@@ -222,7 +225,7 @@ const CompassArtifact = memo(function CompassArtifact({
           WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
           WebkitMaskComposite: 'xor',
           maskComposite: 'exclude',
-          filter: `drop-shadow(0 12px 26px rgba(0,0,0,0.5))`,
+          filter: dropShadow,
         }}
       >
         <div
@@ -252,7 +255,7 @@ const CompassArtifact = memo(function CompassArtifact({
           className="relative text-white"
           style={{
             animation: idleAnim ? 'ring-rotate 30s linear infinite' : undefined,
-            filter: `drop-shadow(0 12px 26px rgba(0,0,0,0.5))`,
+            filter: dropShadow,
           }}
         >
           <Compass size={96} strokeWidth={1.2} />
