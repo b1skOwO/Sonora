@@ -4,7 +4,17 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import appIcon from '../../assets/app-icon.png';
-import { ChevronLeft, ChevronRight, Cloud, Fullscreen, Home, Minus, Square, X, Youtube } from '../../lib/icons';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Cloud,
+  Fullscreen,
+  Home,
+  Minus,
+  Square,
+  X,
+  Youtube,
+} from '../../lib/icons';
 import { toggleWindowFullscreen } from '../../lib/window';
 import { useServiceStore } from '../../stores/service';
 import { useSettingsStore } from '../../stores/settings';
@@ -87,17 +97,20 @@ const WinButton = ({
 
 export const Titlebar = React.memo(() => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const collapsed = useSettingsStore((s) => s.sidebarCollapsed);
   const service = useServiceStore((s) => s.service);
-  const toggleService = useServiceStore((s) => s.toggleService);
+  const setService = useServiceStore((s) => s.setService);
   const win = getCurrentWindow();
 
+  const switchService = (next: 'soundcloud' | 'youtube') => {
+    if (next === useServiceStore.getState().service) return;
+    setService(next);
+    toast.success(next === 'youtube' ? t('service.youtubeMode') : t('service.soundcloudMode'));
+    navigate('/home');
+  };
   const handleServiceToggle = () => {
-    toggleService();
-    const next = useServiceStore.getState().service;
-    toast.success(
-      next === 'youtube' ? t('service.youtubeMode') : t('service.soundcloudMode'),
-    );
+    switchService(service === 'soundcloud' ? 'youtube' : 'soundcloud');
   };
   const ServiceGlyph = service === 'youtube' ? Youtube : Cloud;
 
@@ -125,19 +138,21 @@ export const Titlebar = React.memo(() => {
           type="button"
           onClick={handleServiceToggle}
           title={
-            service === 'soundcloud' ? t('service.switchToYoutube') : t('service.switchToSoundcloud')
+            service === 'soundcloud'
+              ? t('service.switchToYoutube')
+              : t('service.switchToSoundcloud')
           }
           aria-label={
-            service === 'soundcloud' ? t('service.switchToYoutube') : t('service.switchToSoundcloud')
+            service === 'soundcloud'
+              ? t('service.switchToYoutube')
+              : t('service.switchToSoundcloud')
           }
-          data-tauri-drag-region
           className="flex items-center rounded-[10px] cursor-pointer transition-all duration-200 hover:bg-white/[0.06] active:scale-[0.97]"
         >
           <img
             src={appIcon}
             alt=""
             draggable={false}
-            data-tauri-drag-region
             className="w-8 h-8 rounded-[10px] shrink-0"
             style={{
               boxShadow: '0 4px 14px rgba(0,0,0,0.45), inset 0 0 0 0.5px rgba(255,255,255,0.1)',
@@ -146,7 +161,6 @@ export const Titlebar = React.memo(() => {
           {/* Always rendered; collapses purely via CSS so there's no JS mount/unmount
               race when the sidebar toggles. max-width + padding fold the reclaimed space. */}
           <span
-            data-tauri-drag-region
             className="overflow-hidden whitespace-nowrap text-[14px] font-bold tracking-tight text-white/85"
             style={{
               maxWidth: collapsed ? 0 : '140px',
@@ -158,11 +172,50 @@ export const Titlebar = React.memo(() => {
           >
             {service === 'soundcloud' ? 'SoundCloud' : 'YouTube'}
           </span>
-          <span data-tauri-drag-region className="flex items-center pr-1.5 pl-1 text-white/40">
+          <span className="flex items-center pr-1.5 pl-1 text-white/40">
             <ServiceGlyph size={14} />
           </span>
         </button>
         <NavButtons />
+        {/* Explicit service switch — the logo button above also toggles, but a
+            drag region can swallow its clicks, so this segmented control is the
+            guaranteed path. */}
+        <div
+          className="flex items-center gap-0.5 p-0.5 rounded-full bg-white/[0.04] border border-white/10"
+          role="group"
+          aria-label="service"
+        >
+          {[
+            { id: 'soundcloud' as const, Icon: Cloud, title: t('service.switchToSoundcloud') },
+            { id: 'youtube' as const, Icon: Youtube, title: t('service.switchToYoutube') },
+          ].map(({ id, Icon, title }) => {
+            const active = service === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => switchService(id)}
+                title={title}
+                aria-label={title}
+                aria-pressed={active}
+                className={`w-7 h-7 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer ${
+                  active ? 'text-white' : 'text-white/35 hover:text-white/70'
+                }`}
+                style={
+                  active
+                    ? {
+                        background: 'rgba(255,255,255,0.08)',
+                        boxShadow:
+                          'inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 45%, transparent), inset 0 1px 0 rgba(255,255,255,0.08)',
+                      }
+                    : undefined
+                }
+              >
+                <Icon size={13} />
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* CENTER: the one global search. Drag region too — Tauri keys off e.target,
