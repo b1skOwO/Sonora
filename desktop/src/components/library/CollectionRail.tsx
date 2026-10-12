@@ -9,7 +9,8 @@ interface CollectionRailProps {
   icon: ReactNode;
   title: string;
   count?: number;
-  to: string;
+  /** Deep-page link; omit when the shelf has no dedicated page. */
+  to?: string;
   /** Optional header action (e.g. re-roll) rendered before the see-all link. */
   action?: ReactNode;
   children: ReactNode;
@@ -34,14 +35,18 @@ export const CollectionRail = memo(function CollectionRail({
         {count != null && count > 0 && (
           <span className="text-[12px] text-white/30 tabular-nums">{fc(count)}</span>
         )}
-        {action}
-        <Link
-          to={to}
-          className="ml-auto flex items-center gap-0.5 text-[12px] font-semibold text-white/45 hover:text-white/90 transition-colors"
-        >
-          {t('library.seeAll')}
-          <ChevronRight size={14} />
-        </Link>
+        {action && (
+          <div className={`flex items-center gap-1.5 ${to ? '' : 'ml-auto'}`}>{action}</div>
+        )}
+        {to && (
+          <Link
+            to={to}
+            className="ml-auto flex items-center gap-0.5 text-[12px] font-semibold text-white/45 hover:text-white/90 transition-colors"
+          >
+            {t('library.seeAll')}
+            <ChevronRight size={14} />
+          </Link>
+        )}
       </div>
       <HorizontalScroll>{children}</HorizontalScroll>
     </section>

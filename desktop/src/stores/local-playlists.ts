@@ -9,7 +9,7 @@ import type { Playlist } from '../lib/hooks';
 import { createThrottledJsonStorage } from '../lib/tauri-storage';
 import type { Track } from './player';
 
-export type LocalPlaylistSource = 'youtube' | 'spotify';
+export type LocalPlaylistSource = 'youtube' | 'spotify' | 'mix';
 
 export interface LocalPlaylist {
   id: string;
@@ -40,8 +40,7 @@ export const useLocalPlaylistsStore = create<LocalPlaylistsState>()(
           next[index] = playlist;
           return { playlists: next };
         }),
-      remove: (id) =>
-        set((state) => ({ playlists: state.playlists.filter((p) => p.id !== id) })),
+      remove: (id) => set((state) => ({ playlists: state.playlists.filter((p) => p.id !== id) })),
     }),
     {
       name: 'sc-local-playlists',
@@ -57,7 +56,7 @@ export function localPlaylistById(id: string | undefined): LocalPlaylist | undef
 }
 
 /** URN prefixes used by local (non-backend) playlists. */
-const LOCAL_PLAYLIST_PREFIXES = ['youtube:playlists:', 'spotify:playlists:'];
+const LOCAL_PLAYLIST_PREFIXES = ['youtube:playlists:', 'spotify:playlists:', 'mix:playlists:'];
 
 export function isLocalPlaylistUrn(urn: string | undefined): boolean {
   return !!urn && LOCAL_PLAYLIST_PREFIXES.some((prefix) => urn.startsWith(prefix));
@@ -65,7 +64,9 @@ export function isLocalPlaylistUrn(urn: string | undefined): boolean {
 
 /** Human label of the service a local playlist was imported from. */
 export function localPlaylistSourceLabel(source: LocalPlaylistSource): string {
-  return source === 'spotify' ? 'Spotify' : 'YouTube';
+  if (source === 'spotify') return 'Spotify';
+  if (source === 'mix') return 'Mix';
+  return 'YouTube';
 }
 
 /** Playlist-shaped view of a local import, for the shared `PlaylistCard`. */

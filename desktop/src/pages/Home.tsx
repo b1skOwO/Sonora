@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { ArchiveStation } from '../components/home/river/ArchiveStation';
 import { RIVER_KEYFRAMES } from '../components/home/river/keyframes';
 import { RiverMasthead } from '../components/home/river/RiverMasthead';
@@ -8,13 +10,15 @@ import { YoutubeHome } from '../components/home/YoutubeHome';
 import { CollectionRail } from '../components/library/CollectionRail';
 import { ContinueRow } from '../components/library/ContinueRow';
 import { FreshDrops } from '../components/library/FreshDrops';
+import { historyTrackUrn } from '../components/library/history-utils';
 import { useSoundprint } from '../components/library/useSoundprint';
 import { PlaylistCard } from '../components/music/PlaylistCard';
 import { TrackCard } from '../components/music/TrackCard';
-import { useLikedTracks, useMyPlaylists } from '../lib/hooks';
-import { Heart, ListMusic, RefreshCw } from '../lib/icons';
+import { useHistory, useLikedTracks, useMyPlaylists } from '../lib/hooks';
+import { Heart, ListMusic, Plus, RefreshCw } from '../lib/icons';
 import { likedTracksCount } from '../lib/likes';
 import { armLikesContinuation } from '../lib/queue-continuation';
+import { useUnheardPicks } from '../lib/unheard-picks';
 import { useAuthStore } from '../stores/auth';
 import { useUnifiedLikes } from '../stores/local-likes';
 import type { LocalPlaylist } from '../stores/local-playlists';
@@ -55,6 +59,7 @@ function buildRandomMix(
  *  keeps living on its own surfaces. */
 function SoundCloudHome() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const likedTracksQuery = useLikedTracks(100);
 
@@ -76,6 +81,40 @@ function SoundCloudHome() {
     () => buildRandomMix(unifiedLikes, localPlaylists),
     [unifiedLikes, localPlaylists, mixSeed],
   );
+
+  // Everything already heard: history + backend likes + local hearts.
+  const { entries: historyEntries } = useHistory();
+  const heardUrns = useMemo(() => {
+    const heard = new Set<string>();
+    for (const entry of historyEntries) heard.add(historyTrackUrn(entry.scTrackId));
+    for (const track of likedTracksQuery.tracks) heard.add(track.urn);
+    for (const track of unifiedLikes) heard.add(track.urn);
+    return heard;
+  }, [historyEntries, likedTracksQuery.tracks, unifiedLikes]);
+
+  const [unheardSeed, setUnheardSeed] = useState(0);
+  const unheard = useUnheardPicks({
+    likedTracks: likedTracksQuery.tracks,
+    heardUrns,
+    nonce: unheardSeed,
+  });
+
+  const handleSaveUnheard = () => {
+    if (unheard.tracks.length === 0) return;
+    const playlist: LocalPlaylist = {
+      id: `mix:playlists:unheard-${Date.now().toString(36)}`,
+      title: t('home.unheardTitle'),
+      uploader: null,
+      artworkUrl: unheard.tracks[0]?.artwork_url ?? null,
+      sourceUrl: '',
+      source: 'mix',
+      tracks: unheard.tracks,
+      createdAt: Date.now(),
+    };
+    useLocalPlaylistsStore.getState().upsert(playlist);
+    toast.success(t('playlist.created'));
+    navigate(`/playlist/${encodeURIComponent(playlist.id)}`);
+  };
   const likesPreview = useMemo(() => {
     const base = genre
       ? likedTracksQuery.tracks.filter((tr) => tr.genre?.trim() === genre)
@@ -118,6 +157,43 @@ function SoundCloudHome() {
           {randomMix.map((tr) => (
             <div key={tr.urn} className="w-[150px] shrink-0">
               <TrackCard track={tr} queue={randomMix} />
+            </div>
+          ))}
+        </CollectionRail>
+      )}
+
+      {unheard.tracks.length > 0 && (
+        <CollectionRail
+          icon={<Plus size={16} />}
+          title={t('home.unheardTitle')}
+          count={unheard.tracks.length}
+          action={
+            <>
+              <button
+                type="button"
+                onClick={() => setUnheardSeed((s) => s + 1)}
+                title={t('discover.prismShuffle')}
+                aria-label={t('discover.prismShuffle')}
+                className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-white/35 hover:text-white/80 hover:bg-white/[0.07] transition-all cursor-pointer"
+              >
+                <RefreshCw size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveUnheard}
+                title={t('playlist.create')}
+                aria-label={t('playlist.create')}
+                className="shrink-0 h-7 px-3 rounded-full inline-flex items-center gap-1 text-[11px] font-semibold text-white/55 hover:text-white/90 hover:bg-white/[0.07] transition-all cursor-pointer"
+              >
+                <Plus size={13} />
+                {t('playlist.create')}
+              </button>
+            </>
+          }
+        >
+          {unheard.tracks.map((tr) => (
+            <div key={tr.urn} className="w-[150px] shrink-0">
+              <TrackCard track={tr} queue={unheard.tracks} />
             </div>
           ))}
         </CollectionRail>
