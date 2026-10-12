@@ -20,7 +20,7 @@ function AlbumCoverArtifactImpl({
   aura,
   spinning = true,
 }: AlbumCoverArtifactProps) {
-  const { idleAnim } = usePerfMode();
+  const { idleAnim, glow } = usePerfMode();
   return (
     <div className="relative shrink-0 self-center lg:self-start group w-[180px] h-[180px] md:w-[220px] md:h-[220px]">
       {ring && (
@@ -31,7 +31,7 @@ function AlbumCoverArtifactImpl({
             WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
             WebkitMaskComposite: 'xor',
             maskComposite: 'exclude',
-            filter: `drop-shadow(0 12px 26px rgba(0,0,0,0.5))`,
+            filter: glow ? `drop-shadow(0 12px 26px rgba(0,0,0,0.5))` : undefined,
           }}
         >
           <div

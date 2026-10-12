@@ -25,7 +25,9 @@ function GlassHeroPanelImpl({ className, children }: GlassHeroPanelProps) {
         WebkitBackdropFilter: filter,
         boxShadow:
           '0 30px 80px rgba(0,0,0,0.4), inset 0 0 0 1px rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,0.08)',
-        animation: 'hub-rise 700ms cubic-bezier(0.2,0.8,0.2,1) both',
+        // The rise runs a blur ramp — skip it without idle motion so CPU
+        // rendering doesn't jank every hero entrance.
+        animation: perf.idleAnim ? 'hub-rise 700ms cubic-bezier(0.2,0.8,0.2,1) both' : undefined,
         isolation: 'isolate',
       }}
     >

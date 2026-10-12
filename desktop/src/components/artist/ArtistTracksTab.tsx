@@ -215,6 +215,7 @@ function ArtistTracksTabImpl({
 const YearBlock = memo(
   ({ bucket, queue, aura }: { bucket: YearBucket; queue: Track[]; aura: Aura }) => {
     const { t } = useTranslation();
+    const glow = usePerfMode().glow;
     const total = bucket.items.reduce((acc, x) => acc + (x.duration ?? 0), 0);
     return (
       <div className="flex flex-col md:flex-row md:gap-8 gap-3">
@@ -228,7 +229,7 @@ const YearBlock = memo(
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 backgroundClip: 'text',
-                filter: `drop-shadow(0 4px 24px ${auraRgba(aura, 0.35)})`,
+                filter: glow ? `drop-shadow(0 4px 24px ${auraRgba(aura, 0.35)})` : undefined,
               }}
             >
               {bucket.year ?? '∞'}
