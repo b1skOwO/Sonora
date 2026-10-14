@@ -1,8 +1,10 @@
 name: Release (Windows)
 
 # Automated installer builds: push a version tag (`git tag v8.4.14 &&
-# git push origin v8.4.14`) for a published GitHub Release with the NSIS
-# setup, or run manually from the Actions tab (artifacts only, no release).
+# git push origin v8.4.14`) for a published GitHub Release with the signed
+# NSIS setup + updater manifest (latest.json), or run manually from the
+# Actions tab (artifacts only, no release). Needs the
+# TAURI_SIGNING_PRIVATE_KEY[_PASSWORD] repo secrets.
 # Bump the version in desktop/package.json, desktop/src-tauri/tauri.conf.json
 # and desktop/src-tauri/Cargo.toml before tagging.
 
@@ -52,6 +54,10 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Signs the updater artifacts (.sig) and generates latest.json for
+          # in-app updates. The build fails without these secrets.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: desktop
           releaseName: 'Sonora ${{ github.ref_name }}'

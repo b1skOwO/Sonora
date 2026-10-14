@@ -80,7 +80,7 @@ desktop/
                      events, hooks, useAutoHide — общие утилиты
                      diagnostics — `trackedInvoke`, watchdog event-loop, slow-call логи
                      tauri-storage — `StateStorage` для zustand persist на ФС
-                     call, discord, dpi, tray, window, platform, update-check, semver
+                     call, discord, dpi, tray, window, platform, sonora-update, semver
                      query-client, formatters, icons, constants
     i18n/locales/    en.json, ru.json
   src-tauri/

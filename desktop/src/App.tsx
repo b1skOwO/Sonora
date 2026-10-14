@@ -156,8 +156,7 @@ export default function App() {
     let cancelled = false;
     const runUpdateCheck = () => {
       if (cancelled) return;
-      const { autoCheckUpdates, githubPat } = useSettingsStore.getState();
-      if (!autoCheckUpdates || githubPat.trim().length === 0) return;
+      if (!useSettingsStore.getState().autoCheckUpdates) return;
       void useUpdaterStore.getState().checkNow();
     };
 

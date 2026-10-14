@@ -96,8 +96,6 @@ No manual setup for media tools: **ffmpeg and yt-dlp are downloaded by the app i
 
 ### Setup & build
 
-This repo is private — clone with an account that has access:
-
 ```bash
 git clone https://github.com/b1skOwO/Sonora.git
 cd Sonora/desktop
@@ -110,9 +108,11 @@ Run in development mode (hot reload):
 pnpm tauri dev
 ```
 
-Production build (installer + portable bundle):
+Production build (installer + portable bundle). Release builds must be signed
+for the updater, so point `TAURI_SIGNING_PRIVATE_KEY` at your key first:
 
 ```bash
+export TAURI_SIGNING_PRIVATE_KEY=~/.tauri/sonora.key
 pnpm tauri build
 ```
 
@@ -130,19 +130,21 @@ cargo test --lib         # Rust tests
 ### Updating
 
 No local builds needed after the first install. Pushing a version tag builds
-the installer on CI and publishes a GitHub Release:
+and **signs** the installer on CI, publishes a GitHub Release, and generates
+the updater manifest (`latest.json`):
 
 ```bash
-# bump 8.4.13 → 8.4.14 in desktop/package.json,
-# desktop/src-tauri/tauri.conf.json and desktop/src-tauri/Cargo.toml, then:
+# bump the version in desktop/package.json, desktop/src-tauri/tauri.conf.json
+# and desktop/src-tauri/Cargo.toml, then:
 git tag v8.4.14 && git push origin v8.4.14
 ```
 
-In the app, open Settings → General → Updates and paste a GitHub token
-(fine-grained, Contents: read-only on this repo — the repo is private, so
-anonymous checks fail). With a token saved, Sonora checks for new releases
-on startup and offers one-click download + install from the update dialog
-(the installer runs, then the app quits so files aren't locked).
+The app checks the public release feed on startup (Settings → General →
+Updates has a manual check and an auto-check toggle). The update dialog
+downloads the signed installer, verifies its signature, and installs it in
+the background (passive NSIS — a small progress window, no wizard); the app
+quits and reopens by itself. Keep the signing key safe — losing it means
+existing installs can no longer receive signed updates.
 
 ### Origin
 
@@ -248,8 +250,6 @@ OS別の前提条件（Tauri）：
 
 ### セットアップ＆ビルド
 
-このリポジトリはプライベートです。アクセス権のあるアカウントでcloneしてください：
-
 ```bash
 git clone https://github.com/b1skOwO/Sonora.git
 cd Sonora/desktop
@@ -262,9 +262,10 @@ pnpm install --frozen-lockfile
 pnpm tauri dev
 ```
 
-リリースビルド（インストーラー＋ポータブル）：
+リリースビルド（インストーラー＋ポータブル）。リリースビルドは署名が必須なので、先に `TAURI_SIGNING_PRIVATE_KEY` に鍵を設定してください：
 
 ```bash
+export TAURI_SIGNING_PRIVATE_KEY=~/.tauri/sonora.key
 pnpm tauri build
 ```
 
@@ -281,15 +282,15 @@ cargo test --lib            # Rustテスト
 
 ### アップデート
 
-初回インストール後はローカルビルド不要です。バージョンタグをpushするとCIがインストーラーをビルドしてGitHubリリースに公開します：
+初回インストール後はローカルビルド不要です。バージョンタグをpushするとCIがインストーラーを**署名**してGitHubリリースに公開し、更新用マニフェスト（`latest.json`）も生成します：
 
 ```bash
 # desktop/package.json・desktop/src-tauri/tauri.conf.json・
-# desktop/src-tauri/Cargo.toml の 8.4.13 → 8.4.14 に上げてから:
+# desktop/src-tauri/Cargo.toml のバージョンを上げてから:
 git tag v8.4.14 && git push origin v8.4.14
 ```
 
-アプリ側は 設定 → 一般 → Updates でGitHubトークンを貼ると（fine-grained・Contents: read-onlyで可。リポジトリがプライベートなので匿名チェックは失敗します）、起動時に新リリースを確認して更新ダイアログからワンクリックでダウンロード＋インストールできます（インストーラー起動後にアプリが終了するのでファイルロックの心配なし）。
+アプリは起動時に公開リリースフィードを確認します（設定 → 一般 → Updates に手動チェックと自動チェックのトグルあり）。更新ダイアログは署名済みインストーラーをダウンロード→署名検証→バックグラウンドでインストール（passive NSIS：小さな進捗ウィンドウのみ、ウィザードなし）。アプリは自動で終了→再起動します。署名鍵は大切に保管してください — 失うと既存インストールへ更新を配れなくなります。
 
 ### フォーク元
 

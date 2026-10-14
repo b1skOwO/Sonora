@@ -789,20 +789,14 @@
   "update": {
     "available": "Guncelleme mevcut",
     "later": "Daha sonra",
-    "download": "Indir",
+    "download": "Indir ve kur",
     "checkNow": "Guncellemeleri denetle",
-    "tokenLabel": "GitHub token",
-    "tokenDesc": "Ozel deponun surumlerini okumak icin gerekli. Salt okunur Contents izinli fine-grained token yeterli. Yalnizca bu makinede saklanir.",
-    "tokenPlaceholder": "github_pat_…",
     "autoCheck": "Baslangicta denetle",
     "autoCheckDesc": "Uygulama acilisinda yeni surumleri denetle",
     "upToDate": "En son surumu kullaniyorsunuz",
-    "authFailed": "Token reddedildi (401). Tokeni kontrol edin.",
     "checkFailed": "Guncelleme denetimi basarisiz",
-    "noReleases": "Henuz surum yayinlanmadi",
     "installing": "Kuruluyor…",
-    "installFailed": "Kurucu indirilemedi veya baslatilamadi",
-    "noAsset": "Surumde kurucu bulunamadi"
+    "installFailed": "Kurucu indirilemedi veya baslatilamadi"
   },
   "common": {
     "loading": "Yukleniyor...",

@@ -1,6 +1,6 @@
 [package]
 name = "soundcloud-desktop"
-version = "8.4.13"
+version = "8.4.14"
 description = "Sonora — a beautiful music desktop app"
 authors = ["zxcloli666"]
 edition = "2024"
@@ -39,6 +39,7 @@ rustfft = { version = "6", default-features = false }
 souvlaki = "0.8"
 raw-window-handle = "0.6"
 tauri-plugin-dialog = "2.7.0"
+tauri-plugin-updater = "2"
 ogg = "0.9.2"
 audiopus = "0.2.0"
 chrono = { version = "0.4", features = ["clock"] }

@@ -897,20 +897,14 @@
   "update": {
     "available": "Update available",
     "later": "Later",
-    "download": "Download",
+    "download": "Download & install",
     "checkNow": "Check for updates",
-    "tokenLabel": "GitHub token",
-    "tokenDesc": "Needed to read releases of the private repo. A fine-grained token with Contents: read-only is enough. Stored only on this machine.",
-    "tokenPlaceholder": "github_pat_…",
     "autoCheck": "Check on startup",
     "autoCheckDesc": "Look for new releases when the app starts",
     "upToDate": "You're on the latest version",
-    "authFailed": "Token rejected (401). Check the token.",
     "checkFailed": "Could not check for updates",
-    "noReleases": "No releases published yet",
     "installing": "Installing…",
-    "installFailed": "Could not download or launch the installer",
-    "noAsset": "No installer found in this release"
+    "installFailed": "Could not download or launch the installer"
   },
   "common": {
     "loading": "Loading...",
