@@ -62,6 +62,7 @@ Most players lock you into one service. Sonora treats **SoundCloud and YouTube a
 #### Playback & DJ
 - Native playback engine in Rust (rodio + symphonia) with high-quality resampling
 - **Two-deck DJ mode** — BPM + Sync, crossfade, auto-mix, DJ filter, flanger, waveform
+- **DJ keyboard shortcuts** — play, cue, sync, crossfader and auto-mix on keys (remappable in Settings → General)
 - Playback speed & pitch controls, A–B loop, shuffle / repeat
 - Hover-to-preview tracks without interrupting playback
 
@@ -219,6 +220,7 @@ MIT. See [LICENSE](LICENSE).
 #### 再生・DJ
 - Rust製再生エンジン（rodio + symphonia）、高品質リサンプリング
 - **2デッキDJモード** — BPM＋Sync、クロスフェード、オートミックス、DJフィルター、フランジャー、波形表示
+- **DJキーボードショートカット** — 再生・Cue・Sync・クロスフェード・オートミックスをキー操作（設定 → 一般でリマップ可）
 - 再生速度・ピッチ調整、A–Bループ、シャッフル／リピート
 - 再生を邪魔しないホバープレビュー
 

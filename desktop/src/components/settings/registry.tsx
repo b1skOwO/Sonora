@@ -4,6 +4,7 @@ import { AccountCard } from './cards/AccountCard';
 import { AudioDeviceCard } from './cards/AudioDeviceCard';
 import { CacheCard } from './cards/CacheCard';
 import { DiscordCard } from './cards/DiscordCard';
+import { DjShortcutsCard } from './cards/DjShortcutsCard';
 import { EffectsCard } from './cards/EffectsCard';
 import { EqualizerCard } from './cards/EqualizerCard';
 import { ImportCard } from './cards/ImportCard';
@@ -42,6 +43,7 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
         <LanguageCard />
         <StartupCard />
         <UpdatesCard />
+        <DjShortcutsCard />
       </>
     ),
   },

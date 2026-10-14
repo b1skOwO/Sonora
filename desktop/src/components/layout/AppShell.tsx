@@ -12,6 +12,8 @@ import {toggleWindowFullscreen} from '../../lib/window';
 import {useLyricsStore} from '../../stores/lyrics';
 import {trackVolume, usePlayerStore} from '../../stores/player';
 import {useSettingsStore} from '../../stores/settings';
+import {useDjStore} from '../../stores/dj';
+import {DJ_ACTIONS, dispatchDjAction, findDjAction, formatKeyCode, isTextEntryTarget, useKeybindingsStore} from '../../stores/keybindings';
 import {NowPlayingBar} from './NowPlayingBar';
 import {Sidebar} from './Sidebar';
 import {Titlebar} from './Titlebar';
@@ -78,6 +80,7 @@ const KeyCap = ({ children }: { children: React.ReactNode }) => (
 const KeybindingsDialog = React.memo(
   ({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) => {
     const { t } = useTranslation();
+    const djBindings = useKeybindingsStore((s) => s.bindings);
 
     const groups = (['playback', 'navigation', 'panels'] as const).map((g) => ({
       id: g,
@@ -124,6 +127,24 @@ const KeybindingsDialog = React.memo(
                   </div>
                 </div>
               ))}
+              <div>
+                <h3 className="text-[11px] font-bold text-white/30 uppercase tracking-widest mb-3">
+                  {t('kb.groupDj')}
+                </h3>
+                <div className="space-y-1">
+                  {DJ_ACTIONS.map((action) => (
+                    <div
+                      key={action.id}
+                      className="flex items-center justify-between py-2 px-3 rounded-xl hover:bg-white/[0.03] transition-colors"
+                    >
+                      <span className="text-[13px] text-white/60">{t(action.labelKey)}</span>
+                      <div className="flex items-center gap-1">
+                        <KeyCap>{formatKeyCode(djBindings[action.id])}</KeyCap>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* Footer */}
@@ -282,6 +303,9 @@ export const AppShell = React.memo(() => {
     queueOpenRef.current = queueOpen;
     const kbOpenRef = useRef(kbOpen);
     kbOpenRef.current = kbOpen;
+    const djOpen = useDjStore((s) => s.open);
+    const djOpenRef = useRef(djOpen);
+    djOpenRef.current = djOpen;
 
     // Anti-sticky-hover: WebKitGTK doesn't re-hit-test :hover while the content
     // scrolls under a stationary cursor, so cards "freeze" hovered or light up the
@@ -339,6 +363,25 @@ export const AppShell = React.memo(() => {
         e.preventDefault();
         void toggleWindowFullscreen();
         return;
+      }
+
+      // DJ deck hotkeys — panel open only, win over the main-player keys.
+      // Single keys, no modifiers; text inputs stay off-limits.
+      if (
+        djOpenRef.current &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !isTextEntryTarget(e.target)
+      ) {
+        const action = findDjAction(useKeybindingsStore.getState().bindings, code);
+        if (action) {
+          // Holding a key repeats — wanted for the crossfader, toggle-spam for the rest.
+          if (e.repeat && action !== 'xfader.left' && action !== 'xfader.right') return;
+          e.preventDefault();
+          dispatchDjAction(action);
+          return;
+        }
       }
 
       // / — focus search (not in input)
