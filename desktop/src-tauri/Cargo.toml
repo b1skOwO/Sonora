@@ -1,6 +1,6 @@
 [package]
 name = "soundcloud-desktop"
-version = "8.4.14"
+version = "8.4.15"
 description = "Sonora — a beautiful music desktop app"
 authors = ["zxcloli666"]
 edition = "2024"
@@ -40,6 +40,10 @@ souvlaki = "0.8"
 raw-window-handle = "0.6"
 tauri-plugin-dialog = "2.7.0"
 tauri-plugin-updater = "2"
+# Installed as the process-default TLS provider at startup (see lib.rs):
+# reqwest 0.13 is built with `rustls-no-provider` in this dependency graph
+# and panics if a TLS client is created before a provider is installed.
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
 ogg = "0.9.2"
 audiopus = "0.2.0"
 chrono = { version = "0.4", features = ["clock"] }

@@ -25,6 +25,12 @@ pub fn apply_startup_memory_args() {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 #[cfg_attr(feature = "cef", tauri::cef_entry_point)]
 pub fn run() {
+    // reqwest 0.13 ships with `rustls-no-provider` in this dependency graph
+    // (via tauri-plugin-updater) and panics with "No provider set" when a TLS
+    // client is built before a process-default rustls provider is installed.
+    // Install one up front so every client (updater included) can use it.
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     let builder = tauri::Builder::<rt::Rt>::new();
 
     builder

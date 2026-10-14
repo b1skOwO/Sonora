@@ -5318,7 +5318,7 @@ dependencies = [
 
 [[package]]
 name = "soundcloud-desktop"
-version = "8.4.14"
+version = "8.4.15"
 dependencies = [
  "audiopus",
  "base64 0.22.1",
@@ -5341,6 +5341,7 @@ dependencies = [
  "regex",
  "rodio",
  "rustfft",
+ "rustls",
  "sc-fingerprint",
  "serde",
  "serde_json",
