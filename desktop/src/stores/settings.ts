@@ -96,6 +96,10 @@ export interface SettingsState {
   disableGpu: boolean;
   /** Close button keeps the app alive in the tray instead of quitting. */
   keepInTray: boolean;
+  /** GitHub token for reading this repo's private releases (self-update). */
+  githubPat: string;
+  /** Check GitHub releases for a newer build on startup. */
+  autoCheckUpdates: boolean;
   setAccentColor: (color: string) => void;
   setBgPrimary: (bg: string) => void;
   setThemePreset: (id: ThemePreset) => void;
@@ -134,6 +138,8 @@ export interface SettingsState {
   setMemorySaver: (v: boolean) => void;
   setDisableGpu: (v: boolean) => void;
   setKeepInTray: (v: boolean) => void;
+  setGithubPat: (v: string) => void;
+  setAutoCheckUpdates: (v: boolean) => void;
   resetTheme: () => void;
 }
 
@@ -176,6 +182,8 @@ const DEFAULTS = {
   memorySaver: false,
   disableGpu: false,
   keepInTray: false,
+  githubPat: '',
+  autoCheckUpdates: true,
 };
 
 export const useSettingsStore = create<SettingsState>()(
@@ -241,6 +249,8 @@ export const useSettingsStore = create<SettingsState>()(
       setMemorySaver: (memorySaver) => set({ memorySaver }),
       setDisableGpu: (disableGpu) => set({ disableGpu }),
       setKeepInTray: (keepInTray) => set({ keepInTray }),
+      setGithubPat: (githubPat) => set({ githubPat }),
+      setAutoCheckUpdates: (autoCheckUpdates) => set({ autoCheckUpdates }),
       resetTheme: () =>
         set({
           accentColor: DEFAULTS.accentColor,
@@ -313,6 +323,8 @@ export const useSettingsStore = create<SettingsState>()(
         memorySaver: s.memorySaver,
         disableGpu: s.disableGpu,
         keepInTray: s.keepInTray,
+        githubPat: s.githubPat,
+        autoCheckUpdates: s.autoCheckUpdates,
       }),
     },
   ),

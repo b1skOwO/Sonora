@@ -263,6 +263,7 @@ pub fn run() {
             import::spotify_import_start,
             import::spotify_import_stop,
             app_restart,
+            app_install_update,
             track_cache::track_ensure_cached,
             track_cache::track_export,
             track_cache::track_is_cached,
@@ -309,6 +310,20 @@ pub fn run() {
 #[tauri::command]
 fn app_restart(app: tauri::AppHandle) {
     app.restart();
+}
+
+/// Update flow, step 2 of 2 (step 1 — download — runs in the frontend): launch
+/// the downloaded installer detached, give it a moment to start, then quit so
+/// no files are locked while the installer overwrites them.
+#[tauri::command]
+fn app_install_update(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    std::process::Command::new(&path)
+        .spawn()
+        .map_err(|e| format!("failed to launch installer: {e}"))?;
+    std::thread::sleep(std::time::Duration::from_millis(1500));
+    app.exit(0);
+    #[allow(unreachable_code)]
+    Ok(())
 }
 
 /// User-chosen audio cache root from `audio-cache.json` (written by

@@ -709,6 +709,8 @@
     "keepInTrayDesc": "The close button hides the window and keeps playing. Off: the close button quits Sonora.",
     "startup": "Startup",
     "startupPageDesc": "Choose which page opens when the app launches",
+    "updates": "Updates",
+    "updatesDesc": "Update Sonora from this repo's GitHub releases",
     "playback": "Playback",
     "floatingComments": "Floating comments",
     "floatingCommentsDesc": "Show comments as floating pills during playback",
@@ -895,7 +897,20 @@
   "update": {
     "available": "Update available",
     "later": "Later",
-    "download": "Download"
+    "download": "Download",
+    "checkNow": "Check for updates",
+    "tokenLabel": "GitHub token",
+    "tokenDesc": "Needed to read releases of the private repo. A fine-grained token with Contents: read-only is enough. Stored only on this machine.",
+    "tokenPlaceholder": "github_pat_…",
+    "autoCheck": "Check on startup",
+    "autoCheckDesc": "Look for new releases when the app starts",
+    "upToDate": "You're on the latest version",
+    "authFailed": "Token rejected (401). Check the token.",
+    "checkFailed": "Could not check for updates",
+    "noReleases": "No releases published yet",
+    "installing": "Installing…",
+    "installFailed": "Could not download or launch the installer",
+    "noAsset": "No installer found in this release"
   },
   "common": {
     "loading": "Loading...",

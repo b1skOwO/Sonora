@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { proxiedAssetUrl } from '../lib/asset-url';
 import { APP_VERSION } from '../lib/constants';
 import { AlertCircle, ExternalLink, Sparkles, X } from '../lib/icons';
+import type { UpdaterError } from '../lib/sonora-update';
 import type { GithubRelease } from '../lib/update-check';
 
 function stripLeadingV(version: string) {
@@ -154,9 +155,19 @@ function renderReleaseBody(body: string) {
 export function UpdateChecker({
   release,
   onDismiss,
+  onInstall,
+  installing,
+  installProgress,
+  installError,
 }: {
   release: GithubRelease;
   onDismiss: () => void;
+  /** In-app install (private repo). Without it, Download opens the release page. */
+  onInstall?: () => void;
+  installing?: boolean;
+  /** 0..1 download fraction, null when indeterminate. */
+  installProgress?: number | null;
+  installError?: UpdaterError | null;
 }) {
   const { t } = useTranslation();
   const renderedNotes = useMemo(() => renderReleaseBody(release.body), [release.body]);
@@ -203,23 +214,36 @@ export function UpdateChecker({
         )}
 
         {/* Actions */}
+        {installError && (
+          <p className="mx-5 mb-3 text-[12px] text-red-300/90">{t(`update.${installError}`)}</p>
+        )}
         <div className="flex gap-2 px-5 pb-5">
           <button
             type="button"
             onClick={onDismiss}
-            className="flex-1 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.08] text-[13px] text-white/50 font-medium transition-colors cursor-pointer"
+            disabled={installing}
+            className="flex-1 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.08] text-[13px] text-white/50 font-medium transition-colors cursor-pointer disabled:opacity-40"
           >
             {t('update.later')}
           </button>
           <button
             type="button"
-            onClick={() => openUrl(release.html_url)}
-            className="flex-1 py-2.5 rounded-xl bg-accent hover:bg-accent-hover text-[13px] text-accent-contrast font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1.5 "
+            onClick={onInstall ?? (() => openUrl(release.html_url))}
+            disabled={installing}
+            className="flex-1 py-2.5 rounded-xl bg-accent hover:bg-accent-hover text-[13px] text-accent-contrast font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-70"
           >
-            {t('update.download')}
+            {installing ? t('update.installing') : t('update.download')}
             <ExternalLink size={13} />
           </button>
         </div>
+        {installing && (
+          <div className="mx-5 mb-5 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+            <div
+              className="h-full bg-accent rounded-full transition-[width] duration-200"
+              style={{ width: `${Math.round((installProgress ?? 0) * 100)}%` }}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

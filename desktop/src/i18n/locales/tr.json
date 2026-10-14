@@ -603,6 +603,8 @@
     "keepInTrayDesc": "Kapatma dugmesi pencereyi gizler ve calmaya devam eder. Kapaliyken kapatma dugmesi Sonora'yi kapatir.",
     "startup": "Baslangic",
     "startupPageDesc": "Uygulama acildiginda hangi sayfanin gosterilecegini secin",
+    "updates": "Guncellemeler",
+    "updatesDesc": "Sonora'yi bu deponun GitHub surumlerinden guncelleyin",
     "playback": "Oynatma",
     "floatingComments": "Yuzen yorumlar",
     "floatingCommentsDesc": "Calarken yorumlari kayan baloncuklar olarak goster",
@@ -787,7 +789,20 @@
   "update": {
     "available": "Guncelleme mevcut",
     "later": "Daha sonra",
-    "download": "Indir"
+    "download": "Indir",
+    "checkNow": "Guncellemeleri denetle",
+    "tokenLabel": "GitHub token",
+    "tokenDesc": "Ozel deponun surumlerini okumak icin gerekli. Salt okunur Contents izinli fine-grained token yeterli. Yalnizca bu makinede saklanir.",
+    "tokenPlaceholder": "github_pat_…",
+    "autoCheck": "Baslangicta denetle",
+    "autoCheckDesc": "Uygulama acilisinda yeni surumleri denetle",
+    "upToDate": "En son surumu kullaniyorsunuz",
+    "authFailed": "Token reddedildi (401). Tokeni kontrol edin.",
+    "checkFailed": "Guncelleme denetimi basarisiz",
+    "noReleases": "Henuz surum yayinlanmadi",
+    "installing": "Kuruluyor…",
+    "installFailed": "Kurucu indirilemedi veya baslatilamadi",
+    "noAsset": "Surumde kurucu bulunamadi"
   },
   "common": {
     "loading": "Yukleniyor...",

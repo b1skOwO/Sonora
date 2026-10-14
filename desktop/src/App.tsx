@@ -1,4 +1,4 @@
-import { lazy, type ReactNode, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, type ReactNode, Suspense, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Toaster } from 'sonner';
@@ -12,8 +12,7 @@ import YMImportFloatingStatus from './components/music/YMImportFloatingStatus';
 import { SessionRecoveryModal } from './components/SessionRecoveryModal';
 import { ThemeProvider } from './components/ThemeProvider';
 import { ApiError } from './lib/api';
-import { CHECK_UPDATES } from './lib/constants';
-import { checkForAppUpdate, type GithubRelease } from './lib/update-check';
+import { useUpdaterStore } from './lib/sonora-update';
 import { getAppMode, useAppMode, useAppStatusStore } from './stores/app-status';
 import { useAuthStore } from './stores/auth';
 import { useServiceStore } from './stores/service';
@@ -83,14 +82,10 @@ export default function App() {
       fetchUser: s.fetchUser,
     })),
   );
-  const [availableRelease, setAvailableRelease] = useState<GithubRelease | null>(null);
-  const dismissedReleaseTagRef = useRef<string | null>(null);
-  const handleUpdateDismiss = useCallback(() => {
-    setAvailableRelease((prev) => {
-      if (prev) dismissedReleaseTagRef.current = prev.tag_name;
-      return null;
-    });
-  }, []);
+  const updaterRelease = useUpdaterStore((s) => s.release);
+  const updaterInstalling = useUpdaterStore((s) => s.installing);
+  const updaterProgress = useUpdaterStore((s) => s.progress);
+  const updaterError = useUpdaterStore((s) => s.error);
   const appMode = useAppMode();
   const offlineBypass = useAppStatusStore((s) => s.offlineBypass);
   const canUseMainShell = isAuthenticated || hasSession;
@@ -156,36 +151,30 @@ export default function App() {
   }, [appMode, fetchUser, hasSession]);
 
   useEffect(() => {
-    if (!CHECK_UPDATES || !isAuthenticated || appMode !== 'online') {
-      setAvailableRelease(null);
-      return;
-    }
+    if (appMode !== 'online') return;
 
     let cancelled = false;
-    const checkUpdates = () => {
-      checkForAppUpdate()
-        .then((release) => {
-          if (cancelled) return;
-          if (release && release.tag_name === dismissedReleaseTagRef.current) return;
-          setAvailableRelease(release);
-        })
-        .catch(() => {});
+    const runUpdateCheck = () => {
+      if (cancelled) return;
+      const { autoCheckUpdates, githubPat } = useSettingsStore.getState();
+      if (!autoCheckUpdates || githubPat.trim().length === 0) return;
+      void useUpdaterStore.getState().checkNow();
     };
 
     if ('requestIdleCallback' in window) {
-      const id = window.requestIdleCallback(checkUpdates, { timeout: 1200 });
+      const id = window.requestIdleCallback(runUpdateCheck, { timeout: 1200 });
       return () => {
         cancelled = true;
         window.cancelIdleCallback(id);
       };
     }
 
-    const id = setTimeout(checkUpdates, 1);
+    const id = setTimeout(runUpdateCheck, 1);
     return () => {
       cancelled = true;
       clearTimeout(id);
     };
-  }, [appMode, isAuthenticated]);
+  }, [appMode]);
 
   return (
     <ThemeProvider>
@@ -239,9 +228,16 @@ export default function App() {
           </Suspense>
         ) : (
           <>
-            {availableRelease && (
+            {updaterRelease && (
               <Suspense fallback={null}>
-                <UpdateChecker release={availableRelease} onDismiss={handleUpdateDismiss} />
+                <UpdateChecker
+                  release={updaterRelease}
+                  onDismiss={() => useUpdaterStore.getState().dismiss()}
+                  onInstall={() => void useUpdaterStore.getState().install()}
+                  installing={updaterInstalling}
+                  installProgress={updaterProgress}
+                  installError={updaterError}
+                />
               </Suspense>
             )}
             <Suspense fallback={null}>

@@ -13,6 +13,7 @@ import { PlaybackCard } from './cards/PlaybackCard';
 import { SoundForgeCard } from './cards/SoundForgeCard';
 import { StartupCard } from './cards/StartupCard';
 import { ThemeCard } from './cards/ThemeCard';
+import { UpdatesCard } from './cards/UpdatesCard';
 import { WallpaperCard } from './cards/WallpaperCard';
 
 export type SettingsCategoryId =
@@ -40,6 +41,7 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
       <>
         <LanguageCard />
         <StartupCard />
+        <UpdatesCard />
       </>
     ),
   },

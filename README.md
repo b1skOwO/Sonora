@@ -65,6 +65,7 @@ Most players lock you into one service. Sonora treats **SoundCloud and YouTube a
 #### Integrations
 - **Discord Rich Presence** with a per-service "Listen on SoundCloud / YouTube" button that opens the track
 - System media keys + OS media popup (Windows SMTC / MPRIS), system tray + mini player
+- **In-app updates** — new builds install from GitHub releases without touching a terminal (see Updating)
 
 ### New in this fork
 
@@ -125,6 +126,23 @@ pnpm exec vite build     # frontend build
 cargo check              # Rust (run in desktop/src-tauri)
 cargo test --lib         # Rust tests
 ```
+
+### Updating
+
+No local builds needed after the first install. Pushing a version tag builds
+the installer on CI and publishes a GitHub Release:
+
+```bash
+# bump 8.4.13 → 8.4.14 in desktop/package.json,
+# desktop/src-tauri/tauri.conf.json and desktop/src-tauri/Cargo.toml, then:
+git tag v8.4.14 && git push origin v8.4.14
+```
+
+In the app, open Settings → General → Updates and paste a GitHub token
+(fine-grained, Contents: read-only on this repo — the repo is private, so
+anonymous checks fail). With a token saved, Sonora checks for new releases
+on startup and offers one-click download + install from the update dialog
+(the installer runs, then the app quits so files aren't locked).
 
 ### Origin
 
@@ -199,6 +217,7 @@ MIT. See [LICENSE](LICENSE).
 #### 連携
 - **Discord Rich Presence** — サービス別の「Listen on SoundCloud / YouTube」ボタン付き（押すとその曲が開く）
 - メディアキー＋OSメディアポップアップ（Windows SMTC / MPRIS）、トレイ＋ミニプレイヤー
+- **アプリ内アップデート** — ターミナル不要でGitHubリリースから更新（「アップデート」参照）
 
 ### このフォークでの追加分
 
@@ -259,6 +278,18 @@ pnpm exec vite build        # フロントビルド
 cargo check                 # Rust (desktop/src-tauri にて)
 cargo test --lib            # Rustテスト
 ```
+
+### アップデート
+
+初回インストール後はローカルビルド不要です。バージョンタグをpushするとCIがインストーラーをビルドしてGitHubリリースに公開します：
+
+```bash
+# desktop/package.json・desktop/src-tauri/tauri.conf.json・
+# desktop/src-tauri/Cargo.toml の 8.4.13 → 8.4.14 に上げてから:
+git tag v8.4.14 && git push origin v8.4.14
+```
+
+アプリ側は 設定 → 一般 → Updates でGitHubトークンを貼ると（fine-grained・Contents: read-onlyで可。リポジトリがプライベートなので匿名チェックは失敗します）、起動時に新リリースを確認して更新ダイアログからワンクリックでダウンロード＋インストールできます（インストーラー起動後にアプリが終了するのでファイルロックの心配なし）。
 
 ### フォーク元
 
