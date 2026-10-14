@@ -8,6 +8,13 @@
   <a href="#english"><b>English</b></a> ｜ <a href="#日本語"><b>日本語</b></a>
 </p>
 
+<p align="center">
+  <a href="https://github.com/b1skOwO/Sonora/releases/latest"><img src="https://img.shields.io/github/v/release/b1skOwO/Sonora?label=release" alt="Latest release" /></a>
+  <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license" />
+  <img src="https://img.shields.io/badge/built%20with-Tauri%202-24C8DB" alt="Built with Tauri 2" />
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey" alt="Platforms" />
+</p>
+
 ---
 
 ## English
@@ -16,6 +23,14 @@
   <b>A desktop music player for SoundCloud <i>and</i> YouTube.</b><br />
   One window, two services — switch with a single click.
 </p>
+
+### Download
+
+**Windows** — grab the signed installer from the [latest release](https://github.com/b1skOwO/Sonora/releases/latest) and run it. The first install is manual; from then on Sonora updates itself in-app.
+
+Windows may show a SmartScreen warning because the installer isn't code-signed — choose **More info → Run anyway**.
+
+**Linux / macOS** — no prebuilt installers yet; [build from source](#build-from-source).
 
 ### Screenshots
 
@@ -52,8 +67,8 @@ Most players lock you into one service. Sonora treats **SoundCloud and YouTube a
 
 #### Library & discovery
 - Likes, playlists, followings, history, fresh drops from artists you follow
-- Infinite SoundWave radio tuned to your taste (likes / skips / dislikes feedback)
-- Discover catalogs (albums, artists, genres), search by text, vibe or lyrics
+- **SoundWave recommendations** — a similar-tracks block on every track page and an endless wave on artist pages, tuned by likes / skips / dislikes feedback
+- Discover catalogs (albums, artists, genres), search by text or lyrics
 - **Lyrics** — synced karaoke + plain lyrics, manual search fallback (works for YouTube tracks too)
 - Floating comments during playback
 
@@ -65,11 +80,11 @@ Most players lock you into one service. Sonora treats **SoundCloud and YouTube a
 #### Integrations
 - **Discord Rich Presence** with a per-service "Listen on SoundCloud / YouTube" button that opens the track
 - System media keys + OS media popup (Windows SMTC / MPRIS), system tray + mini player
-- **In-app updates** — new builds install from GitHub releases without touching a terminal (see Updating)
+- **In-app updates** — new builds install from GitHub releases without touching a terminal (see [Updating](#updating))
 
-### New in this fork
+### What this fork adds
 
-Everything above the origin ([zxcloli666/SoundCloud-Desktop](https://github.com/zxcloli666/SoundCloud-Desktop)) doesn't have — and most of it isn't on soundcloud.com either:
+Built on top of [zxcloli666/SoundCloud-Desktop](https://github.com/zxcloli666/SoundCloud-Desktop), this fork focuses on YouTube parity and everyday-player comfort:
 
 - **YouTube as a first-class service** — one-click switching, per-service volume and pins, a YouTube home with picks from your channels, YouTube search, YouTube lyrics
 - **Two-deck DJ mode** — crossfader, tempo + BPM sync, 3-band EQ, DJ filter, flanger, auto-mix, per-deck waveform
@@ -78,7 +93,9 @@ Everything above the origin ([zxcloli666/SoundCloud-Desktop](https://github.com/
 - **Memory saver** — heap/GPU caps, streaming decode without full-track RAM buffers, automatic release while minimized
 - **Sane window behavior** — close quits; staying in the tray is opt-in
 
-### Dependencies
+### Build from source
+
+#### Requirements
 
 | Tool | Version | Notes |
 |---|---|---|
@@ -94,7 +111,7 @@ Platform prerequisites (Tauri):
 
 No manual setup for media tools: **ffmpeg and yt-dlp are downloaded by the app itself** on first use (import / transcode flows).
 
-### Setup & build
+#### Setup & build
 
 ```bash
 git clone https://github.com/b1skOwO/Sonora.git
@@ -118,7 +135,7 @@ pnpm tauri build
 
 Artifacts land in `desktop/src-tauri/target/release/bundle/`.
 
-Checks (same as CI):
+#### Checks (same as CI)
 
 ```bash
 pnpm exec tsc --noEmit   # TypeScript
@@ -129,22 +146,15 @@ cargo test --lib         # Rust tests
 
 ### Updating
 
-No local builds needed after the first install. Pushing a version tag builds
-and **signs** the installer on CI, publishes a GitHub Release, and generates
-the updater manifest (`latest.json`):
+Sonora updates itself: it checks the release feed on startup, and **Settings → General → Updates** has a manual check plus an auto-check toggle. The update dialog downloads the signed installer, verifies its minisign signature, and installs it in the background (passive NSIS — a small progress window, no wizard); the app quits and reopens by itself.
+
+Releasing a new build: bump the version in `desktop/package.json`, `desktop/src-tauri/tauri.conf.json` and `desktop/src-tauri/Cargo.toml`, then push a tag:
 
 ```bash
-# bump the version in desktop/package.json, desktop/src-tauri/tauri.conf.json
-# and desktop/src-tauri/Cargo.toml, then:
 git tag v8.4.14 && git push origin v8.4.14
 ```
 
-The app checks the public release feed on startup (Settings → General →
-Updates has a manual check and an auto-check toggle). The update dialog
-downloads the signed installer, verifies its signature, and installs it in
-the background (passive NSIS — a small progress window, no wizard); the app
-quits and reopens by itself. Keep the signing key safe — losing it means
-existing installs can no longer receive signed updates.
+CI builds and signs the installer, publishes the GitHub Release, and generates the updater manifest (`latest.json`). Keep the signing key safe — losing it means existing installs can no longer receive signed updates.
 
 ### Origin
 
@@ -170,6 +180,14 @@ MIT. See [LICENSE](LICENSE).
   <b>SoundCloudもYouTubeも聴けるデスクトップ音楽プレイヤー。</b><br />
   タイトルバーのワンクリックで2つのサービスを切り替え。
 </p>
+
+### ダウンロード
+
+**Windows** — [最新リリース](https://github.com/b1skOwO/Sonora/releases/latest)から署名済みインストーラーをダウンロードして実行してください。初回のみ手動インストールで、以降はアプリ内で自動更新されます。
+
+インストーラーはコード署名されていないため、WindowsのSmartScreen警告が出ることがあります — **詳細情報 → 実行** を選んでください。
+
+**Linux / macOS** — ビルド済みインストーラーはまだありません（[ソースからビルド](#ソースからビルド)）。
 
 ### スクリーンショット
 
@@ -206,8 +224,8 @@ MIT. See [LICENSE](LICENSE).
 
 #### ライブラリ・発見
 - いいね、プレイリスト、フォロー、履歴、フォロー中アーティストの新譜
-- 好みに合わせた無限ラジオSoundWave（いいね／スキップ／低評価で学習）
-- Discoverカタログ（アルバム・アーティスト・ジャンル）、テキスト／雰囲気／歌詞で検索
+- **SoundWaveレコメンド** — 曲ページの類似トラックブロック＋アーティストページの無限ウェーブ（いいね／スキップ／低評価で学習）
+- Discoverカタログ（アルバム・アーティスト・ジャンル）、テキスト／歌詞で検索
 - **歌詞** — 同期カラオケ＋プレーン歌詞、手動検索付き（YouTubeの曲にも対応）
 - 再生中のフローティングコメント
 
@@ -219,11 +237,11 @@ MIT. See [LICENSE](LICENSE).
 #### 連携
 - **Discord Rich Presence** — サービス別の「Listen on SoundCloud / YouTube」ボタン付き（押すとその曲が開く）
 - メディアキー＋OSメディアポップアップ（Windows SMTC / MPRIS）、トレイ＋ミニプレイヤー
-- **アプリ内アップデート** — ターミナル不要でGitHubリリースから更新（「アップデート」参照）
+- **アプリ内アップデート** — ターミナル不要でGitHubリリースから更新（[アップデート](#アップデート)参照）
 
 ### このフォークでの追加分
 
-フォーク元（[zxcloli666/SoundCloud-Desktop](https://github.com/zxcloli666/SoundCloud-Desktop)）になく、ほとんどは本家soundcloud.comにもないもの：
+[zxcloli666/SoundCloud-Desktop](https://github.com/zxcloli666/SoundCloud-Desktop) をベースに、YouTubeとの対等な統合と「普段使いの快適さ」に振ったフォークです：
 
 - **YouTubeを一人前のサービスとして統合** — ワンクリック切り替え、サービス別音量・ピン、チャンネル起点のおすすめ付きYouTubeホーム、YouTube検索、YouTube曲の歌詞
 - **2デッキDJモード** — クロスフェーダー、テンポ＋BPM同期、3バンドEQ、DJフィルター、フランジャー、オートミックス、デッキ別波形
@@ -232,7 +250,9 @@ MIT. See [LICENSE](LICENSE).
 - **メモリ節約** — ヒープ／GPU上限、曲全体をRAMに載せないストリーム再生、最小化中の自動解放
 - **まともなウィンドウ動作** — 閉じれば終了。トレイ常駐は任意設定
 
-### 依存関係
+### ソースからビルド
+
+#### 必要なもの
 
 | ツール | バージョン | 備考 |
 |---|---|---|
@@ -248,7 +268,7 @@ OS別の前提条件（Tauri）：
 
 メディアツールは手動導入不要：**ffmpegとyt-dlpは初回利用時にアプリが自動取得**します（インポート／変換機能用）。
 
-### セットアップ＆ビルド
+#### セットアップ＆ビルド
 
 ```bash
 git clone https://github.com/b1skOwO/Sonora.git
@@ -271,7 +291,7 @@ pnpm tauri build
 
 成果物は `desktop/src-tauri/target/release/bundle/` に出ます。
 
-チェック（CIと同内容）:
+#### チェック（CIと同内容）
 
 ```bash
 pnpm exec tsc --noEmit      # TypeScript
@@ -282,15 +302,15 @@ cargo test --lib            # Rustテスト
 
 ### アップデート
 
-初回インストール後はローカルビルド不要です。バージョンタグをpushするとCIがインストーラーを**署名**してGitHubリリースに公開し、更新用マニフェスト（`latest.json`）も生成します：
+Sonoraは自分で更新します：起動時にリリースフィードを確認し、**設定 → 一般 → Updates** に手動チェックと自動チェックのトグルがあります。更新ダイアログは署名済みインストーラーをダウンロード→minisign署名を検証→バックグラウンドでインストール（passive NSIS：小さな進捗ウィンドウのみ、ウィザードなし）。アプリは自動で終了→再起動します。
+
+新しいビルドのリリース：`desktop/package.json`・`desktop/src-tauri/tauri.conf.json`・`desktop/src-tauri/Cargo.toml` のバージョンを上げてからタグをpushします：
 
 ```bash
-# desktop/package.json・desktop/src-tauri/tauri.conf.json・
-# desktop/src-tauri/Cargo.toml のバージョンを上げてから:
 git tag v8.4.14 && git push origin v8.4.14
 ```
 
-アプリは起動時に公開リリースフィードを確認します（設定 → 一般 → Updates に手動チェックと自動チェックのトグルあり）。更新ダイアログは署名済みインストーラーをダウンロード→署名検証→バックグラウンドでインストール（passive NSIS：小さな進捗ウィンドウのみ、ウィザードなし）。アプリは自動で終了→再起動します。署名鍵は大切に保管してください — 失うと既存インストールへ更新を配れなくなります。
+CIがインストーラーをビルド・署名してGitHubリリースを公開し、更新用マニフェスト（`latest.json`）も生成します。署名鍵は大切に保管してください — 失うと既存インストールへ更新を配れなくなります。
 
 ### フォーク元
 
