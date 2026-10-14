@@ -892,7 +892,8 @@
     "filter": "Filter",
     "flanger": "Flanger",
     "automix": "Auto mix",
-    "automixHint": "Fades to the other deck near the end"
+    "automixHint": "Fades to the other deck near the end",
+    "togglePlayHint": "Play / Pause ({{key}})"
   },
   "update": {
     "available": "Update available",

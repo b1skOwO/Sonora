@@ -784,7 +784,8 @@
     "filter": "Filtre",
     "flanger": "Flanger",
     "automix": "Oto mix",
-    "automixHint": "Parca bitmeden diger deck'e gecer"
+    "automixHint": "Parca bitmeden diger deck'e gecer",
+    "togglePlayHint": "Cal / Duraklat ({{key}})"
   },
   "update": {
     "available": "Guncelleme mevcut",

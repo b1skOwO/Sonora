@@ -4,10 +4,28 @@ import { proxiedAssetUrl } from '../../lib/asset-url';
 import { formatTime } from '../../lib/formatters';
 import { Disc3, Pause, Play, RotateCcw, X } from '../../lib/icons';
 import { useDjStore } from '../../stores/dj';
-import { usePlayerStore, type Track } from '../../stores/player';
+import { type Track, usePlayerStore } from '../../stores/player';
 
 const BUTTON_CLASS =
   'px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-white/[0.06] text-white/70 hover:bg-white/[0.1] border border-white/[0.06] hover:border-white/[0.12] transition-all cursor-pointer';
+
+/** Key hint badge (A / D) next to the deck label. */
+const KEY_CAP_CLASS =
+  'inline-flex items-center justify-center min-w-[20px] h-[20px] px-1 rounded-md bg-white/[0.08] border border-white/[0.1] text-[10px] font-semibold text-white/50 font-mono';
+
+/**
+ * Text-entry targets where deck hotkeys must not fire. Range sliders are
+ * deliberately excluded — letter keys do nothing on them, so A/D keep working
+ * right after dragging tempo / EQ / crossfade.
+ */
+function isTextEntryTarget(el: EventTarget | null): boolean {
+  return (
+    el instanceof HTMLTextAreaElement ||
+    el instanceof HTMLSelectElement ||
+    (el instanceof HTMLInputElement && el.type !== 'range') ||
+    (el instanceof HTMLElement && el.isContentEditable)
+  );
+}
 
 /** Waveform overview with a played/unplayed split; click to seek. */
 function Waveform({
@@ -104,6 +122,9 @@ function DeckCard({ index }: { index: 0 | 1 }) {
         <span className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.24em] text-white/50">
           <Disc3 size={13} />
           {index === 0 ? t('dj.deckA') : t('dj.deckB')}
+          <kbd className={KEY_CAP_CLASS} aria-hidden="true">
+            {index === 0 ? 'A' : 'D'}
+          </kbd>
         </span>
         {deck.loaded && (
           <button
@@ -137,9 +158,7 @@ function DeckCard({ index }: { index: 0 | 1 }) {
             <p className="text-[13px] text-white/50">{t('dj.loading')}</p>
           ) : deck.track ? (
             <>
-              <p className="text-[14px] font-semibold text-white/90 truncate">
-                {deck.track.title}
-              </p>
+              <p className="text-[14px] font-semibold text-white/90 truncate">{deck.track.title}</p>
               <p className="text-[12px] text-white/40 truncate">{deck.track.user?.username}</p>
             </>
           ) : (
@@ -222,6 +241,8 @@ function DeckCard({ index }: { index: 0 | 1 }) {
           type="button"
           onClick={() => togglePlay(index)}
           disabled={!deck.loaded}
+          title={t('dj.togglePlayHint', { key: index === 0 ? 'A' : 'D' })}
+          aria-label={t('dj.togglePlayHint', { key: index === 0 ? 'A' : 'D' })}
           className="w-14 h-14 rounded-full flex items-center justify-center bg-white text-black cursor-pointer disabled:opacity-30 hover:scale-[1.03] active:scale-95 transition-transform"
         >
           {deck.playing ? (
@@ -235,9 +256,7 @@ function DeckCard({ index }: { index: 0 | 1 }) {
       <div className="space-y-1">
         <div className="flex items-center justify-between text-[11px] text-white/45">
           <span className="uppercase tracking-[0.18em] font-bold">{t('dj.tempo')}</span>
-          <span className="tabular-nums">
-            {speedPct > 0 ? `+${speedPct}%` : `${speedPct}%`}
-          </span>
+          <span className="tabular-nums">{speedPct > 0 ? `+${speedPct}%` : `${speedPct}%`}</span>
         </div>
         <input
           type="range"
@@ -382,6 +401,20 @@ export function DjPanel() {
   const setCrossfade = useDjStore((s) => s.setCrossfade);
   const automix = useDjStore((s) => s.automix);
   const setAutomix = useDjStore((s) => s.setAutomix);
+
+  // A = deck A play/pause, D = deck B play/pause (panel open only).
+  // e.code keeps it layout-independent; repeats and text inputs are ignored.
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.code !== 'KeyA' && e.code !== 'KeyD') return;
+      if (isTextEntryTarget(e.target)) return;
+      useDjStore.getState().togglePlay(e.code === 'KeyA' ? 0 : 1);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [open]);
 
   if (!open) return null;
 
