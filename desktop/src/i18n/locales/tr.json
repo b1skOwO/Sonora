@@ -246,6 +246,7 @@
     "noPlaylists": "Calma listesi bulunamadi",
     "newPlaylist": "Yeni calma listesi",
     "playlistName": "Calma listesi adi",
+    "localPlaylistHint": "Uygulama icinde saklanir — parcalari liste sayfasindan ekleyin.",
     "create": "Olustur",
     "creating": "Olusturuluyor...",
     "created": "Calma listesi olusturuldu",

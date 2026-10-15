@@ -1,16 +1,21 @@
 import type { DragEndEvent } from '@dnd-kit/core';
+import * as Dialog from '@radix-ui/react-dialog';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { proxiedAssetUrl } from '../../lib/asset-url';
 import {
+  AlertCircle,
   ChevronLeft,
+  ListMusic,
   ListPlus,
   Play,
   pauseBlack20,
   Shuffle,
   Spotify,
+  Trash2,
+  X,
   Youtube,
 } from '../../lib/icons';
 import {
@@ -24,7 +29,8 @@ import { AddTracksDialog } from './AddTracksDialog';
 import { PlaylistArtworkButton } from './PlaylistArtworkDialog';
 import { SequenceList } from './SequenceList';
 
-/** Playlist page for locally imported YouTube playlists — no backend involved. */
+/** Playlist page for local playlists (imported from YouTube/Spotify or created
+ *  in the app) — no backend involved. */
 export const LocalPlaylistView = React.memo(function LocalPlaylistView({
   playlist,
 }: {
@@ -36,8 +42,10 @@ export const LocalPlaylistView = React.memo(function LocalPlaylistView({
   const tracks = playlist?.tracks ?? [];
   const artworkOverride = usePlaylistArtwork(playlist?.id);
   const sourceLabel = playlist ? localPlaylistSourceLabel(playlist.source) : 'YouTube';
-  const SourceIcon = playlist?.source === 'spotify' ? Spotify : Youtube;
+  const SourceIcon =
+    playlist?.source === 'spotify' ? Spotify : playlist?.source === 'sonora' ? ListMusic : Youtube;
   const [showAdd, setShowAdd] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const trackUrnSet = useMemo(() => new Set(tracks.map((tr) => tr.urn)), [tracks]);
   const isCurrent = usePlayerStore(
     (s) => s.isPlaying && !!s.currentTrack && tracks.some((tr) => tr.urn === s.currentTrack!.urn),
@@ -90,6 +98,13 @@ export const LocalPlaylistView = React.memo(function LocalPlaylistView({
     },
     [tracks, updateTracks, t],
   );
+
+  const handleDelete = useCallback(() => {
+    if (!playlist) return;
+    useLocalPlaylistsStore.getState().remove(playlist.id);
+    toast.success(t('playlist.deleted'));
+    navigate(-1);
+  }, [playlist, navigate, t]);
 
   if (!playlist) {
     return (
@@ -179,6 +194,17 @@ export const LocalPlaylistView = React.memo(function LocalPlaylistView({
                   {t('playlist.addTracks')}
                 </button>
                 {playlist && <PlaylistArtworkButton urn={playlist.id} tracks={tracks} />}
+                {playlist && (
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteConfirm(true)}
+                    title={t('playlist.delete')}
+                    aria-label={t('playlist.delete')}
+                    className="inline-flex items-center justify-center w-11 h-11 rounded-full text-white/45 bg-white/[0.06] hover:text-red-300 hover:bg-red-500/[0.12] border border-white/[0.08] hover:border-red-500/25 cursor-pointer transition-all"
+                  >
+                    <Trash2 size={17} />
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -202,6 +228,40 @@ export const LocalPlaylistView = React.memo(function LocalPlaylistView({
           playlist ? { kind: 'local', playlistId: playlist.id, existingUrns: trackUrnSet } : null
         }
       />
+
+      <Dialog.Root open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-fade-in" />
+          <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[380px] rounded-2xl glass border border-white/[0.08] shadow-2xl animate-fade-in-up p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center shrink-0">
+                <AlertCircle size={20} className="text-red-400" />
+              </div>
+              <Dialog.Title className="text-[15px] font-bold text-white/90">
+                {t('playlist.delete')}
+              </Dialog.Title>
+              <Dialog.Close className="ml-auto w-7 h-7 rounded-lg flex items-center justify-center text-white/30 hover:text-white/70 hover:bg-white/[0.08] transition-all">
+                <X size={14} />
+              </Dialog.Close>
+            </div>
+            <p className="text-[13px] text-white/50 leading-relaxed">
+              {t('playlist.deleteConfirm', { title: playlist.title })}
+            </p>
+            <div className="flex items-center justify-end gap-2.5 pt-1">
+              <Dialog.Close className="px-4 py-2 rounded-xl text-[13px] font-medium text-white/50 hover:text-white/80 hover:bg-white/[0.06] transition-all cursor-pointer">
+                {t('common.cancel')}
+              </Dialog.Close>
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="px-4 py-2 rounded-xl text-[13px] font-semibold bg-red-500/15 text-red-400 hover:bg-red-500/25 border border-red-500/20 transition-all cursor-pointer"
+              >
+                {t('playlist.delete')}
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   );
 });

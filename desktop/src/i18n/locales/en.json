@@ -313,6 +313,7 @@
     "noPlaylists": "No playlists found",
     "newPlaylist": "New playlist",
     "playlistName": "Playlist name",
+    "localPlaylistHint": "Saved in this app — add tracks to it from the playlist's page.",
     "create": "Create",
     "creating": "Creating...",
     "created": "Playlist created",

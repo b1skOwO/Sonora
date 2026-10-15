@@ -3,6 +3,7 @@ import {useTranslation} from 'react-i18next';
 import {useInfiniteScroll, useMyLikedPlaylists, useMyPlaylists} from '../../lib/hooks';
 import {Loader2} from '../../lib/icons';
 import {PlaylistCard} from '../music/PlaylistCard';
+import {CreatePlaylistButton} from '../playlist/CreatePlaylistDialog';
 import {VirtualGrid} from '../ui/VirtualGrid';
 
 export const PlaylistsTab = React.memo(function PlaylistsTab({filter}: { filter: string }) {
@@ -42,15 +43,18 @@ export const PlaylistsTab = React.memo(function PlaylistsTab({filter}: { filter:
     return (
         <div className="min-h-[400px]">
             <div className="space-y-10">
-                {myPlaylistsQuery.isLoading ? (
-                    <div className="flex justify-center py-10">
-                        <Loader2 size={24} className="animate-spin text-white/20"/>
-                    </div>
-                ) : filteredCreated.length > 0 ? (
-                    <section>
-                        <h3 className="text-lg font-bold text-white/80 mb-5 px-1">
+                <section>
+                    <div className="flex items-center justify-between gap-4 mb-5 px-1">
+                        <h3 className="text-lg font-bold text-white/80">
                             {t('library.yourPlaylists')}
                         </h3>
+                        {!filter && <CreatePlaylistButton/>}
+                    </div>
+                    {myPlaylistsQuery.isLoading ? (
+                        <div className="flex justify-center py-10">
+                            <Loader2 size={24} className="animate-spin text-white/20"/>
+                        </div>
+                    ) : filteredCreated.length > 0 ? (
                         <VirtualGrid
                             items={filteredCreated}
                             itemHeight={320}
@@ -61,8 +65,12 @@ export const PlaylistsTab = React.memo(function PlaylistsTab({filter}: { filter:
                             getItemKey={(playlist) => playlist.urn}
                             renderItem={(playlist) => <PlaylistCard playlist={playlist}/>}
                         />
-                    </section>
-                ) : null}
+                    ) : (
+                        <div className="py-10 text-center text-white/20">
+                            {filter ? t('library.noMatches') : t('library.noPlaylists')}
+                        </div>
+                    )}
+                </section>
 
                 {likedPlaylistsQuery.isLoading ? (
                     <div className="flex justify-center py-10">
@@ -85,15 +93,6 @@ export const PlaylistsTab = React.memo(function PlaylistsTab({filter}: { filter:
                         />
                     </section>
                 ) : null}
-
-                {!myPlaylistsQuery.isLoading &&
-                    !likedPlaylistsQuery.isLoading &&
-                    filteredCreated.length === 0 &&
-                    filteredLiked.length === 0 && (
-                        <div className="py-20 text-center text-white/20">
-                            {filter ? t('library.noMatches') : t('library.noPlaylists')}
-                        </div>
-                    )}
             </div>
             {!filter && (
                 <div ref={sentinelRef} className="h-12 flex items-center justify-center mt-4">

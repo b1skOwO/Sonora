@@ -9,7 +9,7 @@ import type { Playlist } from '../lib/hooks';
 import { createThrottledJsonStorage } from '../lib/tauri-storage';
 import type { Track } from './player';
 
-export type LocalPlaylistSource = 'youtube' | 'spotify' | 'mix';
+export type LocalPlaylistSource = 'youtube' | 'spotify' | 'mix' | 'sonora';
 
 export interface LocalPlaylist {
   id: string;
@@ -55,8 +55,16 @@ export function localPlaylistById(id: string | undefined): LocalPlaylist | undef
   return useLocalPlaylistsStore.getState().playlists.find((p) => p.id === id);
 }
 
+/** URN prefix of playlists built inside the app (no external import). */
+export const SONORA_PLAYLIST_PREFIX = 'sonora:playlists:';
+
 /** URN prefixes used by local (non-backend) playlists. */
-const LOCAL_PLAYLIST_PREFIXES = ['youtube:playlists:', 'spotify:playlists:', 'mix:playlists:'];
+const LOCAL_PLAYLIST_PREFIXES = [
+  'youtube:playlists:',
+  'spotify:playlists:',
+  'mix:playlists:',
+  SONORA_PLAYLIST_PREFIX,
+];
 
 export function isLocalPlaylistUrn(urn: string | undefined): boolean {
   return !!urn && LOCAL_PLAYLIST_PREFIXES.some((prefix) => urn.startsWith(prefix));
@@ -66,7 +74,22 @@ export function isLocalPlaylistUrn(urn: string | undefined): boolean {
 export function localPlaylistSourceLabel(source: LocalPlaylistSource): string {
   if (source === 'spotify') return 'Spotify';
   if (source === 'mix') return 'Mix';
+  if (source === 'sonora') return 'Sonora';
   return 'YouTube';
+}
+
+/** A brand-new empty playlist that lives only in the app (no external import). */
+export function newSonoraPlaylist(title: string): LocalPlaylist {
+  return {
+    id: `${SONORA_PLAYLIST_PREFIX}${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+    title,
+    uploader: null,
+    artworkUrl: null,
+    sourceUrl: '',
+    source: 'sonora',
+    tracks: [],
+    createdAt: Date.now(),
+  };
 }
 
 /** Playlist-shaped view of a local import, for the shared `PlaylistCard`. */

@@ -194,9 +194,13 @@ export function ModalContent({
     };
   }, [mounted, setOpen]);
 
-  // focus the card once it opens
+  // Focus the card once it opens — unless a child already grabbed focus
+  // (e.g. an auto-focused input): stealing it would pull the caret away
+  // right as the user starts typing.
   useEffect(() => {
-    if (state === 'open') cardRef.current?.focus();
+    if (state !== 'open') return;
+    const card = cardRef.current;
+    if (card && !card.contains(document.activeElement)) card.focus();
   }, [state]);
 
   if (!mounted) return null;

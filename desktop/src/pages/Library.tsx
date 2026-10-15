@@ -9,6 +9,7 @@ import { SoundPrintMasthead } from '../components/library/SoundPrintMasthead';
 import { useSoundprint } from '../components/library/useSoundprint';
 import { PlaylistCard } from '../components/music/PlaylistCard';
 import { TrackCard } from '../components/music/TrackCard';
+import { CreatePlaylistTile } from '../components/playlist/CreatePlaylistDialog';
 import { useLikedTracks, useMyFollowings, useMyLikedPlaylists, useMyPlaylists } from '../lib/hooks';
 import { Bookmark, Heart, ListMusic, Users, Youtube } from '../lib/icons';
 import { likedTracksCount } from '../lib/likes';
@@ -18,9 +19,9 @@ import { useUnifiedLikes } from '../stores/local-likes';
 import { localPlaylistToCard, useLocalPlaylistsStore } from '../stores/local-playlists';
 import { useServiceStore } from '../stores/service';
 
-/** Library "Hub" — a living home base. Your identity up top, then the reason to
- *  come back (fresh drops from who you follow), then a way back into what you
- *  were playing, then shelves into the deep pages of your collection. */
+/** Library "Hub" — a living home base. Your identity up top, then a way back
+ *  into what you were playing, then shelves into the deep pages of your
+ *  collection — and fresh drops from who you follow at the very bottom. */
 export const Library = React.memo(() => {
   const { t } = useTranslation();
   const user = useAuthStore((s) => s.user);
@@ -29,7 +30,7 @@ export const Library = React.memo(() => {
   const [genre, setGenre] = useState<string | null>(null);
   const sound = useSoundprint(likedTracks, genre);
 
-  const { playlists } = useMyPlaylists();
+  const { playlists, isLoading: playlistsLoading } = useMyPlaylists();
   const { playlists: likedPlaylists } = useMyLikedPlaylists();
   const { users: followings } = useMyFollowings();
   const localPlaylists = useLocalPlaylistsStore((s) => s.playlists);
@@ -79,6 +80,7 @@ export const Library = React.memo(() => {
             count={localPlaylists.length}
             to="/library/playlists"
           >
+            <CreatePlaylistTile />
             {localPlaylists.map((p) => (
               <div key={p.id} className="w-[160px] shrink-0">
                 <PlaylistCard playlist={localPlaylistToCard(p)} />
@@ -104,17 +106,16 @@ export const Library = React.memo(() => {
           onSelect={setGenre}
         />
 
-        <FreshDrops genre={genre} />
-
         <ContinueRow genre={genre} />
 
-        {playlistPreview.length > 0 && (
+        {!playlistsLoading && (!genre || playlistPreview.length > 0) && (
           <CollectionRail
             icon={<ListMusic size={16} />}
             title={t('library.yourPlaylists')}
             count={user.playlist_count}
             to="/library/playlists"
           >
+            <CreatePlaylistTile />
             {playlistPreview.map((p) => (
               <div key={p.urn} className="w-[160px] shrink-0">
                 <PlaylistCard playlist={p} />
@@ -197,6 +198,8 @@ export const Library = React.memo(() => {
             ))}
           </CollectionRail>
         )}
+
+        <FreshDrops genre={genre} />
       </div>
     </LibraryFrame>
   );
