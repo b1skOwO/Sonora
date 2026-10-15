@@ -5,6 +5,7 @@ mod device;
 mod dj;
 mod engine;
 mod eq;
+mod loudness;
 mod media_controls;
 mod resample;
 pub(crate) mod state;

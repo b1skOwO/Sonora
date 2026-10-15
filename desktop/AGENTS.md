@@ -87,7 +87,8 @@ desktop/
     src/
       lib.rs, main.rs    — bootstrap, регистрация команд, `scproxy://` scheme
       app/               diagnostics (app_log_dir/desktop.log + FD-monitor на Linux), tray
-      audio/             engine, decode (symphonia + cached normalization gain),
+      audio/             engine, decode (symphonia + cached loudness analysis),
+                         loudness (BS.1770 LUFS-измерение + модель гейнов),
                          eq (biquad), analyser (rustfft, отдельный поток),
                          device (cpal + follow-default-output),
                          media_controls (souvlaki), tick (emit `audio:tick`/`audio:ended`),

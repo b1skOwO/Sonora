@@ -8,12 +8,13 @@ pub const EQ_FREQS: [f64; EQ_BANDS] = [
     32.0, 64.0, 125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0,
 ];
 pub const EQ_Q: f64 = 1.414;
-pub const NORMALIZATION_ANALYSIS_SAMPLES: usize = 48_000 * 2 * 30;
-pub const NORMALIZATION_BLOCK_SAMPLES: usize = 48_000 * 2 / 2;
-pub const NORMALIZATION_TARGET_RMS: f64 = 0.14;
-pub const NORMALIZATION_TARGET_PEAK: f64 = 0.95;
-pub const NORMALIZATION_MAX_BOOST_DB: f64 = 9.0;
-pub const NORMALIZATION_MAX_ATTENUATION_DB: f64 = -8.0;
+/// Analysis window of the loudness measurement: the first 30 seconds.
+pub const NORMALIZATION_ANALYSIS_SECONDS: f64 = 30.0;
+/// Integrated-loudness target of the per-track normalization gain — the
+/// -14 LUFS streaming standard (Spotify/YouTube parity).
+pub const NORMALIZATION_TARGET_LUFS: f64 = -14.0;
+pub const NORMALIZATION_MAX_BOOST_DB: f64 = 12.0;
+pub const NORMALIZATION_MAX_ATTENUATION_DB: f64 = -24.0;
 /// Peak ceiling of the always-on playback safety gain. Lossy sources routinely
 /// decode above full scale (measured up to +9.7 dB on SoundCloud streams) and
 /// anything over 1.0 hard-clips at the output — this attenuation-only gain

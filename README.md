@@ -64,6 +64,7 @@ Most players lock you into one service. Sonora treats **SoundCloud and YouTube a
 - **Two-deck DJ mode** — BPM + Sync, crossfade, auto-mix, DJ filter, flanger, waveform
 - **DJ keyboard shortcuts** — play, cue, sync, crossfader and auto-mix on keys (remappable in Settings → General)
 - Playback speed & pitch controls, A–B loop, shuffle / repeat
+- **Automatic volume leveling** — quiet and loud tracks are matched to the same loudness (-14 LUFS, ITU-R BS.1770 / EBU R128) with a static per-track gain: no limiter, no compression, dynamics untouched (can be turned off in Settings)
 - Hover-to-preview tracks without interrupting playback
 
 #### Library & discovery
@@ -222,6 +223,7 @@ MIT. See [LICENSE](LICENSE).
 - **2デッキDJモード** — BPM＋Sync、クロスフェード、オートミックス、DJフィルター、フランジャー、波形表示
 - **DJキーボードショートカット** — 再生・Cue・Sync・クロスフェード・オートミックスをキー操作（設定 → 一般でリマップ可）
 - 再生速度・ピッチ調整、A–Bループ、シャッフル／リピート
+- **音量の自動均一化** — 静かな曲も大きな曲も同じラウドネス（-14 LUFS、ITU-R BS.1770 / EBU R128準拠）に揃える。曲ごとの静的ゲインのみで、リミッターやコンプレッションは不使用（設定でオフ可）
 - 再生を邪魔しないホバープレビュー
 
 #### ライブラリ・発見

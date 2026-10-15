@@ -13,13 +13,10 @@ use sha2::{Digest, Sha256};
 use crate::audio::analyser::{AnalyserBuffer, AnalyserSource};
 use crate::audio::eq::{EqSource, GainSource, VolumeSource};
 use crate::audio::resample::ResampleSource;
-use crate::audio::types::{
-    ChannelCount, EqParams, SampleRate, NORMALIZATION_ANALYSIS_SAMPLES,
-    NORMALIZATION_BLOCK_SAMPLES, NORMALIZATION_MAX_ATTENUATION_DB, NORMALIZATION_MAX_BOOST_DB,
-    NORMALIZATION_SAFETY_PEAK, NORMALIZATION_TARGET_PEAK, NORMALIZATION_TARGET_RMS,
-};
+use crate::audio::loudness::{LoudnessAnalysis, measure};
+use crate::audio::types::{ChannelCount, EqParams, SampleRate};
 
-const NORMALIZATION_CACHE_VERSION: u8 = 3;
+const NORMALIZATION_CACHE_VERSION: u8 = 4;
 
 pub fn is_ogg_opus(bytes: &[u8]) -> bool {
     // OpusHead appears at byte 28 in a standard OGG Opus header page
@@ -208,14 +205,6 @@ fn normalization_cache_file(cache_dir: &Path, cache_key: &str) -> PathBuf {
     cache_dir.join(format!("{hash}.gain"))
 }
 
-/// Peak + gated RMS of the analysis window 遯ｶ繝ｻthe numbers the loudness and
-/// safety gains are derived from.
-#[derive(Clone, Copy, Debug)]
-pub struct LoudnessAnalysis {
-    pub peak: f64,
-    pub rms: f64,
-}
-
 fn read_cached_analysis(
     cache_dir: Option<&Path>,
     cache_key: Option<&str>,
@@ -227,8 +216,8 @@ fn read_cached_analysis(
         return None;
     }
     let peak = parts.next()?.parse::<f64>().ok()?;
-    let rms = parts.next()?.parse::<f64>().ok()?;
-    Some(LoudnessAnalysis { peak, rms })
+    let lufs = parts.next()?.parse::<f64>().ok()?;
+    Some(LoudnessAnalysis { peak, lufs })
 }
 
 fn write_cached_analysis(
@@ -252,81 +241,9 @@ fn write_cached_analysis(
         path,
         format!(
             "{NORMALIZATION_CACHE_VERSION}:{:.6}:{:.6}",
-            analysis.peak, analysis.rms
+            analysis.peak, analysis.lufs
         ),
     );
-}
-
-fn analyze_samples<I>(samples: I) -> LoudnessAnalysis
-where
-    I: IntoIterator<Item = f32>,
-{
-    let mut peak = 0.0f64;
-    let mut count = 0usize;
-    let mut block_sum_sq = 0.0f64;
-    let mut block_count = 0usize;
-    let mut block_powers = Vec::new();
-
-    for sample in samples.into_iter().take(NORMALIZATION_ANALYSIS_SAMPLES) {
-        let value = sample as f64;
-        peak = peak.max(value.abs());
-        block_sum_sq += value * value;
-        block_count += 1;
-        count += 1;
-
-        if block_count >= NORMALIZATION_BLOCK_SAMPLES {
-            block_powers.push(block_sum_sq / block_count as f64);
-            block_sum_sq = 0.0;
-            block_count = 0;
-        }
-    }
-
-    if block_count > 0 {
-        block_powers.push(block_sum_sq / block_count as f64);
-    }
-
-    if count == 0 || block_powers.is_empty() {
-        return LoudnessAnalysis { peak: 0.0, rms: 1.0 };
-    }
-
-    // Gate out the quietest 40% of blocks so silence/intros don't skew the RMS.
-    block_powers.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    let keep_from = ((block_powers.len() as f64) * 0.4).floor() as usize;
-    let kept = &block_powers[keep_from.min(block_powers.len().saturating_sub(1))..];
-    let gated_power = kept.iter().copied().sum::<f64>() / kept.len() as f64;
-
-    LoudnessAnalysis {
-        peak,
-        rms: gated_power.sqrt().max(1e-6),
-    }
-}
-
-/// Loudness gain for the user's normalization setting: brings the gated RMS to
-/// the target, capped so peaks stay under the target peak; clamped to
-/// [-8, +9] dB and snapped to unity when it lands close to it.
-pub fn loudness_gain(analysis: LoudnessAnalysis, peak: f64) -> f32 {
-    let peak = peak.max(1e-6);
-    let target_gain = NORMALIZATION_TARGET_RMS / analysis.rms;
-    let peak_safe_gain = NORMALIZATION_TARGET_PEAK / peak;
-    let max_boost = 10f64.powf(NORMALIZATION_MAX_BOOST_DB / 20.0);
-    let max_attenuation = 10f64.powf(NORMALIZATION_MAX_ATTENUATION_DB / 20.0);
-    let gain = target_gain
-        .min(peak_safe_gain)
-        .clamp(max_attenuation, max_boost);
-
-    if (gain - 1.0).abs() < 0.05 {
-        1.0
-    } else {
-        gain as f32
-    }
-}
-
-/// Always-on peak safety: attenuation-only gain that keeps decoded samples
-/// (which overshoot full scale by up to several dB in lossy sources) from hard
-/// clipping at the output. Applied regardless of the normalization setting 遯ｶ繝ｻ
-/// it is a static gain, so dynamics are untouched.
-pub fn peak_safety_gain(peak: f64) -> f32 {
-    (NORMALIZATION_SAFETY_PEAK / peak.max(1e-6)).min(1.0) as f32
 }
 
 pub fn resolve_loudness_analysis(
@@ -339,13 +256,13 @@ pub fn resolve_loudness_analysis(
     }
 
     let analysis = if is_ogg_opus(bytes) {
-        analyze_samples(
+        measure(
             OpusSource::new(bytes.to_vec()).map_err(|e| format!("Failed to decode: {}", e))?,
         )
     } else {
         match Decoder::new(Cursor::new(bytes.to_vec())) {
-            Ok(source) => analyze_samples(source),
-            _ => analyze_samples(
+            Ok(source) => measure(source),
+            _ => measure(
                 OpusSource::new(bytes.to_vec())
                     .map_err(|e| format!("Failed to decode: {}", e))?,
             ),
@@ -373,15 +290,15 @@ pub fn resolve_loudness_analysis_file(
     let is_opus = is_ogg_opus_reader(&mut open_file()?);
 
     let analysis = if is_opus {
-        analyze_samples(
+        measure(
             OpusSource::from_reader(open_file()?).map_err(|e| format!("Failed to decode: {}", e))?,
         )
     } else {
         match open_file().and_then(|file| {
             Decoder::try_from(file).map_err(|e| format!("Failed to decode: {}", e))
         }) {
-            Ok(source) => analyze_samples(source),
-            _ => analyze_samples(
+            Ok(source) => measure(source),
+            _ => measure(
                 OpusSource::from_reader(open_file()?).map_err(|e| format!("Failed to decode: {}", e))?,
             ),
         }
@@ -401,7 +318,7 @@ where
     match NonZero::new(output_sample_rate) {
         Some(rate) if rate != source.sample_rate() => {
             eprintln!(
-                "[audio] resampling {} Hz 遶翫・{} Hz",
+                "[audio] resampling {} Hz → {} Hz",
                 source.sample_rate(),
                 rate
             );
@@ -411,7 +328,7 @@ where
     }
 }
 
-/// Wrap `source` into the shared DSP chain (gain 遶翫・EQ 遶翫・analyser 遶翫・volume) and
+/// Wrap `source` into the shared DSP chain (gain → EQ → analyser → volume) and
 /// append it to the player. With a `volume_handle` the player's own volume stays
 /// at 1.0 and the chain applies the live user volume. The chain is resampled to
 /// the device rate at the very end, so EQ/analyser keep running at the source
@@ -602,38 +519,3 @@ pub fn create_player_from_file(
     )
 }
 
-
-
-#[cfg(test)]
-mod tests {
-    use super::{loudness_gain, peak_safety_gain, LoudnessAnalysis};
-
-    fn analysis(peak: f64, rms: f64) -> LoudnessAnalysis {
-        LoudnessAnalysis { peak, rms }
-    }
-
-    #[test]
-    fn safety_is_attenuation_only_with_headroom() {
-        // Hot master: capped so the peak lands at the -2 dB safety ceiling,
-        // leaving room for resampler overshoot and true-peak excursion.
-        let hot = peak_safety_gain(3.0);
-        assert!((hot - (0.79 / 3.0) as f32).abs() < 1e-6, "got {hot}");
-        // Material already under the ceiling: untouched.
-        assert_eq!(peak_safety_gain(0.79), 1.0);
-        assert_eq!(peak_safety_gain(0.5), 1.0);
-    }
-
-    #[test]
-    fn loudness_targets_rms_but_respects_the_peak() {
-        // Right on the RMS target with headroom to spare: unity.
-        assert_eq!(loudness_gain(analysis(0.5, 0.14), 0.5), 1.0);
-        // Loud master: the -8 dB attenuation floor binds, not the RMS target.
-        let floored = loudness_gain(analysis(2.0, 0.5), 2.0);
-        let floor = 10f64.powf(-8.0 / 20.0) as f32;
-        assert!((floored - floor).abs() < 1e-6, "got {floored}");
-        // RMS target above unity is still capped by the peak ceiling.
-        let capped = loudness_gain(analysis(2.0, 0.07), 2.0);
-        let peak_cap = (0.95 / 2.0) as f32;
-        assert!((capped - peak_cap).abs() < 1e-4, "got {capped}");
-    }
-}

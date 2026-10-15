@@ -6,9 +6,10 @@ use tauri::State;
 use tokio::task;
 
 use crate::audio::decode::{
-    LoudnessAnalysis, create_player_from_arc_bytes, create_player_from_file, loudness_gain,
-    peak_safety_gain, resolve_loudness_analysis, resolve_loudness_analysis_file,
+    create_player_from_arc_bytes, create_player_from_file, resolve_loudness_analysis,
+    resolve_loudness_analysis_file,
 };
+use crate::audio::loudness::{LoudnessAnalysis, loudness_gain, peak_safety_gain};
 use crate::audio::state::{AudioSource, AudioState};
 use crate::audio::types::{AudioLoadResult, MediaCmd, EQ_BANDS, STALL_SUPPRESS_MS, TICK_INTERVAL_MS};
 
@@ -109,7 +110,7 @@ fn compute_gains(
         .map(|db| 10f64.powf(db / 20.0))
         .unwrap_or(0.0);
     let peak = analysis.peak.max(known_peak);
-    let loudness = loudness_gain(analysis, peak);
+    let loudness = loudness_gain(analysis);
     let safety = peak_safety_gain(peak);
     (loudness, safety)
 }
