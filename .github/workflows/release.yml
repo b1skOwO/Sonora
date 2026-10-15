@@ -6,7 +6,8 @@ name: Release (Windows)
 # Actions tab (artifacts only, no release). Needs the
 # TAURI_SIGNING_PRIVATE_KEY[_PASSWORD] repo secrets.
 # Bump the version in desktop/package.json, desktop/src-tauri/tauri.conf.json
-# and desktop/src-tauri/Cargo.toml before tagging.
+# and desktop/src-tauri/Cargo.toml before tagging. Release notes are generated
+# from the commit log since the previous tag.
 
 on:
   push:
@@ -26,6 +27,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
         with:
@@ -50,6 +53,26 @@ jobs:
         working-directory: desktop
         run: pnpm install --frozen-lockfile
 
+      - name: Generate changelog
+        id: changelog
+        shell: bash
+        run: |
+          prev_tag=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)
+          if [ -n "$prev_tag" ]; then
+            range="$prev_tag..HEAD"
+          else
+            range="HEAD"
+          fi
+          body=$(git log --no-merges --pretty=format:'- %s (%h)' "$range" | grep -vE '^- (ci|chore|docs|test)' || true)
+          if [ -z "$body" ]; then
+            body="- Maintenance release."
+          fi
+          {
+            echo 'body<<CHANGELOG_EOF'
+            echo "$body"
+            echo 'CHANGELOG_EOF'
+          } >> "$GITHUB_OUTPUT"
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
@@ -63,7 +86,7 @@ jobs:
           # Only tag pushes publish a release; manual runs stay artifact-only.
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
           releaseName: 'Sonora ${{ github.ref_name }}'
-          releaseBody: 'Automated Windows build.'
+          releaseBody: ${{ steps.changelog.outputs.body }}
           releaseDraft: false
           prerelease: false
           args: --bundles nsis
