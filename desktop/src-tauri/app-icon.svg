@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <defs>
+    <linearGradient id="plate" x1="512" y1="0" x2="512" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2b1c41"/>
+      <stop offset="0.55" stop-color="#170f26"/>
+      <stop offset="1" stop-color="#0b0714"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="512" y1="0" x2="512" y2="380" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.09"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="violet" cx="790" cy="200" r="400" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8a5cff" stop-opacity="0.34"/>
+      <stop offset="1" stop-color="#8a5cff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="ember" cx="500" cy="556" r="360" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ff7a1f" stop-opacity="0.40"/>
+      <stop offset="0.55" stop-color="#ff6a1a" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#ff6a1a" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="cloud" x1="512" y1="350" x2="512" y2="722" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e8e8f2"/>
+    </linearGradient>
+    <linearGradient id="cloudShade" x1="512" y1="545" x2="512" y2="730" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1a0e30" stop-opacity="0"/>
+      <stop offset="1" stop-color="#1a0e30" stop-opacity="0.16"/>
+    </linearGradient>
+    <linearGradient id="badge" x1="512" y1="478" x2="512" y2="683" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ff2e5c"/>
+      <stop offset="1" stop-color="#e60028"/>
+    </linearGradient>
+    <clipPath id="plateClip">
+      <rect width="1024" height="1024" rx="225"/>
+    </clipPath>
+    <clipPath id="cloudClip">
+      <circle cx="325" cy="605" r="118"/>
+      <circle cx="455" cy="545" r="150"/>
+      <circle cx="585" cy="520" r="170"/>
+      <circle cx="705" cy="610" r="112"/>
+      <rect x="295" y="640" width="440" height="82" rx="60"/>
+    </clipPath>
+    <filter id="cloudShadow" x="-30%" y="-30%" width="160%" height="190%">
+      <feDropShadow dx="0" dy="26" stdDeviation="32" flood-color="#05030a" flood-opacity="0.55"/>
+    </filter>
+    <filter id="badgeShadow" x="-60%" y="-60%" width="220%" height="220%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#3c0510" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <g clip-path="url(#plateClip)">
+    <rect width="1024" height="1024" fill="url(#plate)"/>
+    <rect width="1024" height="1024" fill="url(#violet)"/>
+    <rect width="1024" height="1024" fill="url(#ember)"/>
+    <rect width="1024" height="380" fill="url(#sheen)"/>
+  </g>
+  <rect x="1" y="1" width="1022" height="1022" rx="224" stroke="#ffffff" stroke-opacity="0.07" stroke-width="2" fill="none"/>
+
+  <g transform="translate(512 530) scale(1.16) translate(-512 -530)">
+    <g filter="url(#cloudShadow)">
+      <circle cx="325" cy="605" r="118" fill="url(#cloud)"/>
+      <circle cx="455" cy="545" r="150" fill="url(#cloud)"/>
+      <circle cx="585" cy="520" r="170" fill="url(#cloud)"/>
+      <circle cx="705" cy="610" r="112" fill="url(#cloud)"/>
+      <rect x="295" y="640" width="440" height="82" rx="60" fill="url(#cloud)"/>
+    </g>
+    <rect x="207" y="545" width="610" height="185" fill="url(#cloudShade)" clip-path="url(#cloudClip)"/>
+
+    <g filter="url(#badgeShadow)">
+      <rect x="362" y="478" width="300" height="205" rx="72" fill="url(#badge)"/>
+    </g>
+    <path d="M486 530 L486 630 L566 580 Z" fill="#ffffff" stroke="#ffffff" stroke-width="12" stroke-linejoin="round"/>
+  </g>
+</svg>
