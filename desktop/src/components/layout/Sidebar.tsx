@@ -2,13 +2,11 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/shallow';
-import { changeAppLanguage } from '../../i18n';
 import { art } from '../../lib/formatters';
 import {
   Clock,
   Compass,
   Download,
-  Globe,
   Home,
   Library,
   ListMusic,
@@ -28,12 +26,6 @@ import { useSettingsStore } from '../../stores/settings';
 import { Avatar } from '../ui/Avatar';
 
 type IconCmp = React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
-
-const languages = [
-  { code: 'en', label: 'English' },
-  { code: 'ru', label: 'Русский' },
-  { code: 'tr', label: 'Türkçe' },
-] as const;
 
 const navItems: { to: string; icon: IconCmp; label: string }[] = [
   { to: '/home', icon: Home, label: 'nav.home' },
@@ -132,7 +124,7 @@ function NavItem({
 }
 
 export const Sidebar = React.memo(() => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const user = useAuthStore((s) => s.user);
@@ -155,11 +147,6 @@ export const Sidebar = React.memo(() => {
   // Discover is a SoundCloud catalog surface — it has no YouTube counterpart.
   const items =
     service === 'youtube' ? navItems.filter((item) => item.to !== '/discover') : navItems;
-
-  const toggleLanguage = () => {
-    void changeAppLanguage(i18n.language === 'ru' ? 'en' : 'ru');
-  };
-  const currentLang = languages.find((l) => l.code === i18n.language) ?? languages[0];
 
   const btnCls = `${ROW} text-white/45 hover:text-white/80 hover:bg-white/[0.05] cursor-pointer`;
 
@@ -266,20 +253,6 @@ export const Sidebar = React.memo(() => {
           </IconBox>
           <Label collapsed={collapsed} className="text-[12.5px] font-medium pr-3">
             {t('nav.collapse')}
-          </Label>
-        </button>
-
-        <button
-          type="button"
-          onClick={toggleLanguage}
-          title={collapsed ? currentLang.label : undefined}
-          className={btnCls}
-        >
-          <IconBox>
-            <Globe size={17} strokeWidth={1.9} />
-          </IconBox>
-          <Label collapsed={collapsed} className="text-[12.5px] font-medium pr-3">
-            {currentLang.label}
           </Label>
         </button>
 
