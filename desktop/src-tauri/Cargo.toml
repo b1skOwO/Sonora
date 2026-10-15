@@ -1,7 +1,7 @@
 [package]
 name = "soundcloud-desktop"
 version = "8.4.16"
-description = "Sonora  Ea beautiful music desktop app"
+description = "Sonora — a beautiful music desktop app"
 authors = ["zxcloli666"]
 edition = "2024"
 
@@ -10,7 +10,7 @@ name = "soundcloud_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-# Пин на версE�сEветки feat/cef  EинасE� cargo берёсEболее сE�ежусEcrates.io (без сE�сE� cef).
+# Пин на версию ветки feat/cef — иначе cargo берёт более свежую crates.io (без фичи cef).
 tauri-build = { version = "=2.6.2", features = [] }
 
 [dependencies]
@@ -59,18 +59,19 @@ if-addrs = "0.15"
 uuid = { version = "1", features = ["v4"] }
 
 [features]
-# Opt-in: рендер сE�рез CEF (Chromium) вмесE�о wry/webkitgtk. ТребуесE[patch.crates-io] ниже.
-# ДесE�лтнасEсE�орка (без этой сE�сE�) осE�аётсE�Eна wry.
+# Opt-in: рендер через CEF (Chromium) вместо wry/webkitgtk. Требует [patch.crates-io] ниже.
+# Дефолтная сборка (без этой фичи) остаётся на wry.
 cef = ["tauri/cef"]
 
 [profile.release]
 lto = true
 
-# ЭксE�ериментальнасEветка Tauri сEрантаймом tauri-runtime-cef и сE�сE�й `cef`.
-# ПатсE�м ТОЛЬКЁE`tauri` (одна крейта на весE�EграсEↁEплагинсEсEcrates.io разделяюсE# тосEже рантайм) и `tauri-build` (насEbuild-dep, пин на версE�сEветки). Внутренние
-# tauri-* (tauri-runtime/utils/macros/codegen/plugin) git-tauri тянесEпо path сE�м;
-# отдельно исEНЁEпатсE�м  EинасE� build-script'сEcrates.io-плагинов ловясEskew
-# версE�й schemars (tauri-plugin::global_scope_schema).
+# Экспериментальная ветка Tauri с рантаймом tauri-runtime-cef и фичей `cef`.
+# Патчим ТОЛЬКО `tauri` (одна крейта на весь граф → плагины с crates.io разделяют
+# тот же рантайм) и `tauri-build` (наш build-dep, пин на версию ветки). Внутренние
+# tauri-* (tauri-runtime/utils/macros/codegen/plugin) git-tauri тянет по path сам;
+# отдельно их НЕ патчим — иначе build-script'ы crates.io-плагинов ловят skew
+# версий schemars (tauri-plugin::global_scope_schema).
 [patch.crates-io]
 tauri = { git = "https://github.com/tauri-apps/tauri", branch = "feat/cef" }
 tauri-build = { git = "https://github.com/tauri-apps/tauri", branch = "feat/cef" }
