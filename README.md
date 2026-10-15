@@ -80,7 +80,7 @@ Most players lock you into one service. Sonora treats **SoundCloud and YouTube a
 - Permanent on-disk image cache, virtualized lists
 
 #### Integrations
-- **Discord Rich Presence** with a per-service "Listen on SoundCloud / YouTube" button that opens the track
+- **Discord Rich Presence** — "SoundCloud / YouTube via Sonora" status with a per-service "Listen on SoundCloud / YouTube" button that opens the track, plus a GitHub link button
 - System media keys + OS media popup (Windows SMTC / MPRIS), system tray + mini player
 - **In-app updates** — new builds install from GitHub releases without touching a terminal (see [Updating](#updating))
 
@@ -239,7 +239,7 @@ MIT. See [LICENSE](LICENSE).
 - 画像の永続ディスクキャッシュ、リストの仮想化
 
 #### 連携
-- **Discord Rich Presence** — サービス別の「Listen on SoundCloud / YouTube」ボタン付き（押すとその曲が開く）
+- **Discord Rich Presence** — 「SoundCloud / YouTube via Sonora」表示＋サービス別の「Listen on SoundCloud / YouTube」ボタン（押すとその曲が開く）、GitHubリンクボタン付き
 - メディアキー＋OSメディアポップアップ（Windows SMTC / MPRIS）、トレイ＋ミニプレイヤー
 - **アプリ内アップデート** — ターミナル不要でGitHubリリースから更新（[アップデート](#アップデート)参照）
 

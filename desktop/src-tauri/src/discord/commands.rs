@@ -6,7 +6,7 @@ use discord_rich_presence::{
 };
 
 use crate::rt::AppHandle;
-use crate::shared::constants::DISCORD_CLIENT_ID;
+use crate::shared::constants::{DISCORD_CLIENT_ID, GITHUB_URL};
 
 pub struct DiscordState {
     pub client: Mutex<Option<DiscordIpcClient>>,
@@ -101,12 +101,14 @@ pub fn discord_set_activity(
     let assets = Assets::new().large_image(large_image);
 
     // Which service the track comes from — Discord cards must make "playing
-    // SoundCloud" vs "playing YouTube" distinguishable at a glance.
+    // SoundCloud" vs "playing YouTube" distinguishable at a glance, and the
+    // "via Sonora" suffix keeps the app visible next to the service.
     let source_label = if track.source.as_deref() == Some("youtube") {
         "YouTube"
     } else {
         "SoundCloud"
     };
+    let source_line = format!("{source_label} via Sonora");
 
     // `name` overrides the application name Discord shows on the player card.
     // Track/Artist modes put the artist there; Activity mode puts the *service*
@@ -119,7 +121,7 @@ pub fn discord_set_activity(
             activity = activity.name(artist_text);
         }
         DiscordRpcMode::Activity => {
-            activity = activity.name(source_label);
+            activity = activity.name(source_line.as_str());
         }
         _ => {}
     }
@@ -129,7 +131,7 @@ pub fn discord_set_activity(
         DiscordRpcMode::Track => {
             let activity = activity.details(&track.title);
             if is_playing {
-                activity.state(source_label)
+                activity.state(source_line.as_str())
             } else {
                 activity.state("Paused")
             }
@@ -137,7 +139,7 @@ pub fn discord_set_activity(
         // Artist only — the name line already shows it; state carries the service.
         DiscordRpcMode::Artist => {
             if is_playing {
-                activity.state(source_label)
+                activity.state(source_line.as_str())
             } else {
                 activity.state("Paused")
             }
@@ -149,7 +151,7 @@ pub fn discord_set_activity(
                 if has_artist {
                     activity.state(&track.title)
                 } else {
-                    activity.state(source_label)
+                    activity.state(source_line.as_str())
                 }
             } else {
                 activity.state("Paused")
@@ -165,29 +167,35 @@ pub fn discord_set_activity(
         activity = activity.timestamps(timestamps);
     }
 
+    let mut buttons: Vec<Button> = Vec::new();
     if show_button
-        && let Some(ref url) = track.track_url {
-            let label = if url.contains("youtube.com") || url.contains("youtu.be") {
-                "Listen on YouTube"
-            } else {
-                "Listen on SoundCloud"
-            };
-            crate::app::diagnostics::log_native(
-                &app,
-                "INFO",
-                format!("[Discord] button '{label}' -> {url}"),
-            );
-            activity = activity.buttons(vec![Button::new(label, url)]);
+        && let Some(ref url) = track.track_url
+    {
+        let label = if url.contains("youtube.com") || url.contains("youtu.be") {
+            "Listen on YouTube"
         } else {
+            "Listen on SoundCloud"
+        };
+        crate::app::diagnostics::log_native(
+            &app,
+            "INFO",
+            format!("[Discord] button '{label}' -> {url}"),
+        );
+        buttons.push(Button::new(label, url));
+    } else {
         crate::app::diagnostics::log_native(
             &app,
             "INFO",
             format!(
-                "[Discord] no button (show_button={show_button}, has_url={})",
+                "[Discord] no listen button (show_button={show_button}, has_url={})",
                 track.track_url.is_some()
             ),
         );
     }
+
+    // Always-on second link: the public project page.
+    buttons.push(Button::new("GitHub", GITHUB_URL));
+    activity = activity.buttons(buttons);
 
     let result = client.set_activity(activity);
 

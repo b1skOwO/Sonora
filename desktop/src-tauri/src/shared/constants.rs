@@ -1,5 +1,8 @@
 pub const DISCORD_CLIENT_ID: &str = "1431978756687265872";
 
+/// Public project page — linked from the Discord activity card.
+pub const GITHUB_URL: &str = "https://github.com/b1skOwO/Sonora";
+
 pub const DOMAIN_WHITELIST: &[&str] = &[
     "localhost",
     "127.0.0.1",
