@@ -1,5 +1,5 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
-import React, {useLayoutEffect, useRef, useState} from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 
 interface VirtualListProps<T> {
   items: T[];
@@ -22,17 +22,34 @@ export function VirtualList<T>({
 }: VirtualListProps<T>) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scrollElement, setScrollElement] = useState<HTMLElement | null>(null);
+  // Distance between the top of the scroll element and this list. The
+  // virtualizer works in the scroll element's coordinates, so without it the
+  // rendered window sits `offset` px below the physically visible rows — a
+  // blank gap at the top of the viewport. Measured before paint and kept fresh
+  // as the layout above the list shifts (hero art, async shelves, ...).
+  const [scrollMargin, setScrollMargin] = useState(0);
 
-    // Resolve the scroll element before paint to avoid a visible 0-row first frame.
-    useLayoutEffect(() => {
+  // Resolve the scroll element before paint to avoid a visible 0-row first frame.
+  useLayoutEffect(() => {
     setScrollElement((containerRef.current?.closest('main') as HTMLElement | null) ?? null);
   }, []);
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    const scroll = container?.closest('main') as HTMLElement | null;
+    if (!container || !scroll) return;
+    const next = Math.round(
+      container.getBoundingClientRect().top - scroll.getBoundingClientRect().top + scroll.scrollTop,
+    );
+    setScrollMargin((prev) => (prev === next ? prev : next));
+  });
 
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => scrollElement,
     estimateSize: () => rowHeight,
     overscan,
+    scrollMargin,
   });
 
   if (disabled) {
@@ -66,7 +83,7 @@ export function VirtualList<T>({
               left: 0,
               width: '100%',
               height: virtualItem.size,
-              transform: `translateY(${virtualItem.start}px)`,
+              transform: `translateY(${virtualItem.start - scrollMargin}px)`,
             }}
           >
             {renderItem(item, virtualItem.index)}

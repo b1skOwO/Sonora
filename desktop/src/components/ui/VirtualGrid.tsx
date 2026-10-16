@@ -1,5 +1,5 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 interface VirtualGridProps<T> {
   items: T[];
@@ -27,10 +27,24 @@ export function VirtualGrid<T>({
   const containerRef = useRef<HTMLDivElement>(null);
   const [scrollElement, setScrollElement] = useState<HTMLElement | null>(null);
   const [width, setWidth] = useState(0);
+  // Distance between the top of the scroll element and this grid (see
+  // VirtualList): the virtualizer needs it to render the physically visible
+  // rows instead of a window shifted by the page content above.
+  const [scrollMargin, setScrollMargin] = useState(0);
 
   useEffect(() => {
     setScrollElement((containerRef.current?.closest('main') as HTMLElement | null) ?? null);
   }, []);
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    const scroll = container?.closest('main') as HTMLElement | null;
+    if (!container || !scroll) return;
+    const next = Math.round(
+      container.getBoundingClientRect().top - scroll.getBoundingClientRect().top + scroll.scrollTop,
+    );
+    setScrollMargin((prev) => (prev === next ? prev : next));
+  });
 
   useEffect(() => {
     const node = containerRef.current;
@@ -63,6 +77,7 @@ export function VirtualGrid<T>({
     getScrollElement: () => scrollElement,
     estimateSize: () => rowHeight,
     overscan,
+    scrollMargin,
   });
 
   if (disabled) {
@@ -105,7 +120,7 @@ export function VirtualGrid<T>({
               left: 0,
               width: '100%',
               height: itemHeight,
-              transform: `translateY(${virtualRow.start}px)`,
+              transform: `translateY(${virtualRow.start - scrollMargin}px)`,
             }}
           >
             {rowItems.map((item, columnIndex) => {
