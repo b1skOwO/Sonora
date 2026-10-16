@@ -13,6 +13,8 @@ import { useLikedTracks } from '../lib/hooks';
 import { likedTracksCount } from '../lib/likes';
 import { useAuthStore } from '../stores/auth';
 import { useLocalLikesStore } from '../stores/local-likes';
+import { useLocalPlaylistsStore } from '../stores/local-playlists';
+import { useServiceStore } from '../stores/service';
 
 type Section = 'likes' | 'local-likes' | 'playlists' | 'following' | 'history';
 const SECTIONS: Section[] = ['likes', 'local-likes', 'playlists', 'following', 'history'];
@@ -33,6 +35,8 @@ export const LibraryCollection = React.memo(() => {
   const user = useAuthStore((s) => s.user);
   const { tracks: likedTracks } = useLikedTracks();
   const localLikesCount = useLocalLikesStore((s) => s.tracks.length);
+  const localPlaylistsCount = useLocalPlaylistsStore((s) => s.playlists.length);
+  const service = useServiceStore((s) => s.service);
   const sound = useSoundprint(likedTracks);
   const [filter, setFilter] = useState('');
   const deferredFilter = useDeferredValue(filter);
@@ -49,7 +53,9 @@ export const LibraryCollection = React.memo(() => {
       : sec === 'local-likes'
         ? localLikesCount
         : sec === 'playlists'
-          ? user.playlist_count
+          ? service === 'youtube'
+            ? localPlaylistsCount
+            : user.playlist_count
           : sec === 'following'
             ? user.followings_count
             : undefined;
