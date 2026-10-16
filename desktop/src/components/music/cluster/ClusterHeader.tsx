@@ -1,4 +1,5 @@
 import React from 'react';
+import { usePerfMode } from '../../../lib/perf';
 
 interface Props {
   icon: React.ReactNode;
@@ -13,6 +14,8 @@ export const ClusterHeader = React.memo(function ClusterHeader({
   description,
   index,
 }: Props) {
+  const perf = usePerfMode();
+  const badgeBlur = perf.blur(8);
   return (
     <div className="flex items-end gap-4 pl-1">
       <div
@@ -28,9 +31,9 @@ export const ClusterHeader = React.memo(function ClusterHeader({
         <span
           className="absolute -top-1 -right-1 inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-black tabular-nums text-white/85"
           style={{
-            background: 'rgba(0,0,0,0.55)',
+            background: badgeBlur > 0 ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.78)',
             border: '0.5px solid color-mix(in srgb, var(--color-accent) 45%, transparent)',
-            backdropFilter: 'blur(8px)',
+            backdropFilter: badgeBlur > 0 ? `blur(${badgeBlur}px)` : undefined,
           }}
         >
           {index + 1}

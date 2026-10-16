@@ -12,6 +12,7 @@ import YMImportFloatingStatus from './components/music/YMImportFloatingStatus';
 import { SessionRecoveryModal } from './components/SessionRecoveryModal';
 import { ThemeProvider } from './components/ThemeProvider';
 import { ApiError } from './lib/api';
+import { usePerfMode } from './lib/perf';
 import { useUpdaterStore } from './lib/sonora-update';
 import { getAppMode, useAppMode, useAppStatusStore } from './stores/app-status';
 import { useAuthStore } from './stores/auth';
@@ -88,6 +89,8 @@ export default function App() {
   const updaterError = useUpdaterStore((s) => s.error);
   const appMode = useAppMode();
   const offlineBypass = useAppStatusStore((s) => s.offlineBypass);
+  const perf = usePerfMode();
+  const toastBlur = perf.blur(20);
   const canUseMainShell = isAuthenticated || hasSession;
   // Offline-only shell is the explicit "browse offline" choice from Login — NOT
   // a fallback for being logged out. An explicit logout always lands on <Login/>.
@@ -184,7 +187,7 @@ export default function App() {
         toastOptions={{
           style: {
             background: 'rgba(30, 30, 34, 0.9)',
-            backdropFilter: 'blur(20px)',
+            backdropFilter: toastBlur > 0 ? `blur(${toastBlur}px)` : undefined,
             border: '1px solid rgba(255,255,255,0.08)',
             color: 'rgba(255,255,255,0.85)',
             fontSize: '13px',

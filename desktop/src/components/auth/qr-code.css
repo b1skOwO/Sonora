@@ -150,3 +150,16 @@
     animation: none;
   }
 }
+
+/* Flat glass regime (light perf mode / zero blur): the frame keeps its opaque
+   gradient — drop the live backdrop blur and the decorative aurora/mesh glows. */
+[data-perf="light"] .qr-frame,
+[data-blur="off"] .qr-frame {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+[data-perf="light"] .qr-aurora,
+[data-perf="light"] .qr-mesh {
+  display: none;
+}

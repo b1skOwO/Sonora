@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { AlertCircle, Home, RefreshCw } from '../../lib/icons';
+import { usePerfMode } from '../../lib/perf';
 
 /** Premium crash screen shown by the ErrorBoundary. Dark, accent-lit glass,
  *  with retry / reload / home actions and a foldaway technical detail. */
@@ -16,6 +17,7 @@ export function ErrorScreen({
   fullscreen?: boolean;
 }) {
   const { t } = useTranslation();
+  const perf = usePerfMode();
   const message = error?.message || String(error ?? '');
 
   return (
@@ -26,24 +28,26 @@ export function ErrorScreen({
       style={{ background: fullscreen ? 'var(--bg-primary, #08080a)' : undefined }}
     >
       {/* atmosphere — two soft accent orbs */}
-      <div aria-hidden className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div
-          className="absolute -top-[20%] left-[12%] w-[55vw] h-[55vw] rounded-full"
-          style={{
-            background: 'radial-gradient(circle, var(--color-accent), transparent 62%)',
-            opacity: 0.16,
-            filter: 'blur(120px)',
-          }}
-        />
-        <div
-          className="absolute -bottom-[24%] right-[8%] w-[48vw] h-[48vw] rounded-full"
-          style={{
-            background: 'radial-gradient(circle, var(--color-accent), transparent 62%)',
-            opacity: 0.1,
-            filter: 'blur(130px)',
-          }}
-        />
-      </div>
+      {perf.atmosphere && (
+        <div aria-hidden className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div
+            className="absolute -top-[20%] left-[12%] w-[55vw] h-[55vw] rounded-full"
+            style={{
+              background: 'radial-gradient(circle, var(--color-accent), transparent 62%)',
+              opacity: 0.16,
+              filter: 'blur(120px)',
+            }}
+          />
+          <div
+            className="absolute -bottom-[24%] right-[8%] w-[48vw] h-[48vw] rounded-full"
+            style={{
+              background: 'radial-gradient(circle, var(--color-accent), transparent 62%)',
+              opacity: 0.1,
+              filter: 'blur(130px)',
+            }}
+          />
+        </div>
+      )}
 
       <div className="relative z-10 w-full max-w-[460px]">
         <div

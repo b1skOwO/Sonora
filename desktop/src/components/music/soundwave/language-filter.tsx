@@ -2,6 +2,7 @@ import * as Popover from '@radix-ui/react-popover';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Check, Globe, X } from '../../../lib/icons';
+import { usePerfMode } from '../../../lib/perf';
 
 const LANGUAGES: Array<{ code: string; name: string }> = [
   { code: 'en', name: 'English' },
@@ -25,6 +26,8 @@ interface Props {
 
 export const LanguageFilter = React.memo(function LanguageFilter({ selected, onChange }: Props) {
   const { t } = useTranslation();
+  const perf = usePerfMode();
+  const dropdownBlur = perf.blur(30);
   const count = selected.length;
 
   const toggle = (code: string) => {
@@ -53,8 +56,9 @@ export const LanguageFilter = React.memo(function LanguageFilter({ selected, onC
           className="z-50 w-[240px] p-2 rounded-2xl outline-none"
           style={{
             background: 'rgba(18,18,22,0.88)',
-            backdropFilter: 'blur(30px) saturate(1.8)',
-            WebkitBackdropFilter: 'blur(30px) saturate(1.8)',
+            backdropFilter: dropdownBlur > 0 ? `blur(${dropdownBlur}px) saturate(1.8)` : undefined,
+            WebkitBackdropFilter:
+              dropdownBlur > 0 ? `blur(${dropdownBlur}px) saturate(1.8)` : undefined,
             border: '1px solid rgba(255,255,255,0.08)',
             boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
           }}

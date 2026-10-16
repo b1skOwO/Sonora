@@ -23,6 +23,7 @@ export function Login() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const perf = usePerfMode();
+  const cardBlur = perf.blur(60);
   const setSession = useAuthStore((s) => s.setSession);
   const fetchUser = useAuthStore((s) => s.fetchUser);
   const setOfflineBypass = useAppStatusStore((s) => s.setOfflineBypass);
@@ -78,10 +79,11 @@ export function Login() {
           className="relative overflow-hidden rounded-[2.25rem] px-8 pt-9 pb-7"
           style={{
             border: '0.5px solid rgba(255,255,255,0.1)',
-            background:
-              'linear-gradient(165deg, rgba(255,255,255,0.06), rgba(255,255,255,0.018) 60%, rgba(255,255,255,0.035))',
-            backdropFilter: 'blur(60px) saturate(1.5)',
-            WebkitBackdropFilter: 'blur(60px) saturate(1.5)',
+            background: cardBlur
+              ? 'linear-gradient(165deg, rgba(255,255,255,0.06), rgba(255,255,255,0.018) 60%, rgba(255,255,255,0.035))'
+              : 'rgba(20,20,24,0.82)',
+            backdropFilter: cardBlur > 0 ? `blur(${cardBlur}px) saturate(1.5)` : undefined,
+            WebkitBackdropFilter: cardBlur > 0 ? `blur(${cardBlur}px) saturate(1.5)` : undefined,
             boxShadow: '0 40px 100px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.08)',
           }}
         >
