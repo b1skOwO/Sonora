@@ -24,12 +24,10 @@ function EffectSlider({
   );
 }
 
-/** Blur + accent-glow intensity sliders. `100%` keeps the tuned default look. */
+/** Accent-glow intensity slider. `100%` keeps the tuned default look. */
 export function EffectsCard() {
   const { t } = useTranslation();
-  const blurStrength = useSettingsStore((s) => s.blurStrength);
   const glowStrength = useSettingsStore((s) => s.glowStrength);
-  const setBlurStrength = useSettingsStore((s) => s.setBlurStrength);
   const setGlowStrength = useSettingsStore((s) => s.setGlowStrength);
 
   return (
@@ -38,20 +36,12 @@ export function EffectsCard() {
       desc={t('settings.effectsDesc')}
       icon={<Sparkles size={17} />}
     >
-      <div className="space-y-6">
-        <EffectSlider
-          label={t('settings.blurStrength')}
-          desc={t('settings.blurStrengthDesc')}
-          value={blurStrength}
-          onChange={setBlurStrength}
-        />
-        <EffectSlider
-          label={t('settings.glowStrength')}
-          desc={t('settings.glowStrengthDesc')}
-          value={glowStrength}
-          onChange={setGlowStrength}
-        />
-      </div>
+      <EffectSlider
+        label={t('settings.glowStrength')}
+        desc={t('settings.glowStrengthDesc')}
+        value={glowStrength}
+        onChange={setGlowStrength}
+      />
     </Card>
   );
 }
