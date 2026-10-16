@@ -281,6 +281,13 @@ export const useSettingsStore = create<SettingsState>()(
           perfMode: 'light',
         } as SettingsState;
       },
+      // Hydration-time pin: a file written by an older build (or left behind by
+      // another app sharing this data dir) could carry beauty/medium — normalize
+      // it here so the flat light look is the only look, fresh install or not.
+      merge: (persistedState, currentState) => {
+        const persisted = (persistedState ?? {}) as Partial<SettingsState>;
+        return { ...currentState, ...persisted, perfMode: 'light' } as SettingsState;
+      },
       partialize: (s) => ({
         accentColor: s.accentColor,
         bgPrimary: s.bgPrimary,

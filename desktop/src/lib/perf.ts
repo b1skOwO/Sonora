@@ -72,7 +72,8 @@ function buildProfile(mode: PerfMode, blurStrength: number, glowStrength: number
   const key = `${mode}:${blurStrength}:${glowStrength}`;
   const cached = profileCache.get(key);
   if (cached) return cached;
-  const base = MODE_PROFILES[mode] ?? MODE_PROFILES.beauty;
+  // Unknown/corrupt modes fall back to light — the pinned production look — never beauty.
+  const base = MODE_PROFILES[mode] ?? MODE_PROFILES.light;
   const scale = Math.max(0, blurStrength) / 100;
   const profile: PerfProfile = {
     mode,
