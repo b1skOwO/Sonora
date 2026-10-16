@@ -151,7 +151,7 @@ const DEFAULTS = {
   backgroundOpacity: 0.15,
   backgroundDim: 0,
   backgroundBlur: 0,
-  blurStrength: 100,
+  blurStrength: 150,
   glowStrength: 100,
   audioCacheLimitMB: 1024,
   cacheMaxAgeDays: 5,
