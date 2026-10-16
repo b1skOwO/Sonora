@@ -47,26 +47,33 @@
   --glass-blur-soft-base: 20px;
 }
 
+/* Light mode = flat glass: no live backdrop blur anywhere. The base radii go
+   to zero as well, so anything reading var(--glass-blur*) directly stays flat. */
 [data-perf="light"] {
-  --glass-blur-base: 12px;
-  --glass-blur-strong-base: 16px;
-  --glass-blur-soft-base: 10px;
+  --glass-blur-base: 0px;
+  --glass-blur-strong-base: 0px;
+  --glass-blur-soft-base: 0px;
 }
 
-/* Light blur (user set the slider to 0): drop the live backdrop blur, keep the
-   dark frosted look via a flat solid tint (zero per-repaint blur cost). */
+/* Flat glass regime — perf mode light, or the user set the blur slider to 0:
+   drop the live backdrop blur, keep the dark frosted look via a flat solid tint
+   (zero per-repaint blur cost). */
 [data-blur="off"] .glass,
-[data-blur="off"] .glass-flat {
+[data-blur="off"] .glass-flat,
+[data-perf="light"] .glass,
+[data-perf="light"] .glass-flat {
   backdrop-filter: none;
   background: rgba(22, 22, 26, 0.82);
 }
 
-[data-blur="off"] .glass-featured {
+[data-blur="off"] .glass-featured,
+[data-perf="light"] .glass-featured {
   backdrop-filter: none;
   background: rgba(16, 16, 20, 0.86);
 }
 
-[data-blur="off"] .npb-glass {
+[data-blur="off"] .npb-glass,
+[data-perf="light"] .npb-glass {
   backdrop-filter: none;
   background:
     linear-gradient(
@@ -78,7 +85,8 @@
     rgba(15, 15, 19, 0.92);
 }
 
-[data-blur="off"] .npb-glass::after {
+[data-blur="off"] .npb-glass::after,
+[data-perf="light"] .npb-glass::after {
   display: none;
 }
 
