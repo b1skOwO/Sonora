@@ -134,8 +134,6 @@ function SoundCloudHome() {
 
       <ContinueRow genre={genre} />
 
-      <FreshDrops genre={genre} />
-
       {randomMix.length > 0 && (
         <CollectionRail
           icon={<RefreshCw size={16} />}
@@ -261,6 +259,8 @@ function SoundCloudHome() {
           ))}
         </CollectionRail>
       )}
+
+      <FreshDrops genre={genre} />
 
       <ArchiveStation likedTracks={likedShelfTracks} likedLoading={likedTracksQuery.isLoading} />
     </WaveFrame>
