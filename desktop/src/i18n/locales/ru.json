@@ -18,8 +18,8 @@
   "nav": {
     "home": "Главная",
     "search": "Поиск",
-    "discover": "Каталог",
     "library": "Библиотека",
+    "playlists": "Плейлисты",
     "star": "STAR",
     "offline": "Оффлайн",
     "import": "Импорт",

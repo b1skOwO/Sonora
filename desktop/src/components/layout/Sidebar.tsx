@@ -5,7 +5,6 @@ import { useShallow } from 'zustand/shallow';
 import { art } from '../../lib/formatters';
 import {
   Clock,
-  Compass,
   Download,
   Home,
   Library,
@@ -30,8 +29,8 @@ type IconCmp = React.ComponentType<{ size?: number; strokeWidth?: number; classN
 const navItems: { to: string; icon: IconCmp; label: string }[] = [
   { to: '/home', icon: Home, label: 'nav.home' },
   { to: '/search', icon: Search, label: 'nav.search' },
-  { to: '/discover', icon: Compass, label: 'nav.discover' },
   { to: '/library', icon: Library, label: 'nav.library' },
+  { to: '/library/playlists', icon: ListMusic, label: 'nav.playlists' },
   { to: '/import', icon: Plus, label: 'nav.import' },
   { to: '/offline', icon: Download, label: 'nav.offline' },
 ];
@@ -144,10 +143,6 @@ export const Sidebar = React.memo(() => {
   const visiblePins = pinnedPlaylists.filter((p) =>
     service === 'youtube' ? isLocalPlaylistUrn(p.urn) : !isLocalPlaylistUrn(p.urn),
   );
-  // Discover is a SoundCloud catalog surface — it has no YouTube counterpart.
-  const items =
-    service === 'youtube' ? navItems.filter((item) => item.to !== '/discover') : navItems;
-
   const btnCls = `${ROW} text-white/45 hover:text-white/80 hover:bg-white/[0.05] cursor-pointer`;
 
   return (
@@ -159,7 +154,7 @@ export const Sidebar = React.memo(() => {
       }}
     >
       <nav className="flex flex-col gap-0.5 px-2 pt-3">
-        {items.map((item) => (
+        {navItems.map((item) => (
           <NavItem
             key={item.to}
             to={item.to}

@@ -18,8 +18,8 @@
   "nav": {
     "home": "Home",
     "search": "Search",
-    "discover": "Discover",
     "library": "Library",
+    "playlists": "Playlists",
     "star": "STAR",
     "offline": "Offline",
     "import": "Import",
