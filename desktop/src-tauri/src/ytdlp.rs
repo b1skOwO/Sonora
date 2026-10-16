@@ -253,6 +253,11 @@ pub async fn fetch_playlist(bin: &Path, url: &str) -> Result<YtPlaylist, String>
         "15",
         "--retries",
         "1",
+        // Web clients can hit YouTube's bot check ("Sign in to confirm you're
+        // not a bot"); the list makes yt-dlp fall through to the android /
+        // tv_embedded clients, which still serve clean streams.
+        "--extractor-args",
+        "youtube:player_client=default,android,tv_embedded",
         "--playlist-end",
     ])
     .arg(MAX_PLAYLIST_ENTRIES.to_string())
@@ -397,12 +402,14 @@ pub async fn download_audio<F: Fn(f64)>(
         "--retries",
         "1",
         "-f",
-        "bestaudio[ext=m4a]/bestaudio",
+        "bestaudio[ext=m4a]/bestaudio/best",
         "-x",
         "--audio-format",
         "m4a",
         "--audio-quality",
         "0",
+        "--extractor-args",
+        "youtube:player_client=default,android,tv_embedded",
         "-o",
     ])
     .arg(&template);
