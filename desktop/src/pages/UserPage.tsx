@@ -144,7 +144,7 @@ export function UserPage() {
               if (activeTab === 'popular') return <UserPopularTab urn={urn!} aura={aura} />;
               if (activeTab === 'tracks') return <UserTracksTab urn={urn!} aura={aura} />;
               if (activeTab === 'playlists') return <UserPlaylistsTab urn={urn!} />;
-              if (activeTab === 'likes') return <UserLikesTab urn={urn!} aura={aura} />;
+              if (activeTab === 'likes') return <UserLikesTab key={urn} urn={urn!} aura={aura} />;
               if (activeTab === 'followers')
                 return <UserConnectionsTab urn={urn!} mode="followers" />;
               if (activeTab === 'following')

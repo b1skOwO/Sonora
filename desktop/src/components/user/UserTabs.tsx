@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import type { Aura } from '../../lib/aura';
 import { fc } from '../../lib/formatters';
+import type { Playlist } from '../../lib/hooks';
 import {
   useInfiniteScroll,
   useSearchDbPlaylists,
@@ -20,7 +21,9 @@ import { usePerfMode } from '../../lib/perf';
 import {
   importPublicLikesPlaylist,
   importPublicPlaylist,
+  loadImportedLikesPlaylists,
   loadImportedPublicPlaylists,
+  saveImportedLikesPlaylist,
   saveImportedPublicPlaylist,
 } from '../../lib/public-sc';
 import { PlaylistCard } from '../music/PlaylistCard';
@@ -244,22 +247,37 @@ export function UserPlaylistsTab({ urn }: { urn: string }) {
   );
 }
 
+/** Does an imported likes snapshot belong to the profile being viewed? Route
+ *  urns are usually `soundcloud:users:{id}`; a digits-only urn also binds.
+ *  Permalink-shaped urns cannot be matched — the live list stays there. */
+function likesForProfile(profileUrn: string | undefined, playlist: Playlist): boolean {
+  if (!profileUrn) return false;
+  const id = profileUrn.match(/users:(\d+)/)?.[1] ?? (/^\d+$/.test(profileUrn) ? profileUrn : null);
+  if (!id) return false;
+  return String(playlist.user.id) === id;
+}
+
 export function UserLikesTab({ urn, aura }: { urn: string; aura: Aura }) {
   const q = useUserLikedTracks(urn);
   const { t } = useTranslation();
   const [accountLink, setAccountLink] = useState('');
-  const [importedLikes, setImportedLikes] = useState<typeof q.tracks | null>(null);
+  // Imported like snapshots persist across sessions. On mount, only pick up
+  // snapshots that belong to the profile being viewed — a snapshot made for
+  // another account must not leak into this profile's live like list.
+  const [likesPlaylists, setLikesPlaylists] = useState(loadImportedLikesPlaylists);
   const [likesPlaylist, setLikesPlaylist] = useState<Awaited<
     ReturnType<typeof importPublicLikesPlaylist>
-  > | null>(null);
+  > | null>(() => likesPlaylists.find((playlist) => likesForProfile(urn, playlist)) ?? null);
   const [importing, setImporting] = useState(false);
   const importAccount = async (event: React.FormEvent) => {
     event.preventDefault();
     setImporting(true);
     try {
       const playlist = await importPublicLikesPlaylist(accountLink);
+      // Persist the snapshot — without it the playlist page would hit the
+      // backend with the local `imported-likes-` urn and get a 400.
+      setLikesPlaylists(saveImportedLikesPlaylist(playlist));
       setLikesPlaylist(playlist);
-      setImportedLikes(playlist.tracks);
       setAccountLink('');
       toast.success(
         t('user.likesImported', { count: playlist.track_count, title: playlist.title }),
@@ -271,7 +289,7 @@ export function UserLikesTab({ urn, aura }: { urn: string; aura: Aura }) {
     }
   };
   const ref = useInfiniteScroll(!!q.hasNextPage, !!q.isFetchingNextPage, q.fetchNextPage);
-  const tracks = importedLikes ?? q.tracks;
+  const tracks = likesPlaylist ? likesPlaylist.tracks : q.tracks;
   const renderItem = useCallback(
     (track: (typeof tracks)[number], i: number) => (
       <ThemedTrackRow track={track} index={i} queue={tracks} aura={aura} />
@@ -301,9 +319,13 @@ export function UserLikesTab({ urn, aura }: { urn: string; aura: Aura }) {
           {importing ? <Loader2 size={16} className="animate-spin" /> : t('user.importLikes')}
         </button>
       </form>
-      {likesPlaylist && (
-        <div className="mb-6 max-w-[240px]">
-          <PlaylistCard playlist={likesPlaylist} showPlayback />
+      {likesPlaylists.length > 0 && (
+        <div className="mb-6 flex flex-wrap gap-3">
+          {likesPlaylists.map((playlist) => (
+            <div key={playlist.urn} className="max-w-[240px]">
+              <PlaylistCard playlist={playlist} showPlayback />
+            </div>
+          ))}
         </div>
       )}
       <TabWrapper

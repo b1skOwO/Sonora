@@ -293,68 +293,97 @@ export async function fetchPublicUserFollowers(userUrn: string): Promise<SCUser[
 
 /* ── Manual imports (local snapshots) ──────────────────────────── */
 
-const IMPORTED_PLAYLISTS_KEY = 'scd.imported-public-playlists.v1';
+const REGULAR_IMPORTS_KEY = 'scd.imported-public-playlists.v1';
+const LIKES_IMPORTS_KEY = 'scd.imported-public-likes.v1';
 
-/** Parsed-snapshot cache keyed on the raw stored string. Render-time callers
+/** Parsed-snapshot caches keyed on the raw stored string. Render-time callers
  *  (`usePlaylistTracks`) must see a STABLE identity — parsing per call used to
  *  return a fresh array every render, which looped React (#185) on the
  *  playlist page via the server→local track sync effect. */
-let importedCacheRaw: string | null = null;
-let importedCache: Playlist[] = [];
+const importCaches = new Map<string, { raw: string | null; parsed: Playlist[] }>();
 
-export function loadImportedPublicPlaylists(): Playlist[] {
+/** Regular imports keep `…:imported-{playlistId}`, likes imports
+ *  `…:imported-likes-{accountId}` — two namespaces so a like snapshot can never
+ *  shadow a real imported playlist with the same numeric id. */
+const importedUrn = (playlist: Playlist): Playlist => ({
+  ...playlist,
+  urn: `soundcloud:playlists:imported-${playlist.id}`,
+});
+
+const importedLikesUrn = (playlist: Playlist): Playlist => ({
+  ...playlist,
+  urn: `soundcloud:playlists:imported-likes-${playlist.id}`,
+});
+
+function isImportedSnapshot(item: unknown): item is Playlist {
+  if (!item || typeof item !== 'object') return false;
+  const candidate = item as Partial<Playlist>;
+  return (
+    typeof candidate.urn === 'string' &&
+    typeof candidate.title === 'string' &&
+    Array.isArray(candidate.tracks) &&
+    !!candidate.user &&
+    typeof candidate.user === 'object'
+  );
+}
+
+function loadImportedStore(key: string, withUrn: (playlist: Playlist) => Playlist): Playlist[] {
   let raw: string | null = null;
   try {
-    raw = localStorage.getItem(IMPORTED_PLAYLISTS_KEY);
+    raw = localStorage.getItem(key);
   } catch {
     raw = null;
   }
-  if (raw === importedCacheRaw) return importedCache;
-  importedCacheRaw = raw;
+  const cached = importCaches.get(key);
+  if (cached && cached.raw === raw) return cached.parsed;
+  let lists: Playlist[];
   if (!raw) {
-    importedCache = [];
-    return importedCache;
+    lists = [];
+  } else {
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      lists = Array.isArray(parsed) ? parsed.filter(isImportedSnapshot).map(withUrn) : [];
+    } catch {
+      lists = [];
+    }
   }
+  importCaches.set(key, { raw, parsed: lists });
+  return lists;
+}
+
+function saveImportedStore(
+  key: string,
+  playlist: Playlist,
+  withUrn: (playlist: Playlist) => Playlist,
+): Playlist[] {
+  const normalized = withUrn(playlist);
   try {
-    const parsed: unknown = JSON.parse(raw);
-    importedCache = !Array.isArray(parsed)
-      ? []
-      : parsed
-          .filter((item): item is Playlist => {
-            if (!item || typeof item !== 'object') return false;
-            const candidate = item as Partial<Playlist>;
-            return (
-              typeof candidate.urn === 'string' &&
-              typeof candidate.title === 'string' &&
-              Array.isArray(candidate.tracks) &&
-              !!candidate.user &&
-              typeof candidate.user === 'object'
-            );
-          })
-          .map((playlist) => ({
-            ...playlist,
-            // Imported public playlists are local snapshots. Give them a local URN
-            // so generic playlist widgets never send these IDs to the API.
-            urn: `soundcloud:playlists:imported-${playlist.id}`,
-          }));
+    const existing = loadImportedStore(key, withUrn).filter((item) => item.id !== playlist.id);
+    const lists = [normalized, ...existing];
+    const stored = JSON.stringify(lists);
+    localStorage.setItem(key, stored);
+    importCaches.set(key, { raw: stored, parsed: lists });
+    return lists;
   } catch {
-    importedCache = [];
+    // Storage unavailable — the result stays in memory/state only.
+    return [normalized, ...loadImportedStore(key, withUrn)];
   }
-  return importedCache;
+}
+
+export function loadImportedPublicPlaylists(): Playlist[] {
+  return loadImportedStore(REGULAR_IMPORTS_KEY, importedUrn);
+}
+
+export function loadImportedLikesPlaylists(): Playlist[] {
+  return loadImportedStore(LIKES_IMPORTS_KEY, importedLikesUrn);
 }
 
 export function saveImportedPublicPlaylist(playlist: Playlist): Playlist[] {
-  const normalized = { ...playlist, urn: `soundcloud:playlists:imported-${playlist.id}` };
-  const playlists = [
-    normalized,
-    ...loadImportedPublicPlaylists().filter((item) => item.id !== playlist.id),
-  ];
-  try {
-    localStorage.setItem(IMPORTED_PLAYLISTS_KEY, JSON.stringify(playlists));
-    // Storage changed — drop the parse cache so the next load re-reads it.
-    importedCacheRaw = null;
-  } catch {}
-  return playlists;
+  return saveImportedStore(REGULAR_IMPORTS_KEY, playlist, importedUrn);
+}
+
+export function saveImportedLikesPlaylist(playlist: Playlist): Playlist[] {
+  return saveImportedStore(LIKES_IMPORTS_KEY, playlist, importedLikesUrn);
 }
 
 export function findImportedPublicPlaylist(playlistUrn: string | undefined): Playlist | undefined {
@@ -363,11 +392,15 @@ export function findImportedPublicPlaylist(playlistUrn: string | undefined): Pla
   try {
     normalizedUrn = decodeURIComponent(playlistUrn);
   } catch {}
-  const idMatch = normalizedUrn.match(/playlists:(?:imported-)?(\d+)$/);
+  // `soundcloud:playlists:{id}`, `…:imported-{id}` and `…:imported-likes-{id}`.
+  const idMatch = normalizedUrn.match(/playlists:(?:imported-(?:likes-)?)?(\d+)$/);
   const id = idMatch ? Number(idMatch[1]) : Number.NaN;
-  return loadImportedPublicPlaylists().find(
-    (playlist) => playlist.urn === normalizedUrn || (Number.isFinite(id) && playlist.id === id),
-  );
+  const isLikes = /playlists:imported-likes-\d+$/.test(normalizedUrn);
+  const matches = (playlist: Playlist) =>
+    playlist.urn === normalizedUrn || (Number.isFinite(id) && playlist.id === id);
+  const primary = isLikes ? loadImportedLikesPlaylists() : loadImportedPublicPlaylists();
+  const secondary = isLikes ? loadImportedPublicPlaylists() : loadImportedLikesPlaylists();
+  return primary.find(matches) ?? secondary.find(matches);
 }
 
 function assertSoundCloudUrl(reference: string): URL {
