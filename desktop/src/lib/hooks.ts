@@ -250,14 +250,20 @@ function usePagedQuery<T>(opts: PagedQueryOptions<T>): PagedQueryResult<T> {
     maxPages: opts.maxPages,
     enabled: opts.enabled,
     // The API can return HTTP 200 with an empty placeholder while it refreshes
-    // this user's cached collection. Keep polling instead of rendering that as
-    // a definitive empty result; the response supplies a suggested retry delay.
+    // this user's cached collection. Keep polling ONLY that placeholder instead
+    // of rendering it as a definitive empty result; the response supplies a
+    // suggested retry delay. A filled collection must NOT be polled: mirror
+    // collections can stay "refreshing" for a long time, and a periodic refetch
+    // replaces pages wholesale — dropping just-inserted optimistic likes and
+    // resurrecting unliked tracks. They update via pagination + mutations.
     refetchInterval: (q) => {
-      const refreshing = q.state.data?.pages.some((page) => page.sync?.status === 'refreshing');
+      const pages = q.state.data?.pages;
+      if (!pages || pages.some((page) => page.collection.length > 0)) return false;
+      const refreshing = pages.some((page) => page.sync?.status === 'refreshing');
       if (!refreshing) return false;
       if (q.state.dataUpdateCount >= MAX_COLLECTION_SYNC_POLLS) return false;
-      const retryAfter = q.state.data?.pages.find((page) => page.sync?.status === 'refreshing')
-        ?.sync?.retryAfterSeconds;
+      const retryAfter = pages.find((page) => page.sync?.status === 'refreshing')?.sync
+        ?.retryAfterSeconds;
       return Math.max(2, retryAfter ?? 5) * 1000;
     },
     // Списки рефрешатся только явными invalidate'ами из мутаций. Remount/
